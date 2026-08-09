@@ -7,6 +7,7 @@ import (
 
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/database"
+	"github.com/dzx941/3m-ui/backend/internal/mihomo"
 	"github.com/dzx941/3m-ui/backend/internal/router"
 )
 
@@ -30,6 +31,10 @@ func main() {
 	}
 	_ = db
 	log.Printf("Database initialized and migrated successfully at %s", cfg.Database.Path)
+
+	// 2.5. Initialize Mihomo Core service
+	mihomo.InitService(cfg)
+	log.Printf("Mihomo Core service initialized")
 
 	// 3. Setup router
 	r := router.SetupRouter(cfg)

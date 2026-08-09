@@ -1,0 +1,12 @@
+# Binaries
+server
+server.exe
+
+# SQLite database and dynamic config data
+data/
+backend/data/
+3m-ui.db
+
+# Logs
+*.log
+backend_run.log

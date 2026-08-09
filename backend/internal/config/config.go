@@ -28,8 +28,8 @@ type JWTConfig struct {
 }
 
 type MihomoConfig struct {
-	Path       string `yaml:"path"`
-	ConfigPath string `yaml:"config_path"`
+	Binary string `yaml:"binary"`
+	Config string `yaml:"config"`
 }
 
 var GlobalConfig *Config

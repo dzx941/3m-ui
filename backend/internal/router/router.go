@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/dzx941/3m-ui/backend/internal/config"
+	"github.com/dzx941/3m-ui/backend/internal/mihomo"
 	"github.com/gin-gonic/gin"
 )
 
@@ -38,6 +39,64 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				"status": "ok",
 			})
 		})
+
+		// Mihomo Core Management APIs
+		mihomoGroup := apiV1.Group("/mihomo")
+		{
+			mihomoGroup.GET("/status", func(c *gin.Context) {
+				status, err := mihomo.GlobalService.GetStatus()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, status)
+			})
+
+			mihomoGroup.POST("/start", func(c *gin.Context) {
+				err := mihomo.GlobalService.StartMihomo()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{
+					"status":  "ok",
+					"message": "Mihomo started",
+				})
+			})
+
+			mihomoGroup.POST("/stop", func(c *gin.Context) {
+				err := mihomo.GlobalService.StopMihomo()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{
+					"status":  "ok",
+					"message": "Mihomo stopped",
+				})
+			})
+
+			mihomoGroup.POST("/restart", func(c *gin.Context) {
+				err := mihomo.GlobalService.RestartMihomo()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{
+					"status":  "ok",
+					"message": "Mihomo restarted",
+				})
+			})
+
+			mihomoGroup.GET("/logs", func(c *gin.Context) {
+				logs, err := mihomo.GlobalService.GetLogs()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, logs)
+			})
+		}
 	}
 
 	return r
