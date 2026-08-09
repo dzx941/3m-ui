@@ -1,0 +1,13 @@
+server:
+  port: 8080
+  mode: "debug"
+
+database:
+  path: "backend/data/3m-ui.db"
+
+jwt:
+  secret: "3m-ui-default-jwt-secret-key-change-it-in-production"
+
+mihomo:
+  path: "/usr/local/bin/mihomo"
+  config_path: "/etc/mihomo/config.yaml"
