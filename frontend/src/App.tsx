@@ -25,6 +25,7 @@ const App: React.FC = () => {
               <Routes>
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="listeners" element={<Listeners />} />
+                <Route path="nodes" element={<Listeners />} />
                 <Route path="users" element={<Users />} />
                 <Route path="subscriptions" element={<Subscriptions />} />
                 <Route path="config" element={<Config />} />

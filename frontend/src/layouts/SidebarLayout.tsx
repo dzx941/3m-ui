@@ -27,9 +27,9 @@ const SidebarLayout: React.FC<SidebarLayoutProps> = ({ children }) => {
       label: <Link to="/dashboard">Dashboard</Link>,
     },
     {
-      key: '/listeners',
+      key: '/nodes',
       icon: <CloudServerOutlined />,
-      label: <Link to="/listeners">Listeners</Link>,
+      label: <Link to="/nodes">Nodes</Link>,
     },
     {
       key: '/users',

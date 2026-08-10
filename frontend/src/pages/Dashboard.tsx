@@ -231,7 +231,7 @@ const Dashboard: React.FC = () => {
         </Col>
       </Row>
 
-      {/* Row 2: Disk Progress, Network Rates, Listener Stats */}
+      {/* Row 2: Disk Progress, Network Rates, Node Stats */}
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         {/* Disk Progress */}
         <Col xs={24} md={12} lg={8}>
@@ -287,13 +287,13 @@ const Dashboard: React.FC = () => {
           </Card>
         </Col>
 
-        {/* Listener Stats */}
+        {/* Node Stats */}
         <Col xs={12} md={6} lg={8}>
           <Card
             title={
               <Space>
                 <CloudServerOutlined />
-                <span>Listener Distribution</span>
+                <span>Server Nodes</span>
               </Space>
             }
             bordered={false}
@@ -302,7 +302,7 @@ const Dashboard: React.FC = () => {
             <Row gutter={16} style={{ marginTop: 8 }}>
               <Col span={24} style={{ marginBottom: 12 }}>
                 <Statistic
-                  title="Total Inbound Nodes"
+                  title="Total Server Nodes"
                   value={data ? data.listeners.total : 0}
                   valueStyle={{ fontWeight: 'bold', fontSize: '24px' }}
                 />

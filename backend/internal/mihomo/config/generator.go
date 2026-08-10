@@ -1,10 +1,10 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
+	"github.com/dzx941/3m-ui/backend/internal/node"
 	"gorm.io/gorm"
 	"gopkg.in/yaml.v3"
 )
@@ -50,42 +50,12 @@ func (ce *ConfigEngine) GenerateFinalConfig() (string, error) {
 		}
 	}
 
-	// 3. Query active dynamic listeners and format into listeners block
+	// 3. Query active dynamic listeners (nodes) and format into listeners block
 	var dbListeners []models.Listener
 	if err := ce.db.Where("enabled = ?", true).Find(&dbListeners).Error; err == nil && len(dbListeners) > 0 {
-		var listenersList []map[string]interface{}
-		for _, dl := range dbListeners {
-			lm := map[string]interface{}{
-				"name":   dl.Name,
-				"type":   dl.Type,
-				"listen": dl.Listen,
-				"port":   dl.Port,
-			}
-			if dl.UDP {
-				lm["udp"] = true
-			}
-			if dl.Proxy != "" {
-				lm["proxy"] = dl.Proxy
-			}
-			if dl.Rule != "" {
-				lm["rule"] = dl.Rule
-			}
-			if dl.Config != "" {
-				var extra map[string]interface{}
-				if err := json.Unmarshal([]byte(dl.Config), &extra); err == nil {
-					for k, v := range extra {
-						lm[k] = v
-					}
-				} else {
-					var extraYaml map[string]interface{}
-					if err := yaml.Unmarshal([]byte(dl.Config), &extraYaml); err == nil {
-						for k, v := range extraYaml {
-							lm[k] = v
-						}
-					}
-				}
-			}
-			listenersList = append(listenersList, lm)
+		listenersList, err := node.GenerateMihomoListeners(dbListeners)
+		if err != nil {
+			return "", fmt.Errorf("failed to generate protocol listeners: %w", err)
 		}
 		merged["listeners"] = listenersList
 	}

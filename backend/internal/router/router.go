@@ -8,7 +8,7 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/database"
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
-	"github.com/dzx941/3m-ui/backend/internal/listener"
+	"github.com/dzx941/3m-ui/backend/internal/node"
 	"github.com/dzx941/3m-ui/backend/internal/mihomo"
 	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"github.com/dzx941/3m-ui/backend/internal/system"
@@ -58,7 +58,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			// 2. System performance metrics
 			sysStatus := system.GlobalService.GetStatus()
 
-			// 3. Listener Statistics
+			// 3. Listener (Server Node) Statistics
 			var totalCount, enabledCount, disabledCount int64
 			if database.GlobalDB != nil {
 				database.GlobalDB.Model(&models.Listener{}).Count(&totalCount)
@@ -141,10 +141,16 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			})
 		}
 
-		// Mihomo Inbound/Listener APIs
+		// Server Node management routes
+		nodeGroup := apiV1.Group("/nodes")
+		{
+			node.RegisterRoutes(nodeGroup)
+		}
+
+		// Mihomo Inbound/Listener APIs (backward-compatible, points to node package routes)
 		listenerGroup := apiV1.Group("/listeners")
 		{
-			listener.RegisterRoutes(listenerGroup)
+			node.RegisterRoutes(listenerGroup)
 		}
 
 		// Config Engine APIs
