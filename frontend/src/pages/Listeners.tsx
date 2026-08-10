@@ -33,9 +33,21 @@ interface NodeRecord {
   enabled: boolean;
   config: string;
   status: string;
+  connections?: number;
+  upload_bytes?: number;
+  download_bytes?: number;
 }
 
 const API_BASE = 'http://localhost:8080/api/v1';
+
+const formatBytes = (bytes?: number) => {
+  if (!bytes) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) { value /= 1024; i++; }
+  return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+};
 
 const Listeners: React.FC = () => {
   const [data, setData] = useState<NodeRecord[]>([]);
@@ -233,6 +245,22 @@ const Listeners: React.FC = () => {
       render: (tls: boolean) => (tls ? <Tag color="green">TLS</Tag> : <Tag color="default">Plain</Tag>),
     },
     {
+      title: 'Connections',
+      dataIndex: 'connections',
+      key: 'connections',
+      render: (conns?: number) => <Tag color={conns ? 'green' : 'default'}>{conns || 0} active</Tag>,
+    },
+    {
+      title: 'Traffic Stats',
+      key: 'traffic',
+      render: (_: any, record: NodeRecord) => (
+        <div style={{ fontSize: '12px' }}>
+          <span style={{ color: '#1890ff' }}>↑ {formatBytes(record.upload_bytes)}</span> |{' '}
+          <span style={{ color: '#52c41a' }}>↓ {formatBytes(record.download_bytes)}</span>
+        </div>
+      ),
+    },
+    {
       title: 'Status',
       dataIndex: 'enabled',
       key: 'enabled',
@@ -286,7 +314,7 @@ const Listeners: React.FC = () => {
         <div>
           <Title level={2} style={{ margin: 0 }}>Mihomo Server Nodes</Title>
           <Paragraph style={{ margin: 0 }}>
-            Manage server nodes, protocols, inbounds, security configurations, and credentials.
+            Manage server nodes, protocols, inbounds, security configurations, credentials, connections, and traffic statistics.
           </Paragraph>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenAdd}>

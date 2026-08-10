@@ -19,4 +19,8 @@ type ProxyUser struct {
 	TrafficUsed       int64     `gorm:"not null;default:0" json:"traffic_used"`
 	ExpireTime        time.Time `json:"expire_time"`
 	Enabled           bool      `gorm:"not null;default:true" json:"enabled"`
+	UploadBytes       int64     `gorm:"not null;default:0" json:"upload_bytes"`
+	DownloadBytes     int64     `gorm:"not null;default:0" json:"download_bytes"`
+	LastSeen          time.Time `json:"last_seen"`
+	Online            bool      `gorm:"not null;default:false" json:"online"`
 }

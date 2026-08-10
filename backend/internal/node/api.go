@@ -5,6 +5,8 @@ import (
 	"strconv"
 
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
+	"github.com/dzx941/3m-ui/backend/internal/mihomo/api"
+	"github.com/dzx941/3m-ui/backend/internal/traffic"
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,7 +26,42 @@ func ListNodes(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, list)
+
+	type NodeResponse struct {
+		models.Listener
+		Connections   int   `json:"connections"`
+		UploadBytes   int64 `json:"upload_bytes"`
+		DownloadBytes int64 `json:"download_bytes"`
+	}
+
+	var conns []api.Connection
+	if traffic.GlobalService != nil {
+		conns = traffic.GlobalService.GetConnections()
+	}
+
+	// Group connections by InboundName
+	connCount := make(map[string]int)
+	uploadBytes := make(map[string]int64)
+	downloadBytes := make(map[string]int64)
+
+	for _, conn := range conns {
+		name := conn.Metadata.InboundName
+		connCount[name]++
+		uploadBytes[name] += conn.Upload
+		downloadBytes[name] += conn.Download
+	}
+
+	result := make([]NodeResponse, 0, len(list))
+	for _, l := range list {
+		result = append(result, NodeResponse{
+			Listener:      l,
+			Connections:   connCount[l.Name],
+			UploadBytes:   uploadBytes[l.Name],
+			DownloadBytes: downloadBytes[l.Name],
+		})
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 func CreateNode(c *gin.Context) {

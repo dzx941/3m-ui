@@ -13,11 +13,22 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/node"
 	"github.com/dzx941/3m-ui/backend/internal/subscription"
 	"github.com/dzx941/3m-ui/backend/internal/system"
+	"github.com/dzx941/3m-ui/backend/internal/traffic"
 	"github.com/dzx941/3m-ui/backend/internal/user"
 	"github.com/gin-gonic/gin"
 )
 
 func SetupRouter(cfg *config.Config) *gin.Engine {
+	// Initialize Traffic Service and Scheduler on startup
+	traffic.InitService()
+	traffic.InitScheduler(cfg.Mihomo.Config, traffic.GlobalService)
+	traffic.GlobalScheduler.Start()
+
+	// Register the callback to avoid import cycles
+	if node.GlobalService != nil {
+		traffic.RegenerateConfigFunc = node.GlobalService.RegenerateConfig
+	}
+
 	if cfg.Server.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	} else {
@@ -69,6 +80,25 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				database.GlobalDB.Model(&models.Listener{}).Where("enabled = ?", false).Count(&disabledCount)
 			}
 
+			// 4. Traffic snapshot and metrics
+			var uploadRate, downloadRate, totalUpload, totalDownload int64
+			var onlineUsers, activeConnections int
+
+			if traffic.GlobalService != nil {
+				snapshot := traffic.GlobalService.GetSnapshot()
+				uploadRate = snapshot.UploadRate
+				downloadRate = snapshot.DownloadRate
+				totalUpload = snapshot.UploadBytes
+				totalDownload = snapshot.DownloadBytes
+				activeConnections = snapshot.Connections
+			}
+
+			if database.GlobalDB != nil {
+				var count int64
+				database.GlobalDB.Model(&models.ProxyUser{}).Where("online = ?", true).Count(&count)
+				onlineUsers = int(count)
+			}
+
 			c.JSON(http.StatusOK, gin.H{
 				"mihomo": mihomoStatus,
 				"system": sysStatus,
@@ -76,6 +106,14 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 					"total":    totalCount,
 					"enabled":  enabledCount,
 					"disabled": disabledCount,
+				},
+				"traffic": gin.H{
+					"uploadRate":        uploadRate,
+					"downloadRate":      downloadRate,
+					"totalUpload":       totalUpload,
+					"totalDownload":     totalDownload,
+					"onlineUsers":       onlineUsers,
+					"activeConnections": activeConnections,
 				},
 			})
 		})
@@ -149,6 +187,15 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		userGroup := apiV1.Group("/users")
 		{
 			user.RegisterRoutes(userGroup)
+		}
+
+		// Traffic Monitoring APIs
+		trafficGroup := apiV1.Group("/traffic")
+		{
+			handler := traffic.NewHandler(traffic.GlobalService)
+			trafficGroup.GET("/status", handler.Status)
+			trafficGroup.GET("/users", handler.Users)
+			trafficGroup.GET("/connections", handler.Connections)
 		}
 
 		// Server Node management routes

@@ -7,6 +7,7 @@ import (
 
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
 	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
+	"github.com/dzx941/3m-ui/backend/internal/traffic"
 	"gorm.io/gorm"
 )
 
@@ -22,6 +23,7 @@ func InitService(db *gorm.DB, configPath string) {
 		db:         db,
 		configPath: configPath,
 	}
+	traffic.RegenerateConfigFunc = GlobalService.RegenerateConfig
 }
 
 func (s *Service) Create(l *models.Listener) error {

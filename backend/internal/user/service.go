@@ -42,6 +42,8 @@ type UpdateInput struct {
 }
 
 type Credential struct {
+	ID       uint
+	Username string
 	Password string
 	UUID     string
 }
@@ -172,8 +174,9 @@ func (s *Service) BindListeners(userID uint, listenerIDs []uint) error {
 func (s *Service) GetListeners(userID uint) ([]models.Listener, error) {
 	var listeners []models.Listener
 	err := s.db.Table("listeners").
-		Joins("JOIN listener_users ON listener_users.listener_id = listeners.id").
+		Joins("JOIN listener_users ON listener_users.listener_id = listeners.id AND listener_users.deleted_at IS NULL").
 		Where("listener_users.proxy_user_id = ?", userID).
+		Where("listeners.deleted_at IS NULL").
 		Order("listeners.id").
 		Find(&listeners).Error
 	return listeners, err
@@ -205,7 +208,12 @@ func (s *Service) ActiveCredentialsByListener() (map[uint][]Credential, error) {
 		if err != nil {
 			return nil, fmt.Errorf("decrypt proxy user %d password: %w", u.ID, err)
 		}
-		result[row.ListenerID] = append(result[row.ListenerID], Credential{Password: password, UUID: u.UUID})
+		result[row.ListenerID] = append(result[row.ListenerID], Credential{
+			ID:       u.ID,
+			Username: u.Username,
+			Password: password,
+			UUID:     u.UUID,
+		})
 	}
 	return result, nil
 }
@@ -218,17 +226,33 @@ func safeMask(s string) string {
 }
 
 type SafeUser struct {
-	ID           uint      `json:"id"`
-	Username     string    `json:"username"`
-	UUIDMasked   string    `json:"uuid_masked"`
-	TrafficLimit int64     `json:"traffic_limit"`
-	TrafficUsed  int64     `json:"traffic_used"`
-	ExpireTime   time.Time `json:"expire_time"`
-	Enabled      bool      `json:"enabled"`
+	ID            uint      `json:"id"`
+	Username      string    `json:"username"`
+	UUIDMasked    string    `json:"uuid_masked"`
+	TrafficLimit  int64     `json:"traffic_limit"`
+	TrafficUsed   int64     `json:"traffic_used"`
+	ExpireTime    time.Time `json:"expire_time"`
+	Enabled       bool      `json:"enabled"`
+	UploadBytes   int64     `json:"upload_bytes"`
+	DownloadBytes int64     `json:"download_bytes"`
+	LastSeen      time.Time `json:"last_seen"`
+	Online        bool      `json:"online"`
 }
 
 func ToSafeUser(u *models.ProxyUser) SafeUser {
-	return SafeUser{ID: u.ID, Username: u.Username, UUIDMasked: safeMask(u.UUID), TrafficLimit: u.TrafficLimit, TrafficUsed: u.TrafficUsed, ExpireTime: u.ExpireTime, Enabled: u.Enabled}
+	return SafeUser{
+		ID:            u.ID,
+		Username:      u.Username,
+		UUIDMasked:    safeMask(u.UUID),
+		TrafficLimit:  u.TrafficLimit,
+		TrafficUsed:   u.TrafficUsed,
+		ExpireTime:    u.ExpireTime,
+		Enabled:       u.Enabled,
+		UploadBytes:   u.UploadBytes,
+		DownloadBytes: u.DownloadBytes,
+		LastSeen:      u.LastSeen,
+		Online:        u.Online,
+	}
 }
 
 func encryptPassword(plain string) (string, error) { return security.Encrypt(plain) }

@@ -3,36 +3,69 @@ package traffic
 import (
 	"sync"
 	"time"
+
+	"github.com/dzx941/3m-ui/backend/internal/mihomo/api"
 )
 
 type Service struct {
-	mu sync.Mutex
-	last Snapshot
+	mu       sync.Mutex
+	last     Snapshot
 	lastTime time.Time
+	conns    []api.Connection
+}
+
+var GlobalService *Service
+
+func InitService() {
+	GlobalService = NewService()
 }
 
 func NewService() *Service {
-	return &Service{lastTime: time.Now()}
+	return &Service{
+		lastTime: time.Now(),
+		conns:    make([]api.Connection, 0),
+	}
 }
 
-func (s *Service) Update(totalUpload, totalDownload int64, connections int) Snapshot {
+func (s *Service) Update(totalUpload, totalDownload int64, connections int, apiConns []api.Connection) Snapshot {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	now := time.Now()
-	seconds := now.Sub(s.lastTime).Seconds()
 	result := Snapshot{
-		UploadBytes: totalUpload,
+		UploadBytes:   totalUpload,
 		DownloadBytes: totalDownload,
-		Connections: connections,
-	}
-
-	if seconds > 0 {
-		result.UploadRate = int64(float64(totalUpload-s.last.UploadBytes) / seconds)
-		result.DownloadRate = int64(float64(totalDownload-s.last.DownloadBytes) / seconds)
+		Connections:   connections,
+		UploadRate:    s.last.UploadRate,
+		DownloadRate:  s.last.DownloadRate,
 	}
 
 	s.last = result
 	s.lastTime = now
+	s.conns = apiConns
 	return result
+}
+
+func (s *Service) SetRates(upRate, downRate int64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.last.UploadRate = upRate
+	s.last.DownloadRate = downRate
+}
+
+func (s *Service) GetSnapshot() Snapshot {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.last
+}
+
+func (s *Service) GetConnections() []api.Connection {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.conns == nil {
+		return []api.Connection{}
+	}
+	copied := make([]api.Connection, len(s.conns))
+	copy(copied, s.conns)
+	return copied
 }

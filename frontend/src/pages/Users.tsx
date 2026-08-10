@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   Typography, Table, Button, Space, Tag, Modal, Form, Input, InputNumber,
-  Switch, DatePicker, Select, message, Popconfirm, Progress,
+  Switch, DatePicker, Select, message, Popconfirm, Progress, Badge
 } from 'antd';
 import { UserAddOutlined, EditOutlined, DeleteOutlined, LinkOutlined } from '@ant-design/icons';
 import dayjs, { Dayjs } from 'dayjs';
@@ -17,6 +17,10 @@ interface ProxyUser {
   traffic_used: number;
   expire_time: string;
   enabled: boolean;
+  upload_bytes: number;
+  download_bytes: number;
+  last_seen: string;
+  online: boolean;
 }
 
 interface Node {
@@ -32,7 +36,7 @@ interface Node {
 }
 
 const formatBytes = (bytes: number) => {
-  if (!bytes) return 'Unlimited';
+  if (!bytes && bytes !== 0) return 'Unlimited';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let value = bytes;
   let i = 0;
@@ -81,11 +85,12 @@ const Users: React.FC = () => {
 
   const openEdit = (u: ProxyUser) => {
     setEditing(u);
+    form.resetFields();
     form.setFieldsValue({
       username: u.username,
       traffic_limit: u.traffic_limit,
       enabled: u.enabled,
-      expire_time: u.expire_time ? dayjs(u.expire_time) : undefined,
+      expire_time: u.expire_time && !dayjs(u.expire_time).isBefore(dayjs('1971-01-01')) ? dayjs(u.expire_time) : undefined,
     });
     setModalOpen(true);
   };
@@ -148,33 +153,79 @@ const Users: React.FC = () => {
   };
 
   const columns = [
+    {
+      title: 'Online',
+      key: 'online',
+      width: 90,
+      render: (_: unknown, u: ProxyUser) => {
+        return u.online ? (
+          <Badge status="processing" text="Online" style={{ color: '#52c41a', fontWeight: 'bold' }} />
+        ) : (
+          <Badge status="default" text="Offline" style={{ color: '#8c8c8c' }} />
+        );
+      }
+    },
     { title: 'Username', dataIndex: 'username', key: 'username' },
     { title: 'UUID', dataIndex: 'uuid_masked', key: 'uuid_masked' },
     {
-      title: 'Traffic',
+      title: 'Traffic Stats',
       key: 'traffic',
       render: (_: unknown, u: ProxyUser) => {
         const percent = u.traffic_limit ? Math.min(100, (u.traffic_used / u.traffic_limit) * 100) : 0;
+        const remaining = u.traffic_limit > 0 ? Math.max(0, u.traffic_limit - u.traffic_used) : null;
         return (
-          <div style={{ minWidth: 150 }}>
-            <div>{formatBytes(u.traffic_used)} / {formatBytes(u.traffic_limit)}</div>
+          <div style={{ minWidth: 200, fontSize: '12px' }}>
+            <div>
+              <strong>Used:</strong> {formatBytes(u.traffic_used)} / {formatBytes(u.traffic_limit)}
+            </div>
+            <div>
+              <span style={{ color: '#1890ff' }}>↑ {formatBytes(u.upload_bytes || 0)}</span> |{' '}
+              <span style={{ color: '#52c41a' }}>↓ {formatBytes(u.download_bytes || 0)}</span>
+            </div>
+            {remaining !== null && (
+              <div style={{ color: remaining < 1024 * 1024 * 1024 ? 'red' : 'inherit' }}>
+                <strong>Remaining:</strong> {formatBytes(remaining)}
+              </div>
+            )}
             {u.traffic_limit > 0 && <Progress percent={Number(percent.toFixed(1))} size="small" showInfo={false} />}
           </div>
         );
       },
     },
     {
+      title: 'Last Seen',
+      key: 'last_seen',
+      render: (_: unknown, u: ProxyUser) => {
+        if (!u.last_seen || dayjs(u.last_seen).year() <= 1970) {
+          return 'Never';
+        }
+        return dayjs(u.last_seen).format('YYYY-MM-DD HH:mm:ss');
+      }
+    },
+    {
       title: 'Expire',
       dataIndex: 'expire_time',
       key: 'expire_time',
-      render: (v: string) => v ? dayjs(v).format('YYYY-MM-DD HH:mm') : 'Never',
+      render: (v: string) => {
+        if (!v || dayjs(v).year() <= 1970) {
+          return 'Never';
+        }
+        return dayjs(v).format('YYYY-MM-DD HH:mm');
+      },
     },
     {
       title: 'Status',
       key: 'status',
       render: (_: unknown, u: ProxyUser) => {
-        const expired = u.expire_time && dayjs(u.expire_time).isBefore(dayjs());
-        return <Tag color={!u.enabled ? 'default' : expired ? 'red' : 'green'}>{!u.enabled ? 'Disabled' : expired ? 'Expired' : 'Active'}</Tag>;
+        const expired = u.expire_time && dayjs(u.expire_time).year() > 1970 && dayjs(u.expire_time).isBefore(dayjs());
+        const overlimit = u.traffic_limit > 0 && u.traffic_used >= u.traffic_limit;
+        return (
+          <Space direction="vertical" size={4}>
+            <Tag color={!u.enabled ? 'default' : expired ? 'red' : overlimit ? 'warning' : 'green'}>
+              {!u.enabled ? 'Disabled' : expired ? 'Expired' : overlimit ? 'Exceeded' : 'Active'}
+            </Tag>
+          </Space>
+        );
       },
     },
     {
@@ -197,7 +248,7 @@ const Users: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <Title level={2} style={{ margin: 0 }}>Proxy Users</Title>
-          <Paragraph style={{ margin: 0 }}>Manage credentials and node access for Mihomo users.</Paragraph>
+          <Paragraph style={{ margin: 0 }}>Manage credentials, detailed traffic statistics, online status, and node access for Mihomo users.</Paragraph>
         </div>
         <Button type="primary" icon={<UserAddOutlined />} onClick={openCreate}>Create User</Button>
       </div>
