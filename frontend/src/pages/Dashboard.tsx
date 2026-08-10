@@ -1,50 +1,84 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Typography, Row, Col, Statistic, Button, Space, Tag, message, Descriptions } from 'antd';
+import { Card, Typography, Row, Col, Statistic, Button, Space, Tag, message, Progress } from 'antd';
 import {
   DesktopOutlined,
-  TeamOutlined,
-  CloudServerOutlined,
   PlayCircleOutlined,
   StopOutlined,
   ReloadOutlined,
+  CloudServerOutlined,
+  DashboardOutlined,
+  CloudUploadOutlined,
+  CloudDownloadOutlined,
 } from '@ant-design/icons';
 
 const { Title, Paragraph } = Typography;
 
-interface MihomoStatus {
-  running: boolean;
-  version: string;
-  pid: number;
-  uptime: string;
+interface DashboardData {
+  mihomo: {
+    running: boolean;
+    version: string;
+    pid: number;
+    uptime: string;
+  };
+  system: {
+    cpu: {
+      percent: number;
+    };
+    memory: {
+      used: number;
+      total: number;
+      percent: number;
+    };
+    disk: {
+      used: number;
+      total: number;
+      percent: number;
+    };
+    network: {
+      upload: number;
+      download: number;
+    };
+  };
+  listeners: {
+    total: number;
+    enabled: number;
+    disabled: number;
+  };
 }
 
+const API_BASE = 'http://localhost:8080/api/v1';
+
+const formatRate = (bytesPerSec: number): string => {
+  if (!bytesPerSec || bytesPerSec === 0) return '0 B/s';
+  if (bytesPerSec < 1024) return `${bytesPerSec.toFixed(0)} B/s`;
+  if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
+  return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+};
+
 const Dashboard: React.FC = () => {
-  const [status, setStatus] = useState<MihomoStatus | null>(null);
+  const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
-  // Base URL of backend API
-  const API_BASE = 'http://localhost:8080/api/v1';
-
-  const fetchStatus = async () => {
+  const fetchDashboardData = async () => {
     try {
-      const res = await fetch(`${API_BASE}/mihomo/status`);
+      const res = await fetch(`${API_BASE}/dashboard`);
       if (!res.ok) {
         throw new Error(`HTTP error! status: ${res.status}`);
       }
-      const data: MihomoStatus = await res.json();
-      setStatus(data);
+      const result: DashboardData = await res.json();
+      setData(result);
       setErrorMsg('');
     } catch (err: any) {
       setErrorMsg('Backend service unreachable');
-      setStatus(null);
+      setData(null);
     }
   };
 
   useEffect(() => {
-    fetchStatus();
-    // Poll every 3 seconds
-    const interval = setInterval(fetchStatus, 3000);
+    fetchDashboardData();
+    // Poll every 10 seconds (optimized for lower server load)
+    const interval = setInterval(fetchDashboardData, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -54,12 +88,12 @@ const Dashboard: React.FC = () => {
       const res = await fetch(`${API_BASE}/mihomo/${action}`, {
         method: 'POST',
       });
-      const data = await res.json();
+      const resData = await res.json();
       if (res.ok) {
         message.success(`Mihomo Core ${action}ed successfully!`);
-        await fetchStatus();
+        await fetchDashboardData();
       } else {
-        message.error(data.error || `Failed to ${action} Mihomo Core.`);
+        message.error(resData.error || `Failed to ${action} Mihomo Core.`);
       }
     } catch (err) {
       message.error(`Connection failed while trying to ${action} Mihomo.`);
@@ -68,102 +102,227 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const isMihomoRunning = data?.mihomo.running || false;
+
   return (
     <div>
       <Title level={2}>Dashboard</Title>
       <Paragraph>
-        Welcome to the 3m-ui management panel dashboard. View and control the status of your Mihomo Core service.
+        Welcome to the 3m-ui management panel dashboard. Monitor VPS resources, network, and control the status of Mihomo Core in real time.
       </Paragraph>
 
+      {/* Row 1: Mihomo Control, CPU Progress, Memory Progress */}
       <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
-        {/* Core Status Card */}
-        <Col xs={24} lg={16}>
+        {/* Mihomo Control */}
+        <Col xs={24} md={12} lg={8}>
           <Card
             title={
               <Space>
                 <DesktopOutlined />
-                <span>Mihomo Core Service Control</span>
+                <span>Mihomo Control</span>
               </Space>
             }
             bordered={false}
             extra={
               errorMsg ? (
                 <Tag color="warning">{errorMsg}</Tag>
-              ) : status?.running ? (
+              ) : isMihomoRunning ? (
                 <Tag color="success">Running</Tag>
               ) : (
                 <Tag color="error">Stopped</Tag>
               )
             }
+            style={{ height: '100%' }}
           >
-            <div style={{ marginBottom: 24 }}>
-              <Descriptions bordered column={{ xs: 1, sm: 2 }}>
-                <Descriptions.Item label="Service Status">
-                  {status?.running ? (
-                    <span style={{ color: '#52c41a', fontWeight: 'bold' }}>Active</span>
-                  ) : (
-                    <span style={{ color: '#ff4d4f', fontWeight: 'bold' }}>Inactive</span>
-                  )}
-                </Descriptions.Item>
-                <Descriptions.Item label="PID">
-                  {status?.running ? status.pid : 'N/A'}
-                </Descriptions.Item>
-                <Descriptions.Item label="Uptime">
-                  {status?.running ? status.uptime : '0s'}
-                </Descriptions.Item>
-                <Descriptions.Item label="Core Version">
-                  {status ? status.version : 'Unknown'}
-                </Descriptions.Item>
-              </Descriptions>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: '13px', color: '#8c8c8c', marginBottom: 4 }}>
+                PID: <strong style={{ color: '#595959' }}>{isMihomoRunning ? data?.mihomo.pid : 'N/A'}</strong>
+              </div>
+              <div style={{ fontSize: '13px', color: '#8c8c8c', marginBottom: 4 }}>
+                Uptime: <strong style={{ color: '#595959' }}>{isMihomoRunning ? data?.mihomo.uptime : '0s'}</strong>
+              </div>
+              <div style={{ fontSize: '13px', color: '#8c8c8c' }}>
+                Version: <strong style={{ color: '#595959' }}>{data ? data.mihomo.version : 'Unknown'}</strong>
+              </div>
             </div>
 
             <Space size="middle">
-              <Button
-                type="primary"
-                icon={<PlayCircleOutlined />}
-                disabled={status?.running || loading}
-                onClick={() => handleAction('start')}
-              >
-                Start
-              </Button>
-              <Button
-                type="primary"
-                danger
-                icon={<StopOutlined />}
-                disabled={!status?.running || loading}
-                onClick={() => handleAction('stop')}
-              >
-                Stop
-              </Button>
-              <Button
-                icon={<ReloadOutlined />}
-                disabled={loading}
-                onClick={() => handleAction('restart')}
-              >
-                Restart
-              </Button>
+              {!isMihomoRunning ? (
+                <Button
+                  type="primary"
+                  icon={<PlayCircleOutlined />}
+                  loading={loading}
+                  onClick={() => handleAction('start')}
+                >
+                  Start
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    type="primary"
+                    danger
+                    icon={<StopOutlined />}
+                    loading={loading}
+                    onClick={() => handleAction('stop')}
+                  >
+                    Stop
+                  </Button>
+                  <Button
+                    icon={<ReloadOutlined />}
+                    loading={loading}
+                    onClick={() => handleAction('restart')}
+                  >
+                    Restart
+                  </Button>
+                </>
+              )}
             </Space>
           </Card>
         </Col>
 
-        {/* Info Cards Side panel */}
-        <Col xs={24} lg={8}>
-          <Space direction="vertical" style={{ width: '100%' }} size="middle">
-            <Card bordered={false}>
+        {/* CPU Progress */}
+        <Col xs={12} md={6} lg={8}>
+          <Card
+            title={
+              <Space>
+                <DashboardOutlined />
+                <span>CPU Allocation</span>
+              </Space>
+            }
+            bordered={false}
+            style={{ height: '100%', textAlign: 'center' }}
+          >
+            <Progress
+              type="circle"
+              percent={data ? data.system.cpu.percent : 0}
+              width={90}
+              strokeColor={{
+                '0%': '#108ee9',
+                '100%': '#87d068',
+              }}
+            />
+            <div style={{ marginTop: 8, fontWeight: 'bold' }}>CPU Usage</div>
+          </Card>
+        </Col>
+
+        {/* Memory Progress */}
+        <Col xs={12} md={6} lg={8}>
+          <Card
+            title={
+              <Space>
+                <DashboardOutlined />
+                <span>Memory (RAM)</span>
+              </Space>
+            }
+            bordered={false}
+            style={{ height: '100%', textAlign: 'center' }}
+          >
+            <Progress
+              type="circle"
+              percent={data ? data.system.memory.percent : 0}
+              width={90}
+              status="normal"
+            />
+            <div style={{ marginTop: 8, fontWeight: 'bold' }}>Memory Usage</div>
+            <div style={{ fontSize: '12px', color: '#8c8c8c' }}>
+              {data ? `${data.system.memory.used.toFixed(0)} / ${data.system.memory.total.toFixed(0)} MB` : '0 / 0 MB'}
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Row 2: Disk Progress, Network Rates, Listener Stats */}
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        {/* Disk Progress */}
+        <Col xs={24} md={12} lg={8}>
+          <Card
+            title={
+              <Space>
+                <DashboardOutlined />
+                <span>Disk Storage</span>
+              </Space>
+            }
+            bordered={false}
+            style={{ height: '100%', textAlign: 'center' }}
+          >
+            <Progress
+              type="circle"
+              percent={data ? data.system.disk.percent : 0}
+              width={90}
+              status="normal"
+            />
+            <div style={{ marginTop: 8, fontWeight: 'bold' }}>Disk Storage</div>
+            <div style={{ fontSize: '12px', color: '#8c8c8c' }}>
+              {data ? `${data.system.disk.used.toFixed(1)} / ${data.system.disk.total.toFixed(1)} GB` : '0 / 0 GB'}
+            </div>
+          </Card>
+        </Col>
+
+        {/* Network Rates */}
+        <Col xs={12} md={6} lg={8}>
+          <Card
+            title={
+              <Space>
+                <CloudUploadOutlined />
+                <span>Real-time Network Rate</span>
+              </Space>
+            }
+            bordered={false}
+            style={{ height: '100%' }}
+          >
+            <Space direction="vertical" size="middle" style={{ width: '100%', marginTop: 8 }}>
               <Statistic
-                title="Active Listeners"
-                value={0}
-                prefix={<CloudServerOutlined />}
+                title="Upload Speed"
+                value={data ? formatRate(data.system.network.upload) : '0 B/s'}
+                prefix={<CloudUploadOutlined style={{ color: '#1890ff' }} />}
+                valueStyle={{ fontSize: '18px', fontWeight: 'bold' }}
               />
-            </Card>
-            <Card bordered={false}>
               <Statistic
-                title="Total Users"
-                value={0}
-                prefix={<TeamOutlined />}
+                title="Download Speed"
+                value={data ? formatRate(data.system.network.download) : '0 B/s'}
+                prefix={<CloudDownloadOutlined style={{ color: '#52c41a' }} />}
+                valueStyle={{ fontSize: '18px', fontWeight: 'bold' }}
               />
-            </Card>
-          </Space>
+            </Space>
+          </Card>
+        </Col>
+
+        {/* Listener Stats */}
+        <Col xs={12} md={6} lg={8}>
+          <Card
+            title={
+              <Space>
+                <CloudServerOutlined />
+                <span>Listener Distribution</span>
+              </Space>
+            }
+            bordered={false}
+            style={{ height: '100%' }}
+          >
+            <Row gutter={16} style={{ marginTop: 8 }}>
+              <Col span={24} style={{ marginBottom: 12 }}>
+                <Statistic
+                  title="Total Inbound Nodes"
+                  value={data ? data.listeners.total : 0}
+                  valueStyle={{ fontWeight: 'bold', fontSize: '24px' }}
+                />
+              </Col>
+              <Col span={12}>
+                <Statistic
+                  title="Active"
+                  value={data ? data.listeners.enabled : 0}
+                  valueStyle={{ color: '#3f8600', fontSize: '18px' }}
+                />
+              </Col>
+              <Col span={12}>
+                <Statistic
+                  title="Disabled"
+                  value={data ? data.listeners.disabled : 0}
+                  valueStyle={{ color: '#cf1322', fontSize: '18px' }}
+                />
+              </Col>
+            </Row>
+          </Card>
         </Col>
       </Row>
     </div>

@@ -7,9 +7,11 @@ import (
 
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/database"
+	"github.com/dzx941/3m-ui/backend/internal/database/models"
 	"github.com/dzx941/3m-ui/backend/internal/listener"
 	"github.com/dzx941/3m-ui/backend/internal/mihomo"
 	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
+	"github.com/dzx941/3m-ui/backend/internal/system"
 	"github.com/gin-gonic/gin"
 )
 
@@ -44,6 +46,42 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				"status": "ok",
 			})
 		})
+
+		// Unified Dashboard Aggregator Endpoint
+		apiV1.GET("/dashboard", func(c *gin.Context) {
+			// 1. Mihomo core status
+			mihomoStatus, err := mihomo.GlobalService.GetStatus()
+			if err != nil {
+				mihomoStatus = &mihomo.StatusResponse{Running: false, Version: "unknown", PID: 0, Uptime: "0s"}
+			}
+
+			// 2. System performance metrics
+			sysStatus := system.GlobalService.GetStatus()
+
+			// 3. Listener Statistics
+			var totalCount, enabledCount, disabledCount int64
+			if database.GlobalDB != nil {
+				database.GlobalDB.Model(&models.Listener{}).Count(&totalCount)
+				database.GlobalDB.Model(&models.Listener{}).Where("enabled = ?", true).Count(&enabledCount)
+				database.GlobalDB.Model(&models.Listener{}).Where("enabled = ?", false).Count(&disabledCount)
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"mihomo": mihomoStatus,
+				"system": sysStatus,
+				"listeners": gin.H{
+					"total":    totalCount,
+					"enabled":  enabledCount,
+					"disabled": disabledCount,
+				},
+			})
+		})
+
+		// System Performance APIs
+		systemGroup := apiV1.Group("/system")
+		{
+			system.RegisterRoutes(systemGroup)
+		}
 
 		// Mihomo Core Management APIs
 		mihomoGroup := apiV1.Group("/mihomo")

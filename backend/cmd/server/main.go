@@ -10,6 +10,7 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/listener"
 	"github.com/dzx941/3m-ui/backend/internal/mihomo"
 	"github.com/dzx941/3m-ui/backend/internal/router"
+	"github.com/dzx941/3m-ui/backend/internal/system"
 )
 
 func main() {
@@ -40,6 +41,10 @@ func main() {
 	// 2.6. Initialize Listener Service
 	listener.InitService(database.GlobalDB, cfg.Mihomo.Config)
 	log.Printf("Listener service initialized")
+
+	// 2.7. Initialize System Stats Service
+	system.InitService()
+	log.Printf("System stats service initialized")
 
 	// 3. Setup router
 	r := router.SetupRouter(cfg)
