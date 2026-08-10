@@ -2,10 +2,14 @@ package router
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/dzx941/3m-ui/backend/internal/config"
+	"github.com/dzx941/3m-ui/backend/internal/database"
 	"github.com/dzx941/3m-ui/backend/internal/listener"
 	"github.com/dzx941/3m-ui/backend/internal/mihomo"
+	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"github.com/gin-gonic/gin"
 )
 
@@ -103,6 +107,84 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		listenerGroup := apiV1.Group("/listeners")
 		{
 			listener.RegisterRoutes(listenerGroup)
+		}
+
+		// Config Engine APIs
+		configGroup := apiV1.Group("/config")
+		{
+			configGroup.GET("", func(c *gin.Context) {
+				engine := mihomoConfig.NewConfigEngine(database.GlobalDB)
+				yamlStr, err := engine.GenerateFinalConfig()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{
+					"config": yamlStr,
+				})
+			})
+
+			configGroup.POST("/generate", func(c *gin.Context) {
+				engine := mihomoConfig.NewConfigEngine(database.GlobalDB)
+				yamlStr, err := engine.GenerateFinalConfig()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				// Write config to designated path
+				dir := filepath.Dir(cfg.Mihomo.Config)
+				if err := os.MkdirAll(dir, 0755); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				if err := os.WriteFile(cfg.Mihomo.Config, []byte(yamlStr), 0644); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				c.JSON(http.StatusOK, gin.H{
+					"status":  "ok",
+					"message": "Configuration generated and written successfully",
+				})
+			})
+
+			configGroup.POST("/validate", func(c *gin.Context) {
+				var req struct {
+					Config string `json:"config"`
+				}
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+					return
+				}
+
+				err := mihomoConfig.ValidateConfigYAML(req.Config)
+				if err != nil {
+					c.JSON(http.StatusOK, gin.H{
+						"valid": false,
+						"error": err.Error(),
+					})
+					return
+				}
+
+				c.JSON(http.StatusOK, gin.H{
+					"valid": true,
+				})
+			})
+
+			configGroup.GET("/download", func(c *gin.Context) {
+				// Generate dynamically or serve existing file. Best practice: generate latest dynamically!
+				engine := mihomoConfig.NewConfigEngine(database.GlobalDB)
+				yamlStr, err := engine.GenerateFinalConfig()
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				c.Header("Content-Disposition", "attachment; filename=config.yaml")
+				c.Data(http.StatusOK, "application/yaml", []byte(yamlStr))
+			})
 		}
 	}
 
