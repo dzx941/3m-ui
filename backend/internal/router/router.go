@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/dzx941/3m-ui/backend/internal/config"
+	"github.com/dzx941/3m-ui/backend/internal/listener"
 	"github.com/dzx941/3m-ui/backend/internal/mihomo"
 	"github.com/gin-gonic/gin"
 )
@@ -96,6 +97,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				}
 				c.JSON(http.StatusOK, logs)
 			})
+		}
+
+		// Mihomo Inbound/Listener APIs
+		listenerGroup := apiV1.Group("/listeners")
+		{
+			listener.RegisterRoutes(listenerGroup)
 		}
 	}
 

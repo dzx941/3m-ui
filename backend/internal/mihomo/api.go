@@ -1,6 +1,8 @@
 package mihomo
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -25,12 +27,60 @@ func NewExternalControllerAPI(baseURL, secret string) *ExternalControllerAPI {
 
 // GetConfig fetches the current configuration from Mihomo's external API
 func (api *ExternalControllerAPI) GetConfig() (string, error) {
-	// For now, return placeholder or perform http request if service is running
-	return "{}", nil
+	req, err := http.NewRequest("GET", api.BaseURL+"/configs", nil)
+	if err != nil {
+		return "", err
+	}
+
+	if api.Secret != "" {
+		req.Header.Set("Authorization", "Bearer "+api.Secret)
+	}
+
+	resp, err := api.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("mihomo core API offline: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("unexpected status: %s", resp.Status)
+	}
+
+	var data map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return "", err
+	}
+
+	bytesData, _ := json.MarshalIndent(data, "", "  ")
+	return string(bytesData), nil
 }
 
-// ReloadConfig sends a POST request to trigger config reload in Mihomo
+// ReloadConfig sends a PUT request to trigger config reload in Mihomo Core
 func (api *ExternalControllerAPI) ReloadConfig(payload map[string]interface{}) error {
-	// For future implementation
-	return fmt.Errorf("not implemented yet")
+	bodyBytes, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("PUT", api.BaseURL+"/configs?force=true", bytes.NewBuffer(bodyBytes))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if api.Secret != "" {
+		req.Header.Set("Authorization", "Bearer "+api.Secret)
+	}
+
+	resp, err := api.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("mihomo core API offline: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("failed to reload, status: %s", resp.Status)
+	}
+
+	return nil
 }
