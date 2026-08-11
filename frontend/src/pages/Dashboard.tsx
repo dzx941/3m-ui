@@ -9,6 +9,8 @@ import {
   DashboardOutlined,
   CloudUploadOutlined,
   CloudDownloadOutlined,
+  TeamOutlined,
+  ApiOutlined,
 } from '@ant-design/icons';
 
 const { Title, Paragraph } = Typography;
@@ -44,6 +46,14 @@ interface DashboardData {
     enabled: number;
     disabled: number;
   };
+  traffic: {
+    uploadRate: number;
+    downloadRate: number;
+    totalUpload: number;
+    totalDownload: number;
+    onlineUsers: number;
+    activeConnections: number;
+  };
 }
 
 const API_BASE = 'http://localhost:8080/api/v1';
@@ -53,6 +63,15 @@ const formatRate = (bytesPerSec: number): string => {
   if (bytesPerSec < 1024) return `${bytesPerSec.toFixed(0)} B/s`;
   if (bytesPerSec < 1024 * 1024) return `${(bytesPerSec / 1024).toFixed(1)} KB/s`;
   return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+};
+
+const formatBytes = (bytes: number): string => {
+  if (!bytes || bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) { value /= 1024; i++; }
+  return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
 };
 
 const Dashboard: React.FC = () => {
@@ -319,6 +338,100 @@ const Dashboard: React.FC = () => {
                   title="Disabled"
                   value={data ? data.listeners.disabled : 0}
                   valueStyle={{ color: '#cf1322', fontSize: '18px' }}
+                />
+              </Col>
+            </Row>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Row 3: Mihomo Traffic Rate, Cumulative Totals, Online Users / Connections */}
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        {/* Mihomo Traffic Rate */}
+        <Col xs={24} md={12} lg={8}>
+          <Card
+            title={
+              <Space>
+                <ApiOutlined />
+                <span>Mihomo Traffic Rate</span>
+              </Space>
+            }
+            bordered={false}
+            style={{ height: '100%' }}
+          >
+            <Space direction="vertical" size="middle" style={{ width: '100%', marginTop: 8 }}>
+              <Statistic
+                title="Upload Speed"
+                value={data ? formatRate(data.traffic.uploadRate) : '0 B/s'}
+                prefix={<CloudUploadOutlined style={{ color: '#1890ff' }} />}
+                valueStyle={{ fontSize: '18px', fontWeight: 'bold' }}
+              />
+              <Statistic
+                title="Download Speed"
+                value={data ? formatRate(data.traffic.downloadRate) : '0 B/s'}
+                prefix={<CloudDownloadOutlined style={{ color: '#52c41a' }} />}
+                valueStyle={{ fontSize: '18px', fontWeight: 'bold' }}
+              />
+            </Space>
+          </Card>
+        </Col>
+
+        {/* Cumulative Traffic Totals */}
+        <Col xs={24} md={12} lg={8}>
+          <Card
+            title={
+              <Space>
+                <DashboardOutlined />
+                <span>Cumulative Traffic</span>
+              </Space>
+            }
+            bordered={false}
+            style={{ height: '100%' }}
+          >
+            <Space direction="vertical" size="middle" style={{ width: '100%', marginTop: 8 }}>
+              <Statistic
+                title="Total Upload"
+                value={data ? formatBytes(data.traffic.totalUpload) : '0 B'}
+                prefix={<CloudUploadOutlined style={{ color: '#1890ff' }} />}
+                valueStyle={{ fontSize: '18px', fontWeight: 'bold' }}
+              />
+              <Statistic
+                title="Total Download"
+                value={data ? formatBytes(data.traffic.totalDownload) : '0 B'}
+                prefix={<CloudDownloadOutlined style={{ color: '#52c41a' }} />}
+                valueStyle={{ fontSize: '18px', fontWeight: 'bold' }}
+              />
+            </Space>
+          </Card>
+        </Col>
+
+        {/* Online Users / Active Connections */}
+        <Col xs={24} md={24} lg={8}>
+          <Card
+            title={
+              <Space>
+                <TeamOutlined />
+                <span>Live Activity</span>
+              </Space>
+            }
+            bordered={false}
+            style={{ height: '100%' }}
+          >
+            <Row gutter={16} style={{ marginTop: 8 }}>
+              <Col span={12}>
+                <Statistic
+                  title="Online Users"
+                  value={data ? data.traffic.onlineUsers : 0}
+                  prefix={<TeamOutlined style={{ color: '#3f8600' }} />}
+                  valueStyle={{ color: '#3f8600', fontSize: '22px' }}
+                />
+              </Col>
+              <Col span={12}>
+                <Statistic
+                  title="Active Connections"
+                  value={data ? data.traffic.activeConnections : 0}
+                  prefix={<ApiOutlined style={{ color: '#1890ff' }} />}
+                  valueStyle={{ color: '#1890ff', fontSize: '22px' }}
                 />
               </Col>
             </Row>

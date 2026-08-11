@@ -2,10 +2,12 @@ package node
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
+	"github.com/dzx941/3m-ui/backend/internal/mihomo"
 	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"gorm.io/gorm"
 )
@@ -90,6 +92,20 @@ func (s *Service) RegenerateConfig() error {
 	if err := os.WriteFile(s.configPath, []byte(yamlContent), 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
+
+	// Best-effort hot reload: ask the running Mihomo Core to reload the
+	// config we just wrote via its external controller API. If Mihomo isn't
+	// running or the controller is unreachable, this is not a failure of
+	// config regeneration itself (the file on disk is still correct and
+	// will be picked up on the next manual/automatic start), so we only log.
+	tmpl := mihomoConfig.GetDefaultTemplate()
+	controllerURL := "http://" + tmpl.ExternalController
+	if err := mihomo.NewExternalControllerAPI(controllerURL, tmpl.Secret).ReloadConfig(map[string]interface{}{
+		"path": s.configPath,
+	}); err != nil {
+		log.Printf("node: mihomo hot reload skipped (core unreachable): %v", err)
+	}
+
 	return nil
 }
 

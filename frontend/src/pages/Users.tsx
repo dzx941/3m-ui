@@ -15,8 +15,13 @@ interface ProxyUser {
   uuid_masked: string;
   traffic_limit: number;
   traffic_used: number;
+  upload_bytes: number;
+  download_bytes: number;
+  last_seen: string | null;
+  online: boolean;
   expire_time: string;
   enabled: boolean;
+  blocked: boolean;
 }
 
 interface Node {
@@ -40,6 +45,14 @@ const formatBytes = (bytes: number) => {
   return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
 };
 
+// Same formatting as formatBytes but for absolute traffic amounts (upload/
+// download counters), where 0 means "none transferred yet" rather than
+// "unlimited".
+const formatDataAmount = (bytes: number) => {
+  if (!bytes) return '0 B';
+  return formatBytes(bytes);
+};
+
 const Users: React.FC = () => {
   const [users, setUsers] = useState<ProxyUser[]>([]);
   const [nodes, setNodes] = useState<Node[]>([]);
@@ -52,15 +65,15 @@ const Users: React.FC = () => {
   const [form] = Form.useForm();
   const [bindForm] = Form.useForm();
 
-  const fetchUsers = async () => {
-    setLoading(true);
+  const fetchUsers = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/users`);
       if (!res.ok) throw new Error();
       setUsers(await res.json());
     } catch {
-      message.error('Failed to load proxy users.');
-    } finally { setLoading(false); }
+      if (!silent) message.error('Failed to load proxy users.');
+    } finally { if (!silent) setLoading(false); }
   };
 
   const fetchNodes = async () => {
@@ -70,7 +83,14 @@ const Users: React.FC = () => {
     } catch { /* handled when binding */ }
   };
 
-  useEffect(() => { fetchUsers(); fetchNodes(); }, []);
+  useEffect(() => {
+    fetchUsers();
+    fetchNodes();
+    // Traffic/online state changes as the backend's traffic scheduler ticks
+    // (10s), so refresh in the background to keep those columns current.
+    const interval = setInterval(() => fetchUsers(true), 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const openCreate = () => {
     setEditing(null);
@@ -164,17 +184,51 @@ const Users: React.FC = () => {
       },
     },
     {
+      title: 'Upload',
+      dataIndex: 'upload_bytes',
+      key: 'upload_bytes',
+      render: (v: number) => formatDataAmount(v),
+    },
+    {
+      title: 'Download',
+      dataIndex: 'download_bytes',
+      key: 'download_bytes',
+      render: (v: number) => formatDataAmount(v),
+    },
+    {
+      title: 'Remaining Quota',
+      key: 'remaining_quota',
+      render: (_: unknown, u: ProxyUser) => (
+        u.traffic_limit > 0 ? formatDataAmount(Math.max(0, u.traffic_limit - u.traffic_used)) : 'Unlimited'
+      ),
+    },
+    {
       title: 'Expire',
       dataIndex: 'expire_time',
       key: 'expire_time',
       render: (v: string) => v ? dayjs(v).format('YYYY-MM-DD HH:mm') : 'Never',
     },
     {
+      title: 'Online',
+      key: 'online',
+      render: (_: unknown, u: ProxyUser) => (
+        <Tag color={u.online ? 'success' : 'default'}>{u.online ? 'Online' : 'Offline'}</Tag>
+      ),
+    },
+    {
+      title: 'Last Seen',
+      dataIndex: 'last_seen',
+      key: 'last_seen',
+      render: (v: string | null) => v ? dayjs(v).format('YYYY-MM-DD HH:mm') : 'Never',
+    },
+    {
       title: 'Status',
       key: 'status',
       render: (_: unknown, u: ProxyUser) => {
         const expired = u.expire_time && dayjs(u.expire_time).isBefore(dayjs());
-        return <Tag color={!u.enabled ? 'default' : expired ? 'red' : 'green'}>{!u.enabled ? 'Disabled' : expired ? 'Expired' : 'Active'}</Tag>;
+        const overQuota = u.traffic_limit > 0 && u.traffic_used >= u.traffic_limit;
+        const label = !u.enabled ? 'Disabled' : expired ? 'Expired' : overQuota ? 'Over Quota' : 'Active';
+        return <Tag color={label === 'Active' ? 'green' : label === 'Disabled' ? 'default' : 'red'}>{label}</Tag>;
       },
     },
     {
@@ -202,7 +256,7 @@ const Users: React.FC = () => {
         <Button type="primary" icon={<UserAddOutlined />} onClick={openCreate}>Create User</Button>
       </div>
 
-      <Table rowKey="id" dataSource={users} columns={columns} loading={loading} />
+      <Table rowKey="id" dataSource={users} columns={columns} loading={loading} scroll={{ x: 'max-content' }} />
 
       <Modal
         title={editing ? 'Edit Proxy User' : 'Create Proxy User'}

@@ -179,6 +179,28 @@ func (s *Service) GetListeners(userID uint) ([]models.Listener, error) {
 	return listeners, err
 }
 
+// IsCredentialActive reports whether a proxy user's credentials should
+// currently be included in generated Mihomo configuration: the user must be
+// enabled, not expired, and under its traffic limit (0 = unlimited).
+//
+// This is the single source of truth for traffic enforcement. Both
+// ActiveCredentialsByListener (config generation) and the traffic package's
+// enforcement scheduler call this function so the "which users are
+// blocked" decision is never duplicated.
+func IsCredentialActive(u models.ProxyUser) bool {
+	now := time.Now()
+	if !u.Enabled {
+		return false
+	}
+	if !u.ExpireTime.IsZero() && !u.ExpireTime.After(now) {
+		return false
+	}
+	if u.TrafficLimit > 0 && u.TrafficUsed >= u.TrafficLimit {
+		return false
+	}
+	return true
+}
+
 func (s *Service) ActiveCredentialsByListener() (map[uint][]Credential, error) {
 	var rows []struct {
 		ListenerID  uint
@@ -188,7 +210,6 @@ func (s *Service) ActiveCredentialsByListener() (map[uint][]Credential, error) {
 		return nil, err
 	}
 	result := make(map[uint][]Credential)
-	now := time.Now()
 	for _, row := range rows {
 		u, err := s.GetByID(row.ProxyUserID)
 		if err != nil {
@@ -197,8 +218,7 @@ func (s *Service) ActiveCredentialsByListener() (map[uint][]Credential, error) {
 			}
 			return nil, err
 		}
-		if !u.Enabled || (!u.ExpireTime.IsZero() && !u.ExpireTime.After(now)) ||
-			(u.TrafficLimit > 0 && u.TrafficUsed >= u.TrafficLimit) {
+		if !IsCredentialActive(*u) {
 			continue
 		}
 		password, err := decryptPassword(u.PasswordEncrypted)
@@ -218,17 +238,31 @@ func safeMask(s string) string {
 }
 
 type SafeUser struct {
-	ID           uint      `json:"id"`
-	Username     string    `json:"username"`
-	UUIDMasked   string    `json:"uuid_masked"`
-	TrafficLimit int64     `json:"traffic_limit"`
-	TrafficUsed  int64     `json:"traffic_used"`
-	ExpireTime   time.Time `json:"expire_time"`
-	Enabled      bool      `json:"enabled"`
+	ID            uint       `json:"id"`
+	Username      string     `json:"username"`
+	UUIDMasked    string     `json:"uuid_masked"`
+	TrafficLimit  int64      `json:"traffic_limit"`
+	TrafficUsed   int64      `json:"traffic_used"`
+	UploadBytes   int64      `json:"upload_bytes"`
+	DownloadBytes int64      `json:"download_bytes"`
+	LastSeen      *time.Time `json:"last_seen"`
+	Online        bool       `json:"online"`
+	ExpireTime    time.Time  `json:"expire_time"`
+	Enabled       bool       `json:"enabled"`
+	// Blocked reports whether enforcement currently excludes this user's
+	// credentials from generated Mihomo config (mirrors IsCredentialActive).
+	Blocked bool `json:"blocked"`
 }
 
 func ToSafeUser(u *models.ProxyUser) SafeUser {
-	return SafeUser{ID: u.ID, Username: u.Username, UUIDMasked: safeMask(u.UUID), TrafficLimit: u.TrafficLimit, TrafficUsed: u.TrafficUsed, ExpireTime: u.ExpireTime, Enabled: u.Enabled}
+	return SafeUser{
+		ID: u.ID, Username: u.Username, UUIDMasked: safeMask(u.UUID),
+		TrafficLimit: u.TrafficLimit, TrafficUsed: u.TrafficUsed,
+		UploadBytes: u.UploadBytes, DownloadBytes: u.DownloadBytes,
+		LastSeen: u.LastSeen, Online: u.Online,
+		ExpireTime: u.ExpireTime, Enabled: u.Enabled,
+		Blocked: !IsCredentialActive(*u),
+	}
 }
 
 func encryptPassword(plain string) (string, error) { return security.Encrypt(plain) }

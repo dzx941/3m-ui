@@ -13,6 +13,7 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/node"
 	"github.com/dzx941/3m-ui/backend/internal/subscription"
 	"github.com/dzx941/3m-ui/backend/internal/system"
+	"github.com/dzx941/3m-ui/backend/internal/traffic"
 	"github.com/dzx941/3m-ui/backend/internal/user"
 	"github.com/gin-gonic/gin"
 )
@@ -69,6 +70,22 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				database.GlobalDB.Model(&models.Listener{}).Where("enabled = ?", false).Count(&disabledCount)
 			}
 
+			// 4. Traffic statistics (Phase 8.5). Guarded against the traffic
+			// scheduler not being initialized (e.g. in tests that construct
+			// the router directly) so this never panics.
+			var trafficSnapshot traffic.Snapshot
+			if traffic.GlobalService != nil {
+				trafficSnapshot = traffic.GlobalService.Current()
+			}
+			var onlineUsers int64
+			if database.GlobalDB != nil {
+				database.GlobalDB.Model(&models.ProxyUser{}).Where("online = ?", true).Count(&onlineUsers)
+			}
+			activeConnections := trafficSnapshot.Connections
+			if traffic.GlobalCollector != nil {
+				activeConnections = len(traffic.GlobalCollector.CurrentConnections())
+			}
+
 			c.JSON(http.StatusOK, gin.H{
 				"mihomo": mihomoStatus,
 				"system": sysStatus,
@@ -76,6 +93,14 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 					"total":    totalCount,
 					"enabled":  enabledCount,
 					"disabled": disabledCount,
+				},
+				"traffic": gin.H{
+					"uploadRate":        trafficSnapshot.UploadRate,
+					"downloadRate":      trafficSnapshot.DownloadRate,
+					"totalUpload":       trafficSnapshot.UploadBytes,
+					"totalDownload":     trafficSnapshot.DownloadBytes,
+					"onlineUsers":       onlineUsers,
+					"activeConnections": activeConnections,
 				},
 			})
 		})
@@ -161,6 +186,13 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		listenerGroup := apiV1.Group("/listeners")
 		{
 			node.RegisterRoutes(listenerGroup)
+		}
+
+		// Traffic monitoring APIs (Phase 8.5)
+		trafficGroup := apiV1.Group("/traffic")
+		{
+			trafficHandler := traffic.NewHandler(traffic.GlobalService, traffic.GlobalCollector, database.GlobalDB)
+			traffic.RegisterRoutes(trafficGroup, trafficHandler)
 		}
 
 		// Config Engine APIs

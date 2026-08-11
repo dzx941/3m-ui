@@ -35,6 +35,36 @@ interface NodeRecord {
   status: string;
 }
 
+interface ConnectionView {
+  id: string;
+  listener_id: number | null;
+  listener_name: string;
+  proxy_user_id: number | null;
+  username: string;
+  network: string;
+  host: string;
+  source_ip: string;
+  destination_ip: string;
+  destination_port: string;
+  upload: number;
+  download: number;
+}
+
+interface ListenerTrafficStats {
+  connections: number;
+  upload: number;
+  download: number;
+}
+
+const formatBytes = (bytes: number): string => {
+  if (!bytes) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) { value /= 1024; i++; }
+  return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
+};
+
 const API_BASE = 'http://localhost:8080/api/v1';
 
 const Listeners: React.FC = () => {
@@ -43,6 +73,7 @@ const Listeners: React.FC = () => {
   const [modalOpen, setModalOpen] = useState<boolean>(false);
   const [editingRecord, setEditingRecord] = useState<NodeRecord | null>(null);
   const [form] = Form.useForm();
+  const [trafficByListener, setTrafficByListener] = useState<Record<number, ListenerTrafficStats>>({});
 
   // Track selected protocol to dynamically show/hide inputs
   const selectedProtocol = Form.useWatch('protocol', form);
@@ -64,8 +95,31 @@ const Listeners: React.FC = () => {
     }
   };
 
+  const fetchTraffic = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/traffic/connections`);
+      if (!res.ok) return;
+      const body: { connections: ConnectionView[] } = await res.json();
+      const grouped: Record<number, ListenerTrafficStats> = {};
+      for (const conn of body.connections || []) {
+        if (conn.listener_id === null) continue;
+        const stats = grouped[conn.listener_id] || { connections: 0, upload: 0, download: 0 };
+        stats.connections += 1;
+        stats.upload += conn.upload;
+        stats.download += conn.download;
+        grouped[conn.listener_id] = stats;
+      }
+      setTrafficByListener(grouped);
+    } catch (err) {
+      // Traffic stats are a non-critical overlay; ignore transient failures.
+    }
+  };
+
   useEffect(() => {
     fetchNodes();
+    fetchTraffic();
+    const interval = setInterval(fetchTraffic, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleOpenAdd = () => {
@@ -233,6 +287,26 @@ const Listeners: React.FC = () => {
       render: (tls: boolean) => (tls ? <Tag color="green">TLS</Tag> : <Tag color="default">Plain</Tag>),
     },
     {
+      title: 'Connections',
+      key: 'connections',
+      render: (_: any, record: NodeRecord) => {
+        const stats = trafficByListener[record.ID];
+        return <Tag color={stats?.connections ? 'blue' : 'default'}>{stats?.connections || 0}</Tag>;
+      },
+    },
+    {
+      title: 'Traffic',
+      key: 'traffic',
+      render: (_: any, record: NodeRecord) => {
+        const stats = trafficByListener[record.ID];
+        return (
+          <span>
+            ↑ {formatBytes(stats?.upload || 0)} &nbsp; ↓ {formatBytes(stats?.download || 0)}
+          </span>
+        );
+      },
+    },
+    {
       title: 'Status',
       dataIndex: 'enabled',
       key: 'enabled',
@@ -299,6 +373,7 @@ const Listeners: React.FC = () => {
         columns={columns}
         rowKey="ID"
         loading={loading}
+        scroll={{ x: 'max-content' }}
         locale={{ emptyText: 'No Server Nodes Found. Create one to get started!' }}
       />
 
