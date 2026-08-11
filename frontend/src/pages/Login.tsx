@@ -20,7 +20,7 @@ export default function Login() {
         <Form.Item name="username" label={t('login.username')} rules={[{required:true,message:t('login.requiredUsername')}]}>
           <Input prefix={<UserOutlined/>} autoComplete="username"/>
         </Form.Item>
-        <Form.Item name="password" label={t('login.password')} rules={[{required:true,message:t('login.requiredPassword')}]>
+        <Form.Item name="password" label={t('login.password')} rules={[{required:true,message:t('login.requiredPassword')}]}>
           <Input.Password prefix={<LockOutlined/>} autoComplete="current-password"/>
         </Form.Item>
         <Button type="primary" htmlType="submit" block loading={loading}>{t('login.submit')}</Button>

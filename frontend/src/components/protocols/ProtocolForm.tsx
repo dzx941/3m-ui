@@ -1,8 +1,8 @@
 import React from 'react';
-import type { 协议 } from './types';
+import type { Protocol } from './types';
 import { Hysteria2Form, ShadowsocksForm, TrojanForm, TuicForm, VlessForm, VmessForm, WireGuardForm } from './forms';
 
-const forms: Record<协议, React.ComponentType> = {
+const forms: Record<Protocol, React.ComponentType> = {
   shadowsocks: ShadowsocksForm,
   vmess: VmessForm,
   vless: VlessForm,
@@ -12,8 +12,8 @@ const forms: Record<协议, React.ComponentType> = {
   tuic: TuicForm,
 };
 
-const 协议Form: React.FC<{ protocol?: string }> = ({ protocol }) => {
-  const Component = forms[(protocol || 'shadowsocks') as 协议] || ShadowsocksForm;
+const ProtocolForm: React.FC<{ protocol?: string }> = ({ protocol }) => {
+  const Component = forms[(protocol || 'shadowsocks') as Protocol] || ShadowsocksForm;
   return <Component />;
 };
-export default 协议Form;
+export default ProtocolForm;

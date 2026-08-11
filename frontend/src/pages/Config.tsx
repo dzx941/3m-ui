@@ -3,7 +3,7 @@ import {
   Typography, Row, Col, Card, Button, Space, Form, Input, Select, Switch, Tabs,
   InputNumber, Divider, message, Alert,
 } from 'antd';
-import { 保存Outlined, DownloadOutlined, ReloadOutlined, SettingOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { SaveOutlined, DownloadOutlined, ReloadOutlined, SettingOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { apiRequest, downloadFile } from '../api/request';
 
 const { Title, Paragraph, Text } = Typography;
@@ -228,7 +228,7 @@ const Config: React.FC = () => {
               ]} />
 
               <Divider />
-              <Button type="primary" icon={<保存Outlined />} loading={loading} onClick={() => void handle保存()}>
+              <Button type="primary" icon={<SaveOutlined />} loading={loading} onClick={() => void handle保存()}>
                 保存并生成 config.yaml
               </Button>
             </Form>

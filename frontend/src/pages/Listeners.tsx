@@ -334,7 +334,7 @@ const 入站管理: React.FC = () => {
         title={editingRecord ? 'Edit Server Node' : 'Add Server Node'}
         open={modalOpen}
         onOk={handleFormSubmit}
-        on取消={() => setModalOpen(false)}
+        onCancel={() => setModalOpen(false)}
         destroyOnClose
         width={600}
       >

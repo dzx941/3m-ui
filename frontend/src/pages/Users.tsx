@@ -249,7 +249,7 @@ const 用户管理: React.FC = () => {
         title={editing ? 'Edit Proxy User' : 'Create Proxy User'}
         open={modalOpen}
         onOk={saveUser}
-        on取消={() => setModalOpen(false)}
+        onCancel={() => setModalOpen(false)}
         destroyOnClose
       >
         <Form form={form} layout="vertical">
@@ -282,7 +282,7 @@ const 用户管理: React.FC = () => {
         title={`Bind 节点管理${bindingUser ? ` · ${bindingUser.username}` : ''}`}
         open={bindOpen}
         onOk={saveBindings}
-        on取消={() => setBindOpen(false)}
+        onCancel={() => setBindOpen(false)}
         destroyOnClose
       >
         <Form form={bindForm} initialValues={{ listener_ids: boundNodeIds }}>
