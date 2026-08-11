@@ -21,11 +21,47 @@ asset_suffix(){
     esac
 }
 download(){ if command_exists curl; then curl -fsSL "$1" -o "$2"; elif command_exists wget; then wget -qO "$2" "$1"; else echo "curl or wget is required." >&2; exit 1; fi; }
+
+install_mihomo() {
+    MIHOMO_BIN="/usr/local/bin/mihomo"
+    [ -x "$MIHOMO_BIN" ] && return
+    tmp="$(mktemp)"
+    case "$(uname -m)" in
+      x86_64|amd64) arch="linux-amd64-v3";;
+      aarch64|arm64) arch="linux-arm64";;
+      armv7l|armv7*) arch="linux-armv7";;
+      *) return;;
+    esac
+    url="https://github.com/MetaCubeX/mihomo/releases/latest/download/mihomo-$arch-compatible.gz"
+    download "$url" "$tmp" && gzip -dc "$tmp" > "$MIHOMO_BIN" && chmod 755 "$MIHOMO_BIN" || true
+    rm -f "$tmp"
+}
+
+
+install_mihomo_update() {
+    MIHOMO_BIN="/usr/local/bin/mihomo"
+    tmp="$(mktemp)"
+    case "$(uname -m)" in
+      x86_64|amd64) asset="mihomo-linux-amd64-v3-compatible.gz";;
+      aarch64|arm64) asset="mihomo-linux-arm64-compatible.gz";;
+      armv7l|armv7*) asset="mihomo-linux-armv7-compatible.gz";;
+      *) return;;
+    esac
+    echo "Updating Mihomo core..."
+    if download "https://github.com/MetaCubeX/mihomo/releases/latest/download/$asset" "$tmp"; then
+      gzip -dc "$tmp" > "$MIHOMO_BIN"
+      chmod 755 "$MIHOMO_BIN"
+    fi
+    rm -f "$tmp"
+}
+
 stop_service(){ if command_exists systemctl && [ -f /etc/systemd/system/$SERVICE_NAME.service ]; then systemctl stop $SERVICE_NAME; elif command_exists rc-service && [ -f /etc/init.d/$SERVICE_NAME ]; then rc-service $SERVICE_NAME stop; fi; }
 start_service(){ if command_exists systemctl && [ -f /etc/systemd/system/$SERVICE_NAME.service ]; then systemctl start $SERVICE_NAME; elif command_exists rc-service && [ -f /etc/init.d/$SERVICE_NAME ]; then rc-service $SERVICE_NAME start; fi; }
 backup_dir="$DATA_DIR/backups/$(date +%Y%m%d%H%M%S)"; mkdir -p "$backup_dir"; [ -d "$CONFIG_DIR" ] && cp -a "$CONFIG_DIR" "$backup_dir/config"
 tmp="$(mktemp)"; download "https://github.com/$REPO/releases/latest/download/3m-ui-linux-$(arch_name)$(asset_suffix)" "$tmp"
+install_mihomo_update
 stop_service
+install_mihomo
 install -m 0755 "$tmp" "$BIN_PATH"; rm -f "$tmp"
 start_service
 echo "3m-ui updated. Config backup: $backup_dir"

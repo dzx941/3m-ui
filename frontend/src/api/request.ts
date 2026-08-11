@@ -9,8 +9,12 @@ const TOKEN_KEY = '3m-ui.jwt';
 export const getApiBaseURL = () => {
   const configured = import.meta.env.VITE_API_BASE_URL as string | undefined;
   if (configured) return configured.replace(/\/$/, '');
-  // In production the frontend is embedded and the API is same-origin.
-  // In development Vite proxies /api to the Go server.
+  // Production: prefer same origin. This keeps embedded SPA deployments working.
+  // If the UI is opened from a different port during development, VITE_API_BASE_URL
+  // can override it.
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/api/v1`;
+  }
   return '/api/v1';
 };
 

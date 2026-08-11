@@ -18,7 +18,7 @@ import {
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiRequest } from '../api/request';
-import { ProtocolForm } from '../components/protocols';
+import { 协议Form } from '../components/protocols';
 
 const { Title, Paragraph } = Typography;
 const { Option } = Select;
@@ -67,7 +67,7 @@ const formatBytes = (bytes: number): string => {
 };
 
 
-const Listeners: React.FC = () => {
+const 入站管理: React.FC = () => {
   const [data, setData] = useState<NodeRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [modalOpen, setModalOpen] = useState<boolean>(false);
@@ -76,9 +76,9 @@ const Listeners: React.FC = () => {
   const [trafficByListener, setTrafficByListener] = useState<Record<number, ListenerTrafficStats>>({});
 
   // Track selected protocol to dynamically show/hide inputs
-  const selectedProtocol = Form.useWatch('protocol', form);
+  const selected协议 = Form.useWatch('protocol', form);
 
-  const fetchNodes = async () => {
+  const fetch节点管理 = async () => {
     setLoading(true);
     try {
       const list = await apiRequest<NodeRecord[]>('/nodes');
@@ -109,7 +109,7 @@ const Listeners: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchNodes();
+    fetch节点管理();
     fetchTraffic();
     const interval = setInterval(fetchTraffic, 10000);
     return () => clearInterval(interval);
@@ -135,7 +135,7 @@ const Listeners: React.FC = () => {
     form.resetFields();
 
     // Node-level config contains protocol options only. Authentication
-    // credentials are managed by Proxy Users and are intentionally never
+    // credentials are managed by Proxy 用户管理 and are intentionally never
     // displayed or accepted on the node form.
     let protocolConfig: Record<string, unknown> = {};
     let flow = '';
@@ -157,7 +157,7 @@ const Listeners: React.FC = () => {
     try {
       await apiRequest(`/nodes/${id}`, { method: 'DELETE' });
       message.success('Node deleted successfully.');
-      fetchNodes();
+      fetch节点管理();
     } catch {
       message.error('Network connection error.');
     }
@@ -168,7 +168,7 @@ const Listeners: React.FC = () => {
     try {
       await apiRequest(`/nodes/${record.ID}`, { method: 'PUT', body: JSON.stringify(updated) });
       message.success(`Node ${checked ? 'enabled' : 'disabled'} successfully.`);
-      fetchNodes();
+      fetch节点管理();
     } catch {
       message.error('Network connection error.');
     }
@@ -203,7 +203,7 @@ const Listeners: React.FC = () => {
 
       message.success(`Node ${editingRecord ? 'updated' : 'created'} successfully.`);
       setModalOpen(false);
-      fetchNodes();
+      fetch节点管理();
     } catch {
       // Validation failed
     }
@@ -222,7 +222,7 @@ const Listeners: React.FC = () => {
       key: 'name',
     },
     {
-      title: 'Protocol',
+      title: '协议',
       dataIndex: 'protocol',
       key: 'protocol',
       render: (proto: string) => <Tag color="blue">{proto}</Tag>,
@@ -310,7 +310,7 @@ const Listeners: React.FC = () => {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <Title level={2} style={{ margin: 0 }}>Mihomo Server Nodes</Title>
+          <Title level={2} style={{ margin: 0 }}>Mihomo Server 节点管理</Title>
           <Paragraph style={{ margin: 0 }}>
             Manage server nodes, protocols, inbounds, security configurations, and credentials.
           </Paragraph>
@@ -326,7 +326,7 @@ const Listeners: React.FC = () => {
         rowKey="ID"
         loading={loading}
         scroll={{ x: 'max-content' }}
-        locale={{ emptyText: 'No Server Nodes Found. Create one to get started!' }}
+        locale={{ emptyText: 'No Server 节点管理 Found. Create one to get started!' }}
       />
 
       {/* Add / Edit Node Modal */}
@@ -334,7 +334,7 @@ const Listeners: React.FC = () => {
         title={editingRecord ? 'Edit Server Node' : 'Add Server Node'}
         open={modalOpen}
         onOk={handleFormSubmit}
-        onCancel={() => setModalOpen(false)}
+        on取消={() => setModalOpen(false)}
         destroyOnClose
         width={600}
       >
@@ -351,7 +351,7 @@ const Listeners: React.FC = () => {
             <Col span={12}>
               <Form.Item
                 name="protocol"
-                label="Protocol"
+                label="协议"
                 rules={[{ required: true, message: 'Select node protocol' }]}
               >
                 <Select placeholder="Choose protocol" onChange={() => {
@@ -401,11 +401,11 @@ const Listeners: React.FC = () => {
           </Row>
 
           <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-            Authentication credentials are managed under Proxy Users and bound to nodes separately.
+            Authentication credentials are managed under Proxy 用户管理 and bound to nodes separately.
             Do not place passwords or UUIDs in the node configuration.
           </Typography.Paragraph>
 
-          <ProtocolForm protocol={selectedProtocol} />
+          <协议Form protocol={selected协议} />
 
           <Form.Item name="enabled" label="Status Enabled" valuePropName="checked">
             <Switch checkedChildren="On" unCheckedChildren="Off" />
@@ -417,4 +417,4 @@ const Listeners: React.FC = () => {
   );
 };
 
-export default Listeners;
+export default 入站管理;

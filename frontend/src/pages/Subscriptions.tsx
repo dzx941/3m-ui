@@ -4,13 +4,13 @@ import { LinkOutlined } from '@ant-design/icons';
 
 const { Title, Paragraph } = Typography;
 
-const Subscriptions: React.FC = () => {
+const 订阅管理: React.FC = () => {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <Title level={2} style={{ margin: 0 }}>Subscriptions</Title>
+        <Title level={2} style={{ margin: 0 }}>订阅管理</Title>
         <Button type="primary" icon={<LinkOutlined />} disabled>
-          Generate Subscription
+          生成订阅
         </Button>
       </div>
       <Paragraph>
@@ -25,10 +25,10 @@ const Subscriptions: React.FC = () => {
           { title: 'Format', dataIndex: 'format', key: 'format' },
           { title: 'Expire Time', dataIndex: 'expireTime', key: 'expireTime' },
         ]}
-        locale={{ emptyText: 'No Subscriptions Generated' }}
+        locale={{ emptyText: 'No 订阅管理 Generated' }}
       />
     </div>
   );
 };
 
-export default Subscriptions;
+export default 订阅管理;

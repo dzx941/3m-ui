@@ -3,7 +3,7 @@ import {
   Typography, Row, Col, Card, Button, Space, Form, Input, Select, Switch, Tabs,
   InputNumber, Divider, message, Alert,
 } from 'antd';
-import { SaveOutlined, DownloadOutlined, ReloadOutlined, SettingOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { 保存Outlined, DownloadOutlined, ReloadOutlined, SettingOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons';
 import { apiRequest, downloadFile } from '../api/request';
 
 const { Title, Paragraph, Text } = Typography;
@@ -74,7 +74,7 @@ const Config: React.FC = () => {
     void loadConfig();
   }, []);
 
-  const handleSave = async () => {
+  const handle保存 = async () => {
     const values = await form.validateFields();
     setLoading(true);
     try {
@@ -125,9 +125,9 @@ const Config: React.FC = () => {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <Title level={2} style={{ margin: 0 }}>Mihomo Config Engine</Title>
+          <Title level={2} style={{ margin: 0 }}>Mihomo 配置引擎</Title>
           <Paragraph style={{ margin: 0 }}>
-            可视化管理 Mihomo 配置。节点协议与入站认证在 Nodes 页面独立管理。
+            可视化管理 Mihomo 配置。节点协议与入站认证在 节点管理 页面独立管理。
           </Paragraph>
         </div>
         <Space>
@@ -139,13 +139,13 @@ const Config: React.FC = () => {
         type="info"
         showIcon
         message="配置生成逻辑"
-        description="页面保存的是可视化配置项，后端负责生成最终 config.yaml；Nodes 页面管理 listeners，Proxy Users 管理认证凭据。"
+        description="页面保存的是可视化配置项，后端负责生成最终 config.yaml；节点管理 页面管理 listeners，Proxy 用户管理 管理认证凭据。"
         style={{ marginBottom: 24 }}
       />
 
       <Row gutter={[24, 24]}>
         <Col xs={24} lg={16}>
-          <Card title={<Space><SettingOutlined /><span>Visual Configuration Modules</span></Space>} bordered={false} loading={initializing}>
+          <Card title={<Space><SettingOutlined /><span>可视化配置模块</span></Space>} bordered={false} loading={initializing}>
             <Form form={form} layout="vertical" initialValues={defaults}>
               <Tabs items={[
                 {
@@ -228,7 +228,7 @@ const Config: React.FC = () => {
               ]} />
 
               <Divider />
-              <Button type="primary" icon={<SaveOutlined />} loading={loading} onClick={() => void handleSave()}>
+              <Button type="primary" icon={<保存Outlined />} loading={loading} onClick={() => void handle保存()}>
                 保存并生成 config.yaml
               </Button>
             </Form>
@@ -236,7 +236,7 @@ const Config: React.FC = () => {
         </Col>
 
         <Col xs={24} lg={8}>
-          <Card title="Config Control Center" bordered={false}>
+          <Card title="配置控制中心" bordered={false}>
             <Space direction="vertical" style={{ width: '100%' }} size="middle">
               <Button icon={<DownloadOutlined />} block onClick={() => void handleDownload()}>下载 config.yaml</Button>
               <Button icon={<ReloadOutlined />} danger block loading={loading} onClick={() => void handleHotReload()}>重新加载 Mihomo</Button>

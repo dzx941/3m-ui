@@ -148,6 +148,38 @@ download() {
 
 
 
+
+install_mihomo() {
+    MIHOMO_DIR="$DATA_DIR/mihomo"
+    MIHOMO_BIN="/usr/local/bin/mihomo"
+
+    if [ -x "$MIHOMO_BIN" ]; then
+        return
+    fi
+
+    mkdir -p "$MIHOMO_DIR"
+
+    arch="$(uname -m)"
+    case "$arch" in
+        x86_64|amd64) mihomo_arch="linux-amd64-v3" ;;
+        aarch64|arm64) mihomo_arch="linux-arm64" ;;
+        armv7l|armv7*) mihomo_arch="linux-armv7" ;;
+        *) echo "Unsupported mihomo architecture: $arch"; return ;;
+    esac
+
+    tmp="$(mktemp)"
+    url="https://github.com/MetaCubeX/mihomo/releases/latest/download/mihomo-$mihomo_arch-compatible.gz"
+
+    # fallback for releases that do not provide the compatible archive name
+    fallback_url="https://github.com/MetaCubeX/mihomo/releases/latest/download/mihomo-$mihomo_arch.gz"
+
+    if download "$url" "$tmp" || download "$fallback_url" "$tmp"; then
+        gzip -dc "$tmp" > "$MIHOMO_BIN" 2>/dev/null || true
+        chmod 755 "$MIHOMO_BIN" || true
+    fi
+    rm -f "$tmp"
+}
+
 write_config() {
 
     if [ -f "$CONFIG_DIR/config.yaml" ]; then

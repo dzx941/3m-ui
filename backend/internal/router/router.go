@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/dzx941/3m-ui/backend/internal/auth"
 	"github.com/dzx941/3m-ui/backend/internal/config"
@@ -68,13 +69,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			// 2. System performance metrics
 			sysStatus := system.GlobalService.GetStatus()
 
-			// 3. Listener (Server Node) Statistics
-			var totalCount, enabledCount, disabledCount int64
-			if database.GlobalDB != nil {
-				database.GlobalDB.Model(&models.Listener{}).Count(&totalCount)
-				database.GlobalDB.Model(&models.Listener{}).Where("enabled = ?", true).Count(&enabledCount)
-				database.GlobalDB.Model(&models.Listener{}).Where("enabled = ?", false).Count(&disabledCount)
-			}
+			// 3. Proxy statistics come from the visual Mihomo configuration.
+			visualCfg, _ := mihomoConfig.GetVisualConfig(database.GlobalDB)
+			proxyCount := int64(len(visualCfg.Proxies))
 
 			// 4. Traffic statistics (Phase 8.5). Guarded against the traffic
 			// scheduler not being initialized (e.g. in tests that construct
@@ -96,9 +93,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				"mihomo": mihomoStatus,
 				"system": sysStatus,
 				"listeners": gin.H{
-					"total":    totalCount,
-					"enabled":  enabledCount,
-					"disabled": disabledCount,
+					"total": proxyCount,
+					"enabled": proxyCount,
+					"disabled": 0,
 				},
 				"traffic": gin.H{
 					"uploadRate":        trafficSnapshot.UploadRate,
@@ -205,6 +202,86 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		configGroup := apiV1.Group("/config")
 		{
 			// Visual configuration endpoints used by the React configuration UI.
+			configGroup.GET("/proxies", func(c *gin.Context) {
+				visual, err := mihomoConfig.GetVisualConfig(database.GlobalDB)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, visual.Proxies)
+			})
+			configGroup.POST("/proxies", func(c *gin.Context) {
+				var proxy mihomoConfig.ProxyEntry
+				if err := c.ShouldBindJSON(&proxy); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+				if proxy.Name == "" || proxy.Type == "" || proxy.Server == "" || proxy.Port < 1 || proxy.Port > 65535 {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "名称、协议、服务器和有效端口不能为空"})
+					return
+				}
+				visual, err := mihomoConfig.GetVisualConfig(database.GlobalDB)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				visual.Proxies = append(visual.Proxies, proxy)
+				if err = mihomoConfig.SaveVisualConfig(database.GlobalDB, visual); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusCreated, proxy)
+			})
+			configGroup.PUT("/proxies/:index", func(c *gin.Context) {
+				idx, err := strconv.Atoi(c.Param("index"))
+				if err != nil || idx < 0 {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "无效节点索引"})
+					return
+				}
+				var proxy mihomoConfig.ProxyEntry
+				if err = c.ShouldBindJSON(&proxy); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+				visual, err := mihomoConfig.GetVisualConfig(database.GlobalDB)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				if idx >= len(visual.Proxies) {
+					c.JSON(http.StatusNotFound, gin.H{"error": "节点不存在"})
+					return
+				}
+				visual.Proxies[idx] = proxy
+				if err = mihomoConfig.SaveVisualConfig(database.GlobalDB, visual); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, proxy)
+			})
+			configGroup.DELETE("/proxies/:index", func(c *gin.Context) {
+				idx, err := strconv.Atoi(c.Param("index"))
+				if err != nil || idx < 0 {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "无效节点索引"})
+					return
+				}
+				visual, err := mihomoConfig.GetVisualConfig(database.GlobalDB)
+				if err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				if idx >= len(visual.Proxies) {
+					c.JSON(http.StatusNotFound, gin.H{"error": "节点不存在"})
+					return
+				}
+				visual.Proxies = append(visual.Proxies[:idx], visual.Proxies[idx+1:]...)
+				if err = mihomoConfig.SaveVisualConfig(database.GlobalDB, visual); err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{"status": "ok"})
+			})
+
 			configGroup.GET("/visual", func(c *gin.Context) {
 				visual, err := mihomoConfig.GetVisualConfig(database.GlobalDB)
 				if err != nil {

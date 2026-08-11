@@ -49,6 +49,7 @@ if command -v rc-service >/dev/null 2>&1 && [ -f "/etc/init.d/$SERVICE_NAME" ]; 
 fi
 
 rm -f "$BIN_PATH"
+rm -f "/usr/local/bin/mihomo"
 rm -rf "$CONFIG_DIR" "$LOG_DIR"
 
 if [ "$PURGE" -eq 1 ]; then

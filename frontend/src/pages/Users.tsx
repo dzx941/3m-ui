@@ -53,9 +53,9 @@ const formatDataAmount = (bytes: number) => {
   return formatBytes(bytes);
 };
 
-const Users: React.FC = () => {
-  const [users, setUsers] = useState<ProxyUser[]>([]);
-  const [nodes, setNodes] = useState<Node[]>([]);
+const 用户管理: React.FC = () => {
+  const [users, set用户管理] = useState<ProxyUser[]>([]);
+  const [nodes, set节点管理] = useState<Node[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [bindOpen, setBindOpen] = useState(false);
@@ -65,27 +65,27 @@ const Users: React.FC = () => {
   const [form] = Form.useForm();
   const [bindForm] = Form.useForm();
 
-  const fetchUsers = async (silent = false) => {
+  const fetch用户管理 = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      setUsers(await apiRequest<ProxyUser[]>('/users'));
+      set用户管理(await apiRequest<ProxyUser[]>('/users'));
     } catch {
       if (!silent) message.error('Failed to load proxy users.');
     } finally { if (!silent) setLoading(false); }
   };
 
-  const fetchNodes = async () => {
+  const fetch节点管理 = async () => {
     try {
-      setNodes(await apiRequest<Node[]>('/nodes'));
+      set节点管理(await apiRequest<Node[]>('/nodes'));
     } catch { /* handled when binding */ }
   };
 
   useEffect(() => {
-    fetchUsers();
-    fetchNodes();
+    fetch用户管理();
+    fetch节点管理();
     // Traffic/online state changes as the backend's traffic scheduler ticks
     // (10s), so refresh in the background to keep those columns current.
-    const interval = setInterval(() => fetchUsers(true), 10000);
+    const interval = setInterval(() => fetch用户管理(true), 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -124,11 +124,11 @@ const Users: React.FC = () => {
     }
     message.success(editing ? 'User updated.' : 'User created.');
     setModalOpen(false);
-    fetchUsers();
+    fetch用户管理();
   };
 
   const removeUser = async (id: number) => {
-    try { await apiRequest(`/users/${id}`, { method: 'DELETE' }); message.success('User deleted.'); fetchUsers(); }
+    try { await apiRequest(`/users/${id}`, { method: 'DELETE' }); message.success('User deleted.'); fetch用户管理(); }
     catch (err) { message.error((err as { message?: string }).message || 'Failed to delete user.'); }
   };
 
@@ -155,7 +155,7 @@ const Users: React.FC = () => {
   };
 
   const columns = [
-    { title: 'Username', dataIndex: 'username', key: 'username' },
+    { title: '用户名', dataIndex: 'username', key: 'username' },
     { title: 'UUID', dataIndex: 'uuid_masked', key: 'uuid_masked' },
     {
       title: 'Traffic',
@@ -223,7 +223,7 @@ const Users: React.FC = () => {
       key: 'actions',
       render: (_: unknown, u: ProxyUser) => (
         <Space>
-          <Button icon={<LinkOutlined />} onClick={() => openBind(u)}>Nodes</Button>
+          <Button icon={<LinkOutlined />} onClick={() => openBind(u)}>节点管理</Button>
           <Button icon={<EditOutlined />} onClick={() => openEdit(u)}>Edit</Button>
           <Popconfirm title="Delete this proxy user?" onConfirm={() => removeUser(u.id)}>
             <Button danger icon={<DeleteOutlined />}>Delete</Button>
@@ -237,7 +237,7 @@ const Users: React.FC = () => {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <Title level={2} style={{ margin: 0 }}>Proxy Users</Title>
+          <Title level={2} style={{ margin: 0 }}>Proxy 用户管理</Title>
           <Paragraph style={{ margin: 0 }}>Manage credentials and node access for Mihomo users.</Paragraph>
         </div>
         <Button type="primary" icon={<UserAddOutlined />} onClick={openCreate}>Create User</Button>
@@ -249,16 +249,16 @@ const Users: React.FC = () => {
         title={editing ? 'Edit Proxy User' : 'Create Proxy User'}
         open={modalOpen}
         onOk={saveUser}
-        onCancel={() => setModalOpen(false)}
+        on取消={() => setModalOpen(false)}
         destroyOnClose
       >
         <Form form={form} layout="vertical">
-          <Form.Item name="username" label="Username" rules={[{ required: true }]}>
+          <Form.Item name="username" label="用户名" rules={[{ required: true }]}>
             <Input />
           </Form.Item>
           <Form.Item
             name="password"
-            label={editing ? 'Password (leave empty to keep current)' : 'Password'}
+            label={editing ? '密码 (leave empty to keep current)' : '密码'}
             rules={editing ? [] : [{ required: true }]}
           >
             <Input.Password autoComplete="new-password" />
@@ -279,14 +279,14 @@ const Users: React.FC = () => {
       </Modal>
 
       <Modal
-        title={`Bind Nodes${bindingUser ? ` · ${bindingUser.username}` : ''}`}
+        title={`Bind 节点管理${bindingUser ? ` · ${bindingUser.username}` : ''}`}
         open={bindOpen}
         onOk={saveBindings}
-        onCancel={() => setBindOpen(false)}
+        on取消={() => setBindOpen(false)}
         destroyOnClose
       >
         <Form form={bindForm} initialValues={{ listener_ids: boundNodeIds }}>
-          <Form.Item name="listener_ids" label="Allowed Nodes">
+          <Form.Item name="listener_ids" label="Allowed 节点管理">
             <Select
               mode="multiple"
               placeholder="Select nodes"
@@ -305,4 +305,4 @@ const Users: React.FC = () => {
   );
 };
 
-export default Users;
+export default 用户管理;
