@@ -327,6 +327,9 @@ rm -f "$tmp"
 write_config
 
 
+install_mihomo
+
+
 
 case "$(init_system)" in
 
