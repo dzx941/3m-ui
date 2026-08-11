@@ -50,30 +50,40 @@ func main() {
 	}
 
 
-	security.InitCredentialKey(cfg.Security.CredentialKey)
+	security.InitCredentialKey(
+		cfg.Security.CredentialKey,
+	)
+
 
 	mihomo.InitService(cfg)
+
 
 	listener.InitService(
 		database.GlobalDB,
 		cfg.Mihomo.Config,
 	)
 
+
 	node.InitService(
 		database.GlobalDB,
 		cfg.Mihomo.Config,
 	)
 
+
 	user.InitService(
 		database.GlobalDB,
 	)
 
+
 	traffic.InitGlobalService()
+
 
 
 	r := router.SetupRouter(cfg)
 
+
 	mountFrontend(r)
+
 
 
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
@@ -81,14 +91,17 @@ func main() {
 	log.Printf("3m-ui listening on %s", addr)
 
 
+
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("run server: %v", err)
 	}
+
 }
 
 
 
 func defaultConfigPath() string {
+
 
 	if value := os.Getenv("THREE_M_UI_CONFIG"); value != "" {
 		return value
@@ -105,20 +118,37 @@ func defaultConfigPath() string {
 
 
 
+
+
 func mountFrontend(r *gin.Engine) {
 
 
-	staticFS, err := fs.Sub(frontendFiles, "web/dist")
+	staticFS, err := fs.Sub(
+		frontendFiles,
+		"web/dist",
+	)
+
 
 	if err != nil {
-		log.Printf("frontend assets unavailable: %v", err)
+		log.Printf(
+			"frontend assets unavailable: %v",
+			err,
+		)
 		return
 	}
+
 
 
 	fileServer := http.FileServer(
 		http.FS(staticFS),
 	)
+
+
+
+	// 禁止 Gin 自动 301
+	r.RedirectTrailingSlash = false
+	r.RedirectFixedPath = false
+
 
 
 	r.NoRoute(func(c *gin.Context) {
@@ -127,39 +157,79 @@ func mountFrontend(r *gin.Engine) {
 		path := c.Request.URL.Path
 
 
+
+		// API 不进入 SPA
+		if len(path) >= 4 &&
+			path[:4] == "/api" {
+
+			c.Status(http.StatusNotFound)
+			return
+		}
+
+
+
+		// 首页
 		if path == "/" {
+
+			data := mustReadFile(
+				staticFS,
+				"index.html",
+			)
+
 
 			c.Data(
 				http.StatusOK,
 				"text/html; charset=utf-8",
-				mustReadFile(staticFS,"index.html"),
+				data,
 			)
 
 			return
 		}
 
 
-		f, err := staticFS.Open(path[1:])
+
+
+		// 静态资源
+
+		f, err := staticFS.Open(
+			path[1:],
+		)
 
 
 		if err == nil {
 
 			defer f.Close()
 
-			fileServer.ServeHTTP(c.Writer,c.Request)
+
+			fileServer.ServeHTTP(
+				c.Writer,
+				c.Request,
+			)
 
 			return
 		}
 
 
+
+		// Vue Router fallback
+
+		data := mustReadFile(
+			staticFS,
+			"index.html",
+		)
+
+
 		c.Data(
 			http.StatusOK,
 			"text/html; charset=utf-8",
-			mustReadFile(staticFS,"index.html"),
+			data,
 		)
 
 	})
+
 }
+
+
 
 
 
@@ -169,20 +239,27 @@ func mustReadFile(
 ) []byte {
 
 
-	data,err := fs.ReadFile(fsys,name)
+	data, err := fs.ReadFile(
+		fsys,
+		name,
+	)
 
 
 	if err != nil {
 
 		log.Printf(
-			"read frontend %s failed:%v",
+			"read frontend %s failed: %v",
 			name,
 			err,
 		)
 
-		return []byte("3m-ui frontend unavailable")
+
+		return []byte(
+			"3m-ui frontend unavailable",
+		)
 	}
 
 
 	return data
+
 }
