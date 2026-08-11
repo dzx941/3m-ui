@@ -14,8 +14,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout
         uses: actions/checkout@v4
+
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -23,10 +25,12 @@ jobs:
           go-version: '1.25.x'
           cache-dependency-path: backend/go.sum
 
+
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
+
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -35,31 +39,39 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
+
       - name: Build frontend
         working-directory: frontend
         run: |
           pnpm install --frozen-lockfile
           pnpm build
 
+
       - name: Embed frontend assets
         run: |
           rm -rf backend/cmd/server/web/dist
           mkdir -p backend/cmd/server/web
-          cp -R frontend/dist backend/cmd/server/web/dist
+          cp -r frontend/dist backend/cmd/server/web/dist
 
+
+      # 只安装交叉编译器
+      # 不安装 gcc-multilib
       - name: Install CGO cross compilers
         run: |
           sudo apt-get update
+          sudo apt-get remove -y gcc-multilib || true
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
-            gcc-arm-linux-gnueabihf \
-            gcc-multilib
+            gcc-arm-linux-gnueabihf
+
 
       - name: Build Linux binaries
         working-directory: backend
         run: |
           set -eu
+
           mkdir -p ../dist
+
 
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             VERSION="${GITHUB_REF_NAME}"
@@ -67,43 +79,101 @@ jobs:
             VERSION="v0.1.0-dev"
           fi
 
+
           GIT_COMMIT="$(git rev-parse --short HEAD)"
           BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          LDFLAGS="-s -w -X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}"
 
-          build_cgo() {
-            arch="$1"
-            output="$2"
-            shift 2
-            echo "Building production CGO binary: ${output}"
-            env CGO_ENABLED=1 GOOS=linux GOARCH="$arch" "$@" \
-              go build -trimpath -ldflags "$LDFLAGS" -o "../dist/${output}" ./cmd/server
-          }
+          LDFLAGS="-s -w \
+          -X main.version=${VERSION} \
+          -X main.gitCommit=${GIT_COMMIT} \
+          -X main.buildTime=${BUILD_TIME}"
 
-          build_static() {
-            arch="$1"
-            output="$2"
-            shift 2
-            echo "Building static modernc binary: ${output}"
-            env CGO_ENABLED=0 GOOS=linux GOARCH="$arch" "$@" \
-              go build -tags sqlite_modernc -trimpath -ldflags "$LDFLAGS" -o "../dist/${output}" ./cmd/server
-          }
 
-          build_cgo amd64 3m-ui-linux-amd64
-          build_cgo arm64 3m-ui-linux-arm64 CC=aarch64-linux-gnu-gcc
-          build_cgo arm 3m-ui-linux-armv7 GOARM=7 CC=arm-linux-gnueabihf-gcc
+          echo "=== CGO production builds ==="
 
-          build_static amd64 3m-ui-linux-amd64-static
-          build_static arm64 3m-ui-linux-arm64-static
-          build_static arm 3m-ui-linux-armv7-static GOARM=7
+
+          CGO_ENABLED=1 \
+          GOOS=linux \
+          GOARCH=amd64 \
+          go build \
+          -trimpath \
+          -ldflags "$LDFLAGS" \
+          -o ../dist/3m-ui-linux-amd64 \
+          ./cmd/server
+
+
+          CGO_ENABLED=1 \
+          GOOS=linux \
+          GOARCH=arm64 \
+          CC=aarch64-linux-gnu-gcc \
+          go build \
+          -trimpath \
+          -ldflags "$LDFLAGS" \
+          -o ../dist/3m-ui-linux-arm64 \
+          ./cmd/server
+
+
+          CGO_ENABLED=1 \
+          GOOS=linux \
+          GOARCH=arm \
+          GOARM=7 \
+          CC=arm-linux-gnueabihf-gcc \
+          go build \
+          -trimpath \
+          -ldflags "$LDFLAGS" \
+          -o ../dist/3m-ui-linux-armv7 \
+          ./cmd/server
+
+
+
+          echo "=== Static modernc builds ==="
+
+
+          CGO_ENABLED=0 \
+          GOOS=linux \
+          GOARCH=amd64 \
+          go build \
+          -tags sqlite_modernc \
+          -trimpath \
+          -ldflags "$LDFLAGS" \
+          -o ../dist/3m-ui-linux-amd64-static \
+          ./cmd/server
+
+
+          CGO_ENABLED=0 \
+          GOOS=linux \
+          GOARCH=arm64 \
+          go build \
+          -tags sqlite_modernc \
+          -trimpath \
+          -ldflags "$LDFLAGS" \
+          -o ../dist/3m-ui-linux-arm64-static \
+          ./cmd/server
+
+
+          CGO_ENABLED=0 \
+          GOOS=linux \
+          GOARCH=arm \
+          GOARM=7 \
+          go build \
+          -tags sqlite_modernc \
+          -trimpath \
+          -ldflags "$LDFLAGS" \
+          -o ../dist/3m-ui-linux-armv7-static \
+          ./cmd/server
+
+
 
       - name: Verify binaries
         run: |
+          ls -lh dist
           file dist/*
+
 
       - name: Add deployment scripts
         run: |
           cp scripts/install.sh scripts/update.sh scripts/uninstall.sh dist/
+
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -114,9 +184,11 @@ jobs:
             dist/3m-ui-linux-amd64
             dist/3m-ui-linux-arm64
             dist/3m-ui-linux-armv7
+
             dist/3m-ui-linux-amd64-static
             dist/3m-ui-linux-arm64-static
             dist/3m-ui-linux-armv7-static
+
             dist/install.sh
             dist/update.sh
             dist/uninstall.sh
