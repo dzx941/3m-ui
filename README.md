@@ -113,12 +113,14 @@ This generates the static bundle in `frontend/dist` which can be served by any s
 
 ## Production Installation
 
-3m-ui is distributed as a single Linux server binary with the built frontend embedded into the Go executable. Official release assets include Linux binaries for `amd64`, `arm64`, and `armv7`, plus installer, updater, and uninstaller scripts. The first release-candidate line is `v0.1.0-rc.1`.
+3m-ui is distributed as a single Linux server binary with the built frontend embedded into the Go executable. Official release assets include production Linux binaries for `amd64`, `arm64`, and `armv7`, static Linux binaries for the same architectures, plus installer, updater, and uninstaller scripts. The first release-candidate line is `v0.1.0-rc.1`.
 
 ### Supported Platforms
 
 - Debian and Ubuntu with systemd
+- RHEL-compatible distributions such as Rocky Linux, AlmaLinux, CentOS, and Fedora with systemd
 - Alpine Linux with OpenRC
+- Arch Linux and openSUSE with systemd
 - CPU architectures: `amd64`, `arm64`, `armv7`
 
 ### Install
@@ -129,7 +131,13 @@ Run the installer as root on the target server:
 curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/install.sh | sh
 ```
 
-The installer detects the OS, CPU architecture, and init system, downloads the matching release binary from `https://github.com/dzx941/3m-ui/releases`, writes the service definition, enables the service, and starts 3m-ui automatically.
+The installer detects the OS, CPU architecture, package manager, and init system, installs basic TLS/download prerequisites when possible, downloads the matching release binary from `https://github.com/dzx941/3m-ui/releases`, writes the service definition, enables the service, and starts 3m-ui automatically.
+
+To force the static `modernc.org/sqlite` binary on distributions where the production CGO binary is not suitable, set `THREE_M_UI_STATIC=1`:
+
+```bash
+curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/install.sh | THREE_M_UI_STATIC=1 sh
+```
 
 After installation, open:
 
@@ -151,6 +159,12 @@ Upgrade keeps the database, user data, Mihomo configuration files, and existing 
 
 ```bash
 curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/update.sh | sh
+```
+
+Use the matching static updater command when the installed binary was selected with `THREE_M_UI_STATIC=1`:
+
+```bash
+curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/update.sh | THREE_M_UI_STATIC=1 sh
 ```
 
 To upgrade to a specific release candidate manually, download the matching binary from that GitHub Release, stop the service, replace `/usr/local/bin/3m-ui`, and start the service again. Keep `/etc/3m-ui` and `/var/lib/3m-ui` in place to preserve configuration and the SQLite database.
@@ -199,14 +213,15 @@ rc-service 3m-ui restart
 
 ## Release and Packaging
 
-The release pipeline runs from `.github/workflows/release.yml` on `v*` tags and manual dispatch. It builds the frontend with pnpm, copies `frontend/dist` into the backend embed directory, cross-compiles Linux binaries into `dist/`, copies deployment scripts, and publishes all artifacts to a GitHub Release.
+The release pipeline runs from `.github/workflows/release.yml` on `v*` tags and manual dispatch. It builds the frontend with pnpm, copies `frontend/dist` into the backend embed directory, cross-compiles production CGO Linux binaries backed by `mattn/go-sqlite3`, builds static `modernc.org/sqlite` Linux binaries with the `sqlite_modernc` build tag, copies deployment scripts, and publishes all artifacts to a GitHub Release.
 
 Local packaging commands:
 
 ```bash
 make build        # Build embedded frontend and host binary into dist/3m-ui
-make build-linux  # Build Linux release binaries
-make release      # Clean, build, cross-compile, and copy scripts
+make build-linux         # Build production Linux release binaries with mattn/go-sqlite3
+make build-linux-static  # Build static Linux release binaries with modernc.org/sqlite
+make release             # Clean, build, cross-compile, and copy scripts
 make clean        # Remove dist/
 ```
 

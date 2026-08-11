@@ -45,6 +45,43 @@ arch_name() {
 }
 
 
+os_id() {
+    if [ -r /etc/os-release ]; then
+        . /etc/os-release
+        echo "${ID:-unknown}"
+    else
+        echo unknown
+    fi
+}
+
+install_prerequisites() {
+    # Best-effort support for common Linux distributions. Static release
+    # binaries do not require sqlite CGO runtime libraries, but these tools are
+    # still useful for installation and service management.
+    if command_exists apt-get; then
+        apt-get update
+        apt-get install -y ca-certificates curl
+    elif command_exists dnf; then
+        dnf install -y ca-certificates curl
+    elif command_exists yum; then
+        yum install -y ca-certificates curl
+    elif command_exists apk; then
+        apk add --no-cache ca-certificates curl
+    elif command_exists pacman; then
+        pacman -Sy --noconfirm ca-certificates curl
+    elif command_exists zypper; then
+        zypper --non-interactive install ca-certificates curl
+    fi
+}
+
+asset_suffix() {
+    case "${THREE_M_UI_STATIC:-0}" in
+        1|true|yes) echo "-static" ;;
+        *) echo "" ;;
+    esac
+}
+
+
 init_system() {
 
     if command_exists systemctl &&
@@ -209,6 +246,10 @@ rc-service $SERVICE_NAME restart
 need_root
 
 
+echo "Detected Linux distribution: $(os_id)"
+install_prerequisites
+
+
 mkdir -p \
 "$INSTALL_DIR" \
 "$CONFIG_DIR" \
@@ -224,7 +265,7 @@ tmp=$(mktemp)
 
 
 download \
-"https://github.com/$REPO/releases/latest/download/3m-ui-linux-$arch" \
+"https://github.com/$REPO/releases/latest/download/3m-ui-linux-$arch$(asset_suffix)" \
 "$tmp"
 
 
