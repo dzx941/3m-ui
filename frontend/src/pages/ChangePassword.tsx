@@ -1,4 +1,3 @@
-import React,{useState} from 'react';
 import {Button,Card,Form,Input,Typography,message} from 'antd';
 import {LockOutlined} from '@ant-design/icons';
 import {useNavigate} from 'react-router-dom';

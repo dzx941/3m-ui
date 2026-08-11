@@ -1,4 +1,3 @@
-import React, { useEffect, useState } from 'react';
 import { Alert, Button, Card, Descriptions, Space, Spin, Tag, message } from 'antd';
 import { apiRequest } from '../api/request';
 

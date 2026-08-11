@@ -1,4 +1,3 @@
-import React from 'react';
 import { Typography, Table, Button } from 'antd';
 import { LinkOutlined } from '@ant-design/icons';
 

@@ -1,4 +1,3 @@
-import React,{useEffect,useState} from 'react';
 import {Alert,Button,Card,Col,Progress,Row,Space,Statistic,Tag,Typography,message} from 'antd';
 import {PlayCircleOutlined,StopOutlined,ReloadOutlined} from '@ant-design/icons';
 import {apiRequest} from '../api/request';

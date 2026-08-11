@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import SidebarLayout from './layouts/SidebarLayout';
 import Login from './pages/Login';

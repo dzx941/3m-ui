@@ -1,4 +1,3 @@
-import React from 'react';
 import { Typography, Card, Space, Button } from 'antd';
 
 const { Title, Paragraph } = Typography;

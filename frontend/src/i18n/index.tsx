@@ -1,4 +1,3 @@
-import React, { createContext, useContext } from 'react';
 import { messages, type Locale } from './messages';
 
 const I18nContext = createContext({ locale: 'zh-CN' as Locale, t: (key: string) => messages['zh-CN'][key] || key });

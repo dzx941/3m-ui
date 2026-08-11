@@ -1,4 +1,3 @@
-import React, { useState, useEffect } from 'react';
 import {
   Typography,
   Table,
@@ -18,7 +17,7 @@ import {
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiRequest } from '../api/request';
-import { 协议Form } from '../components/protocols';
+import { ProtocolForm } from '../components/protocols';
 
 const { Title, Paragraph } = Typography;
 const { Option } = Select;
@@ -405,7 +404,7 @@ const 入站管理: React.FC = () => {
             Do not place passwords or UUIDs in the node configuration.
           </Typography.Paragraph>
 
-          <协议Form protocol={selected协议} />
+          <ProtocolForm protocol={selected协议} />
 
           <Form.Item name="enabled" label="Status Enabled" valuePropName="checked">
             <Switch checkedChildren="On" unCheckedChildren="Off" />
