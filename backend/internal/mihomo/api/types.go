@@ -6,8 +6,8 @@ type Traffic struct {
 }
 
 type Connections struct {
-	DownloadTotal int64 `json:"downloadTotal"`
-	UploadTotal   int64 `json:"uploadTotal"`
+	DownloadTotal int64        `json:"downloadTotal"`
+	UploadTotal   int64        `json:"uploadTotal"`
 	Connections   []Connection `json:"connections"`
 }
 

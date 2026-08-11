@@ -32,7 +32,7 @@ func GetSystemStats() *SystemStats {
 	vMem, err := mem.VirtualMemory()
 	if err == nil {
 		memoryInfo = MemoryInfo{
-			Used:    float64(vMem.Used) / (1024 * 1024), // to MB
+			Used:    float64(vMem.Used) / (1024 * 1024),  // to MB
 			Total:   float64(vMem.Total) / (1024 * 1024), // to MB
 			Percent: math.Round(vMem.UsedPercent*10) / 10,
 		}
@@ -43,7 +43,7 @@ func GetSystemStats() *SystemStats {
 	dUsage, err := disk.Usage("/")
 	if err == nil {
 		diskInfo = DiskInfo{
-			Used:    float64(dUsage.Used) / (1024 * 1024 * 1024), // to GB
+			Used:    float64(dUsage.Used) / (1024 * 1024 * 1024),  // to GB
 			Total:   float64(dUsage.Total) / (1024 * 1024 * 1024), // to GB
 			Percent: math.Round(dUsage.UsedPercent*10) / 10,
 		}

@@ -14,12 +14,12 @@ import (
 )
 
 type ProcessManager struct {
-	mu         sync.Mutex
-	cmd        *exec.Cmd
-	pid        int
-	startTime  time.Time
-	binaryPath string
-	configPath string
+	mu          sync.Mutex
+	cmd         *exec.Cmd
+	pid         int
+	startTime   time.Time
+	binaryPath  string
+	configPath  string
 	isSimulated bool
 }
 

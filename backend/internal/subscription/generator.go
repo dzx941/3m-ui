@@ -47,12 +47,12 @@ func (g *Generator) Generate(userID uint) ([]byte, error) {
 		_ = json.Unmarshal([]byte(l.Config), &extra)
 
 		p := ClientProxy{
-			Name: l.Name,
-			Type: l.Protocol,
+			Name:   l.Name,
+			Type:   l.Protocol,
 			Server: l.BindAddress,
-			Port: l.Port,
-			TLS: l.TLS,
-			UDP: l.UDP,
+			Port:   l.Port,
+			TLS:    l.TLS,
+			UDP:    l.UDP,
 		}
 
 		if v, ok := extra["password"].(string); ok {
@@ -67,11 +67,11 @@ func (g *Generator) Generate(userID uint) ([]byte, error) {
 
 	cfg := map[string]interface{}{
 		"mixed-port": 7890,
-		"proxies": proxies,
+		"proxies":    proxies,
 		"proxy-groups": []interface{}{
 			map[string]interface{}{
-				"name": "AUTO",
-				"type": "select",
+				"name":    "AUTO",
+				"type":    "select",
 				"proxies": []string{"DIRECT"},
 			},
 		},
