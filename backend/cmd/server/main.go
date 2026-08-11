@@ -25,6 +25,11 @@ import (
 var frontendFiles embed.FS
 
 func main() {
+	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "version") {
+		fmt.Println(versionString())
+		return
+	}
+
 	configPath := defaultConfigPath()
 	cfg, err := config.LoadConfig(configPath)
 	if err != nil {
