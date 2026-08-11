@@ -1,11 +1,32 @@
-import React, { createContext, useContext } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import { messages, type Locale } from './messages';
 
-const I18nContext = createContext({ locale: 'zh-CN' as Locale, t: (key: string) => messages['zh-CN'][key] || key });
+interface I18nContextProps {
+  locale: Locale;
+  setLocale: (locale: Locale) => void;
+  t: (key: string) => string;
+}
 
-export const I18nProvider: React.FC<React.PropsWithChildren<{ locale?: Locale }>> = ({ locale = 'zh-CN', children }) => {
+const I18nContext = createContext<I18nContextProps>({
+  locale: 'zh-CN',
+  setLocale: () => {},
+  t: (key: string) => messages['zh-CN'][key] || key,
+});
+
+export const I18nProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const [locale, setLocaleState] = useState<Locale>(() => {
+    const saved = localStorage.getItem('3m-ui.locale') as Locale | null;
+    return saved === 'en-US' || saved === 'zh-CN' ? saved : 'zh-CN';
+  });
+
+  const setLocale = (l: Locale) => {
+    setLocaleState(l);
+    localStorage.setItem('3m-ui.locale', l);
+  };
+
   const t = (key: string) => messages[locale][key] || messages['zh-CN'][key] || key;
-  return <I18nContext.Provider value={{ locale, t }}>{children}</I18nContext.Provider>;
+
+  return <I18nContext.Provider value={{ locale, setLocale, t }}>{children}</I18nContext.Provider>;
 };
 
 // eslint-disable-next-line react/only-export-components

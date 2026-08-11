@@ -11,6 +11,7 @@ import Core from './pages/Core';
 import ProxyNodes from './pages/ProxyNodes';
 import ListenersPage from './pages/Listeners';
 import UsersPage from './pages/Users';
+import ClientAccessPage from './pages/ClientAccess';
 import { isAuthenticated, mustChangePassword } from './api/auth';
 
 const ProtectedLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
@@ -28,7 +29,7 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/change-password" element={<ChangePassword />} />
-        <Route path="/*" element={
+        <Route path="/*" element = {
           <ProtectedLayout>
             <Routes>
               <Route path="dashboard" element={<Dashboard />} />
@@ -36,6 +37,7 @@ export default function App() {
               <Route path="proxies" element={<ProxyNodes />} />
               <Route path="listeners" element={<ListenersPage />} />
               <Route path="users" element={<UsersPage />} />
+              <Route path="client-access" element={<ClientAccessPage />} />
               <Route path="config" element={<Config />} />
               <Route path="logs" element={<Logs />} />
               <Route path="settings" element={<Settings />} />

@@ -36,6 +36,7 @@ if [ "$YES" -ne 1 ]; then
     esac
 fi
 
+# 1. Disable and Stop 3m-ui
 if command -v systemctl >/dev/null 2>&1 && [ -f "/etc/systemd/system/$SERVICE_NAME.service" ]; then
     systemctl disable --now "$SERVICE_NAME" || true
     rm -f "/etc/systemd/system/$SERVICE_NAME.service"
@@ -48,14 +49,30 @@ if command -v rc-service >/dev/null 2>&1 && [ -f "/etc/init.d/$SERVICE_NAME" ]; 
     rm -f "/etc/init.d/$SERVICE_NAME"
 fi
 
+# 2. Disable and Stop subconverter
+if command -v systemctl >/dev/null 2>&1 && [ -f "/etc/systemd/system/subconverter.service" ]; then
+    systemctl disable --now subconverter || true
+    rm -f "/etc/systemd/system/subconverter.service"
+    systemctl daemon-reload || true
+fi
+
+if command -v rc-service >/dev/null 2>&1 && [ -f "/etc/init.d/subconverter" ]; then
+    rc-service subconverter stop || true
+    rc-update del subconverter default || true
+    rm -f "/etc/init.d/subconverter"
+fi
+
+# 3. Clean Binaries and Directories
 rm -f "$BIN_PATH"
 rm -f "/usr/local/bin/mihomo"
+rm -f "/usr/local/bin/subconverter"
+rm -rf "/usr/local/subconverter"
 rm -rf "$CONFIG_DIR" "$LOG_DIR"
 
 if [ "$PURGE" -eq 1 ]; then
     rm -rf "$DATA_DIR"
-    echo "3m-ui uninstalled and all data purged."
+    echo "3m-ui and subconverter uninstalled and all data purged."
 else
-    echo "3m-ui uninstalled. Data kept at $DATA_DIR."
+    echo "3m-ui and subconverter uninstalled. Data kept at $DATA_DIR."
     echo "Use --purge to remove the database and all application data."
 fi

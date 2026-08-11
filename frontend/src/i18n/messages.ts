@@ -21,6 +21,10 @@ export const messages: Record<Locale, Messages> = {
     'nav.config': '配置管理',
     'nav.logs': '运行日志',
     'nav.settings': '系统设置',
+    'nav.clientAccess': '客户端接入',
+
+    'clientAccess.title': '客户端接入',
+    'clientAccess.subtitle': '管理客户端接入 Token 并获取订阅配置链接',
     
     'common.save': '保存',
     'common.cancel': '取消',
@@ -55,6 +59,11 @@ export const messages: Record<Locale, Messages> = {
     'nav.logs': 'Logs',
     'nav.config': 'Configuration',
     'nav.settings': 'Settings',
+    'nav.clientAccess': 'Client Access',
+
+    'clientAccess.title': 'Client Access',
+    'clientAccess.subtitle': 'Manage client access tokens and acquire subscription links',
+
     'common.save': 'Save',
     'common.cancel': 'Cancel',
     'password.title': 'Change your password',

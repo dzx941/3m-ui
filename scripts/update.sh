@@ -1,8 +1,14 @@
 #!/usr/bin/env sh
 set -eu
-REPO="dzx941/3m-ui"; BIN_PATH="/usr/local/bin/3m-ui"; CONFIG_DIR="/etc/3m-ui"; DATA_DIR="/var/lib/3m-ui"; SERVICE_NAME="3m-ui"
+REPO="dzx941/3m-ui"
+BIN_PATH="/usr/local/bin/3m-ui"
+CONFIG_DIR="/etc/3m-ui"
+DATA_DIR="/var/lib/3m-ui"
+SERVICE_NAME="3m-ui"
+
 [ "$(id -u)" -eq 0 ] || { echo "Please run as root." >&2; exit 1; }
 [ -x "$BIN_PATH" ] || { echo "3m-ui is not installed at $BIN_PATH" >&2; exit 1; }
+
 command_exists(){ command -v "$1" >/dev/null 2>&1; }
 arch_name(){ case "$(uname -m)" in x86_64|amd64) echo amd64;; aarch64|arm64) echo arm64;; armv7l|armv7*) echo armv7;; *) echo "Unsupported architecture" >&2; exit 1;; esac; }
 asset_suffix(){ 
@@ -37,7 +43,6 @@ install_mihomo() {
     rm -f "$tmp"
 }
 
-
 install_mihomo_update() {
     MIHOMO_BIN="/usr/local/bin/mihomo"
     tmp="$(mktemp)"
@@ -55,13 +60,62 @@ install_mihomo_update() {
     rm -f "$tmp"
 }
 
-stop_service(){ if command_exists systemctl && [ -f /etc/systemd/system/$SERVICE_NAME.service ]; then systemctl stop $SERVICE_NAME; elif command_exists rc-service && [ -f /etc/init.d/$SERVICE_NAME ]; then rc-service $SERVICE_NAME stop; fi; }
-start_service(){ if command_exists systemctl && [ -f /etc/systemd/system/$SERVICE_NAME.service ]; then systemctl start $SERVICE_NAME; elif command_exists rc-service && [ -f /etc/init.d/$SERVICE_NAME ]; then rc-service $SERVICE_NAME start; fi; }
-backup_dir="$DATA_DIR/backups/$(date +%Y%m%d%H%M%S)"; mkdir -p "$backup_dir"; [ -d "$CONFIG_DIR" ] && cp -a "$CONFIG_DIR" "$backup_dir/config"
+install_subconverter_update() {
+    SUBCONVERTER_DIR="/usr/local/subconverter"
+    SUBCONVERTER_BIN="/usr/local/bin/subconverter"
+    case "$(uname -m)" in
+      x86_64|amd64) asset="linux64";;
+      aarch64|arm64) asset="aarch64";;
+      armv7l|armv7*) asset="armv7";;
+      *) return;;
+    esac
+    echo "Updating subconverter..."
+    tmp="$(mktemp)"
+    if download "https://github.com/asdlokj1qpi233/subconverter/releases/download/v0.9.9/subconverter_${asset}.tar.gz" "$tmp"; then
+      mkdir -p "/usr/local"
+      tar -xzf "$tmp" -C "/usr/local" || true
+      if [ -x "$SUBCONVERTER_DIR/subconverter" ]; then
+         ln -sf "$SUBCONVERTER_DIR/subconverter" "$SUBCONVERTER_BIN" || true
+         echo "Subconverter updated."
+      fi
+    fi
+    rm -f "$tmp"
+}
+
+stop_service(){
+    if command_exists systemctl; then
+        [ -f /etc/systemd/system/$SERVICE_NAME.service ] && systemctl stop $SERVICE_NAME || true
+        [ -f /etc/systemd/system/subconverter.service ] && systemctl stop subconverter || true
+    elif command_exists rc-service; then
+        [ -f /etc/init.d/$SERVICE_NAME ] && rc-service $SERVICE_NAME stop || true
+        [ -f /etc/init.d/subconverter ] && rc-service subconverter stop || true
+    fi
+}
+
+start_service(){
+    if command_exists systemctl; then
+        [ -f /etc/systemd/system/$SERVICE_NAME.service ] && systemctl start $SERVICE_NAME || true
+        [ -f /etc/systemd/system/subconverter.service ] && systemctl start subconverter || true
+    elif command_exists rc-service; then
+        [ -f /etc/init.d/$SERVICE_NAME ] && rc-service $SERVICE_NAME start || true
+        [ -f /etc/init.d/subconverter ] && rc-service subconverter start || true
+    fi
+}
+
+backup_dir="$DATA_DIR/backups/$(date +%Y%m%d%H%M%S)"; mkdir -p "$backup_dir"
+[ -d "$CONFIG_DIR" ] && cp -a "$CONFIG_DIR" "$backup_dir/config"
+
 tmp="$(mktemp)"; download "https://github.com/$REPO/releases/latest/download/3m-ui-linux-$(arch_name)$(asset_suffix)" "$tmp"
+
 install_mihomo_update
+install_subconverter_update
+
 stop_service
+
 install_mihomo
-install -m 0755 "$tmp" "$BIN_PATH"; rm -f "$tmp"
+install -m 0755 "$tmp" "$BIN_PATH"
+rm -f "$tmp"
+
 start_service
+
 echo "3m-ui updated. Config backup: $backup_dir"

@@ -180,6 +180,45 @@ install_mihomo() {
     rm -f "$tmp"
 }
 
+install_subconverter() {
+    SUBCONVERTER_DIR="/usr/local/subconverter"
+    SUBCONVERTER_BIN="/usr/local/bin/subconverter"
+
+    if [ -x "$SUBCONVERTER_BIN" ]; then
+        echo "Subconverter is already installed."
+        return
+    fi
+
+    arch="$(uname -m)"
+    case "$arch" in
+        x86_64|amd64) sub_arch="linux64" ;;
+        aarch64|arm64) sub_arch="aarch64" ;;
+        armv7l|armv7*) sub_arch="armv7" ;;
+        *)
+            echo "Warning: Unsupported subconverter architecture: $arch. Skipping subconverter installation."
+            return
+            ;;
+    esac
+
+    echo "Installing subconverter for $arch..."
+    tmp="$(mktemp)"
+    url="https://github.com/asdlokj1qpi233/subconverter/releases/download/v0.9.9/subconverter_${sub_arch}.tar.gz"
+
+    if download "$url" "$tmp"; then
+        mkdir -p "/usr/local"
+        tar -xzf "$tmp" -C "/usr/local" || true
+        if [ -x "$SUBCONVERTER_DIR/subconverter" ]; then
+            ln -sf "$SUBCONVERTER_DIR/subconverter" "$SUBCONVERTER_BIN" || true
+            echo "Subconverter installed successfully to $SUBCONVERTER_BIN"
+        else
+            echo "Warning: Subconverter executable not found after unpack. Skipping subconverter installation."
+        fi
+    else
+        echo "Warning: Failed to download subconverter from $url. Skipping subconverter installation."
+    fi
+    rm -f "$tmp"
+}
+
 write_config() {
 
     if [ -f "$CONFIG_DIR/config.yaml" ]; then
@@ -248,6 +287,33 @@ systemctl daemon-reload
 
 systemctl enable --now $SERVICE_NAME
 
+install_subconverter_systemd
+
+}
+
+install_subconverter_systemd() {
+    if [ ! -x "/usr/local/bin/subconverter" ]; then
+        return
+    fi
+
+cat >/etc/systemd/system/subconverter.service <<EOF
+[Unit]
+Description=Subconverter subscription conversion utility
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/subconverter
+WorkingDirectory=/usr/local/subconverter
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable --now subconverter
 }
 
 
@@ -288,6 +354,34 @@ rc-update add $SERVICE_NAME default
 
 rc-service $SERVICE_NAME restart
 
+install_subconverter_openrc
+
+}
+
+install_subconverter_openrc() {
+    if [ ! -x "/usr/local/bin/subconverter" ]; then
+        return
+    fi
+
+cat > /etc/init.d/subconverter <<EOF
+#!/sbin/openrc-run
+
+name="subconverter"
+description="Subconverter subscription conversion utility"
+
+command="/usr/local/bin/subconverter"
+command_background="yes"
+pidfile="/run/subconverter.pid"
+directory="/usr/local/subconverter"
+
+depend() {
+    need net
+}
+EOF
+
+    chmod +x /etc/init.d/subconverter
+    rc-update add subconverter default
+    rc-service subconverter restart
 }
 
 
@@ -329,6 +423,8 @@ write_config
 
 install_mihomo
 
+
+install_subconverter
 
 
 case "$(init_system)" in

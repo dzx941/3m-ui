@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Button, Card, Col, Form, Input, InputNumber, Modal, Row, Select, Space, Table, Tag, message } from 'antd';
-import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Modal, Row, Select, Space, Table, Tag, DatePicker, message } from 'antd';
+import { PlusOutlined, ReloadOutlined, EditOutlined, DeleteOutlined, LinkOutlined, CopyOutlined } from '@ant-design/icons';
 import { apiRequest } from '../api/request';
 import { ProtocolForm, type ProxyNode } from '../components/protocols';
 
@@ -20,6 +20,12 @@ export default function ProxyNodes() {
   const [editing, setEditing] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [form] = Form.useForm();
+
+  // "Generate Client Link" states
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [nodeIndexForLink, setNodeIndexForLink] = useState<number | null>(null);
+  const [generatedLinks, setGeneratedLinks] = useState<{ clash: string; singbox: string; shadowrocket: string } | null>(null);
+  const [linkForm] = Form.useForm();
 
   const load = async () => {
     setLoading(true);
@@ -71,6 +77,47 @@ export default function ProxyNodes() {
     }
   };
 
+  const handleOpenLinkModal = (index: number, name: string) => {
+    setNodeIndexForLink(index);
+    setGeneratedLinks(null);
+    linkForm.resetFields();
+    linkForm.setFieldsValue({ name: `${name} 接入 Token` });
+    setLinkOpen(true);
+  };
+
+  const handleGenerateLink = async () => {
+    try {
+      const values = await linkForm.validateFields();
+      const payload = {
+        name: values.name,
+        type: 'proxy',
+        target_id: nodeIndexForLink,
+        expire_at: values.expire_at ? values.expire_at.toISOString() : null,
+      };
+
+      const res = await apiRequest<{ token: string }>('/access-tokens', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+
+      // Construct links dynamically
+      const base = window.location.origin;
+      setGeneratedLinks({
+        clash: `${base}/api/v1/client/sub/${res.token}?target=clash`,
+        singbox: `${base}/api/v1/client/sub/${res.token}?target=singbox`,
+        shadowrocket: `${base}/api/v1/client/sub/${res.token}?target=shadowrocket`,
+      });
+      message.success('客户端接入 Token 生成成功');
+    } catch (e: any) {
+      message.error(e.message || '生成链接失败');
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    message.success('链接已复制到剪贴板');
+  };
+
   return (
     <Card
       title="代理节点"
@@ -104,11 +151,18 @@ export default function ProxyNodes() {
           { title: '端口', dataIndex: 'port' },
           {
             title: '操作',
-            width: 150,
+            width: 250,
             render: (_, __, i) => {
               const x = items[i];
               return (
                 <Space>
+                  <Button
+                    size="small"
+                    icon={<LinkOutlined />}
+                    onClick={() => handleOpenLinkModal(i, x.name)}
+                  >
+                    生成链接
+                  </Button>
                   <Button
                     size="small"
                     icon={<EditOutlined />}
@@ -167,6 +221,59 @@ export default function ProxyNodes() {
           </Row>
           <ProtocolFields form={form} />
         </Form>
+      </Modal>
+
+      {/* Generate Client Link Modal */}
+      <Modal
+        title="生成客户端订阅链接"
+        open={linkOpen}
+        onCancel={() => setLinkOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form form={linkForm} layout="vertical" onFinish={handleGenerateLink} style={{ marginTop: 16 }}>
+          <Form.Item name="name" label="链接备注 / 名称" rules={[{ required: true, message: '请输入备注' }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="expire_at" label="过期时间 (留空永不过期)">
+            <DatePicker showTime style={{ width: '100%' }} />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" block style={{ marginBottom: 16 }}>
+            开始生成
+          </Button>
+        </Form>
+
+        {generatedLinks && (
+          <Space direction="vertical" style={{ width: '100%', marginTop: 24, borderTop: '1px solid #eee', paddingTop: 16 }}>
+            <div>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>Mihomo / Clash 订阅:</div>
+              <Input.Search
+                enterButton={<Button icon={<CopyOutlined />}>复制</Button>}
+                value={generatedLinks.clash}
+                onSearch={() => copyToClipboard(generatedLinks.clash)}
+                readOnly
+              />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>sing-box 订阅:</div>
+              <Input.Search
+                enterButton={<Button icon={<CopyOutlined />}>复制</Button>}
+                value={generatedLinks.singbox}
+                onSearch={() => copyToClipboard(generatedLinks.singbox)}
+                readOnly
+              />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>Shadowrocket 订阅:</div>
+              <Input.Search
+                enterButton={<Button icon={<CopyOutlined />}>复制</Button>}
+                value={generatedLinks.shadowrocket}
+                onSearch={() => copyToClipboard(generatedLinks.shadowrocket)}
+                readOnly
+              />
+            </div>
+          </Space>
+        )}
       </Modal>
     </Card>
   );

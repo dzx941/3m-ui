@@ -33,6 +33,7 @@ func InitDB(dbPath string) (*gorm.DB, error) {
 		&models.Listener{},
 		&models.ListenerUser{},
 		&models.Subscription{},
+		&models.AccessToken{},
 		&models.Config{},
 		&models.ProxyUser{},
 		&models.TrafficRecord{},

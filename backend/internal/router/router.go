@@ -1,24 +1,34 @@
 package router
 
 import (
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/dzx941/3m-ui/backend/internal/auth"
 	"github.com/dzx941/3m-ui/backend/internal/config"
+	"github.com/dzx941/3m-ui/backend/internal/converter"
 	"github.com/dzx941/3m-ui/backend/internal/database"
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
 	"github.com/dzx941/3m-ui/backend/internal/mihomo"
 	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"github.com/dzx941/3m-ui/backend/internal/node"
-	"github.com/dzx941/3m-ui/backend/internal/subscription"
 	"github.com/dzx941/3m-ui/backend/internal/system"
 	"github.com/dzx941/3m-ui/backend/internal/traffic"
 	"github.com/dzx941/3m-ui/backend/internal/user"
 	"github.com/gin-gonic/gin"
 )
+
+func generateSecureToken() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
 
 func SetupRouter(cfg *config.Config) *gin.Engine {
 	if cfg.Server.Mode == "release" {
@@ -54,9 +64,189 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			})
 		})
 
-		// Everything after health is management API and requires a valid JWT.
+		// Public client subscription route (Restructured Subscription System)
+		apiV1.GET("/client/sub/:token", func(c *gin.Context) {
+			// Resolve token
+			var token models.AccessToken
+			if err := database.GlobalDB.Where("token = ? AND enabled = ?", c.Param("token"), true).First(&token).Error; err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Token 不存在或已禁用"})
+				return
+			}
+
+			// Check expiration
+			if token.ExpireAt != nil && token.ExpireAt.Before(time.Now()) {
+				c.JSON(http.StatusGone, gin.H{"error": "Token 已过期"})
+				return
+			}
+
+			// Validate Type
+			if token.Type != "user" && token.Type != "proxy" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Token 类型无效"})
+				return
+			}
+
+			// Generate Clash/Mihomo raw configuration for this token
+			rawYAML, err := converter.GenerateRawConfig(database.GlobalDB, token, c.Request)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+
+			target := c.Query("target")
+			rawOnly := c.Query("raw") == "true"
+
+			// If target is empty, or target is clash/mihomo, or raw is true, return raw YAML directly
+			if rawOnly || target == "" || target == "clash" || target == "mihomo" {
+				c.Header("Content-Disposition", "attachment; filename=config.yaml")
+				c.Data(http.StatusOK, "application/yaml; charset=utf-8", rawYAML)
+				return
+			}
+
+			// Call subconverter
+			converted, err := converter.CallSubconverter(cfg, token.Token, target, rawYAML)
+			if err != nil {
+				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "subconverter 不可用: " + err.Error()})
+				return
+			}
+
+			// Return the converted config
+			contentType := "text/plain; charset=utf-8"
+			filename := "config.txt"
+			if target == "singbox" {
+				contentType = "application/json; charset=utf-8"
+				filename = "config.json"
+			}
+			c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+			c.Data(http.StatusOK, contentType, converted)
+		})
+
+		// Everything after health and sub is management API and requires a valid JWT.
 		apiV1.Use(auth.RequireAuth(cfg.JWT.Secret))
-		subscription.RegisterRoutes(apiV1)
+
+		// Access Token management routes (Phase 2 Restructuring)
+		accessTokenGroup := apiV1.Group("/access-tokens")
+		{
+			// List all access tokens
+			accessTokenGroup.GET("", func(c *gin.Context) {
+				var tokens []models.AccessToken
+				if err := database.GlobalDB.Find(&tokens).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				// Enriched response with dynamic sub URLs for UI use
+				type TokenResponse struct {
+					models.AccessToken
+					MihomoLink       string `json:"mihomo_link"`
+					ClashLink        string `json:"clash_link"`
+					SingboxLink      string `json:"singbox_link"`
+					ShadowrocketLink string `json:"shadowrocket_link"`
+				}
+
+				resp := make([]TokenResponse, 0, len(tokens))
+				for _, t := range tokens {
+					resp = append(resp, TokenResponse{
+						AccessToken:      t,
+						MihomoLink:       converter.GetSubscriptionURL(cfg, c.Request, t.Token, ""),
+						ClashLink:        converter.GetSubscriptionURL(cfg, c.Request, t.Token, "clash"),
+						SingboxLink:      converter.GetSubscriptionURL(cfg, c.Request, t.Token, "singbox"),
+						ShadowrocketLink: converter.GetSubscriptionURL(cfg, c.Request, t.Token, "shadowrocket"),
+					})
+				}
+
+				c.JSON(http.StatusOK, resp)
+			})
+
+			// Create a new access token
+			accessTokenGroup.POST("", func(c *gin.Context) {
+				var req struct {
+					Name     string     `json:"name" binding:"required"`
+					Type     string     `json:"type" binding:"required"`
+					TargetID uint       `json:"target_id" binding:"required"`
+					ExpireAt *time.Time `json:"expire_at"`
+				}
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+
+				if req.Type != "user" && req.Type != "proxy" {
+					c.JSON(http.StatusBadRequest, gin.H{"error": "type must be either 'user' or 'proxy'"})
+					return
+				}
+
+				// Validate target existence
+				if req.Type == "user" {
+					var u models.ProxyUser
+					if err := database.GlobalDB.First(&u, req.TargetID).Error; err != nil {
+						c.JSON(http.StatusBadRequest, gin.H{"error": "proxy user not found"})
+						return
+					}
+				} else {
+					// Validate Proxy Node index exists
+					visual, err := mihomoConfig.GetVisualConfig(database.GlobalDB)
+					if err != nil {
+						c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load visual config"})
+						return
+					}
+					if int(req.TargetID) >= len(visual.Proxies) {
+						c.JSON(http.StatusBadRequest, gin.H{"error": "proxy node index out of range"})
+						return
+					}
+				}
+
+				token := generateSecureToken()
+
+				tokenObj := models.AccessToken{
+					Name:     req.Name,
+					Token:    token,
+					Enabled:  true,
+					ExpireAt: req.ExpireAt,
+					Type:     req.Type,
+					TargetID: req.TargetID,
+				}
+
+				if err := database.GlobalDB.Create(&tokenObj).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+
+				c.JSON(http.StatusCreated, tokenObj)
+			})
+
+			// Toggle enabled/disabled
+			accessTokenGroup.PUT("/:id", func(c *gin.Context) {
+				var req struct {
+					Enabled bool `json:"enabled"`
+				}
+				if err := c.ShouldBindJSON(&req); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+					return
+				}
+				id := c.Param("id")
+				var token models.AccessToken
+				if err := database.GlobalDB.First(&token, id).Error; err != nil {
+					c.JSON(http.StatusNotFound, gin.H{"error": "token not found"})
+					return
+				}
+				token.Enabled = req.Enabled
+				if err := database.GlobalDB.Save(&token).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, token)
+			})
+
+			// Delete an access token
+			accessTokenGroup.DELETE("/:id", func(c *gin.Context) {
+				id := c.Param("id")
+				if err := database.GlobalDB.Delete(&models.AccessToken{}, id).Error; err != nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, gin.H{"status": "ok"})
+			})
+		}
 
 		// Unified Dashboard Aggregator Endpoint
 		apiV1.GET("/dashboard", func(c *gin.Context) {
@@ -73,9 +263,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			visualCfg, _ := mihomoConfig.GetVisualConfig(database.GlobalDB)
 			proxyCount := int64(len(visualCfg.Proxies))
 
-			// 4. Traffic statistics (Phase 8.5). Guarded against the traffic
-			// scheduler not being initialized (e.g. in tests that construct
-			// the router directly) so this never panics.
+			// 4. Traffic statistics. Guarded against the traffic
+			// scheduler not being initialized so this never panics.
 			var trafficSnapshot traffic.Snapshot
 			if traffic.GlobalService != nil {
 				trafficSnapshot = traffic.GlobalService.Current()
@@ -93,9 +282,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				"mihomo": mihomoStatus,
 				"system": sysStatus,
 				"listeners": gin.H{
-					"total": proxyCount,
-					"enabled": proxyCount,
-					"disabled": 0,
+					"total":     proxyCount,
+					"enabled":   proxyCount,
+					"disabled":  0,
 				},
 				"traffic": gin.H{
 					"uploadRate":        trafficSnapshot.UploadRate,
@@ -172,8 +361,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			})
 		}
 
-		// Proxy User management routes. These users authenticate to Mihomo nodes;
-		// they are intentionally separate from the 3m-ui administrator User model.
+		// Proxy User management routes.
 		userGroup := apiV1.Group("/users")
 		{
 			user.RegisterRoutes(userGroup)
@@ -185,13 +373,13 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			node.RegisterRoutes(nodeGroup)
 		}
 
-		// Mihomo Inbound/Listener APIs (backward-compatible, points to node package routes)
+		// Mihomo Inbound/Listener APIs
 		listenerGroup := apiV1.Group("/listeners")
 		{
 			node.RegisterRoutes(listenerGroup)
 		}
 
-		// Traffic monitoring APIs (Phase 8.5)
+		// Traffic monitoring APIs
 		trafficGroup := apiV1.Group("/traffic")
 		{
 			trafficHandler := traffic.NewHandler(traffic.GlobalService, traffic.GlobalCollector, database.GlobalDB)
@@ -201,7 +389,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		// Config Engine APIs
 		configGroup := apiV1.Group("/config")
 		{
-			// Visual configuration endpoints used by the React configuration UI.
 			configGroup.GET("/proxies", func(c *gin.Context) {
 				visual, err := mihomoConfig.GetVisualConfig(database.GlobalDB)
 				if err != nil {
@@ -324,7 +511,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 					return
 				}
 
-				// Write config to designated path
 				dir := filepath.Dir(cfg.Mihomo.Config)
 				if err := os.MkdirAll(dir, 0755); err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -366,7 +552,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			})
 
 			configGroup.GET("/download", func(c *gin.Context) {
-				// Generate dynamically or serve existing file. Best practice: generate latest dynamically!
 				engine := mihomoConfig.NewConfigEngine(database.GlobalDB)
 				yamlStr, err := engine.GenerateFinalConfig()
 				if err != nil {

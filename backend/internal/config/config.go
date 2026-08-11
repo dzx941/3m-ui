@@ -16,8 +16,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port int    `yaml:"port"`
-	Mode string `yaml:"mode"`
+	Port      int    `yaml:"port"`
+	Mode      string `yaml:"mode"`
+	PublicURL string `yaml:"public_url"`
 }
 
 type DatabaseConfig struct {
