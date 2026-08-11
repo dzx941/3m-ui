@@ -57,9 +57,9 @@ jobs:
           GIT_COMMIT="$(git rev-parse --short HEAD)"
           BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           LDFLAGS="-s -w -X main.version=$VERSION -X main.gitCommit=$GIT_COMMIT -X main.buildTime=$BUILD_TIME"
-          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o ../dist/3m-ui-linux-amd64 ./cmd/server
-          CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC=aarch64-linux-gnu-gcc go build -trimpath -ldflags "$LDFLAGS" -o ../dist/3m-ui-linux-arm64 ./cmd/server
-          CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 CC=arm-linux-gnueabihf-gcc go build -trimpath -ldflags "$LDFLAGS" -o ../dist/3m-ui-linux-armv7 ./cmd/server
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "$LDFLAGS" -o ../dist/3m-ui-linux-amd64 ./cmd/server
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 CC=aarch64-linux-gnu-gcc go build -trimpath -ldflags "$LDFLAGS" -o ../dist/3m-ui-linux-arm64 ./cmd/server
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 CC=arm-linux-gnueabihf-gcc go build -trimpath -ldflags "$LDFLAGS" -o ../dist/3m-ui-linux-armv7 ./cmd/server
 
       - name: Add deployment scripts
         run: cp scripts/install.sh scripts/update.sh scripts/uninstall.sh dist/
