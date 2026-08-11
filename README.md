@@ -1,7 +1,5 @@
 # 3m-ui
 
-**Current version:** `v0.1.0-rc.1`
-
 3m-ui is an easy-to-use VPS Web management panel built on top of the Mihomo Core, leveraging its inbound and listener capabilities. It is designed to act similarly to 3x-ui, but with a robust Mihomo backend core.
 
 ## Tech Stack
