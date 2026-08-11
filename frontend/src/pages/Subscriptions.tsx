@@ -1,9 +1,10 @@
+import React from 'react';
 import { Typography, Table, Button } from 'antd';
 import { LinkOutlined } from '@ant-design/icons';
 
 const { Title, Paragraph } = Typography;
 
-const 订阅管理: React.FC = () => {
+const SubscriptionsPage: React.FC = () => {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
@@ -30,4 +31,4 @@ const 订阅管理: React.FC = () => {
   );
 };
 
-export default 订阅管理;
+export default SubscriptionsPage;

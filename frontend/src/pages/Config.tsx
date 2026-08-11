@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import {
   Typography, Row, Col, Card, Button, Space, Form, Input, Select, Switch, Tabs,
   InputNumber, Divider, message, Alert,
@@ -73,7 +74,7 @@ const Config: React.FC = () => {
     void loadConfig();
   }, []);
 
-  const handle保存 = async () => {
+  const handleSave = async () => {
     const values = await form.validateFields();
     setLoading(true);
     try {
@@ -137,7 +138,7 @@ const Config: React.FC = () => {
       <Alert
         type="info"
         showIcon
-        message="配置生成逻辑"
+        message="配置生成 logic"
         description="页面保存的是可视化配置项，后端负责生成最终 config.yaml；节点管理 页面管理 listeners，Proxy 用户管理 管理认证凭据。"
         style={{ marginBottom: 24 }}
       />
@@ -227,7 +228,7 @@ const Config: React.FC = () => {
               ]} />
 
               <Divider />
-              <Button type="primary" icon={<SaveOutlined />} loading={loading} onClick={() => void handle保存()}>
+              <Button type="primary" icon={<SaveOutlined />} loading={loading} onClick={() => void handleSave()}>
                 保存并生成 config.yaml
               </Button>
             </Form>

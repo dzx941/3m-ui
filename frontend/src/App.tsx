@@ -1,3 +1,4 @@
+import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import SidebarLayout from './layouts/SidebarLayout';
 import Login from './pages/Login';
@@ -8,6 +9,8 @@ import Logs from './pages/Logs';
 import Settings from './pages/Settings';
 import Core from './pages/Core';
 import ProxyNodes from './pages/ProxyNodes';
+import ListenersPage from './pages/Listeners';
+import UsersPage from './pages/Users';
 import { isAuthenticated, mustChangePassword } from './api/auth';
 
 const ProtectedLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
@@ -30,7 +33,9 @@ export default function App() {
             <Routes>
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="core" element={<Core />} />
-              <Route path="nodes" element={<ProxyNodes />} />
+              <Route path="proxies" element={<ProxyNodes />} />
+              <Route path="listeners" element={<ListenersPage />} />
+              <Route path="users" element={<UsersPage />} />
               <Route path="config" element={<Config />} />
               <Route path="logs" element={<Logs />} />
               <Route path="settings" element={<Settings />} />

@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
   Typography, Table, Button, Space, Tag, Modal, Form, Input, InputNumber,
   Switch, DatePicker, Select, message, Popconfirm, Progress,
@@ -40,7 +41,10 @@ const formatBytes = (bytes: number) => {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let value = bytes;
   let i = 0;
-  while (value >= 1024 && i < units.length - 1) { value /= 1024; i++; }
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i++;
+  }
   return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
 };
 
@@ -52,9 +56,9 @@ const formatDataAmount = (bytes: number) => {
   return formatBytes(bytes);
 };
 
-const 用户管理: React.FC = () => {
-  const [users, set用户管理] = useState<ProxyUser[]>([]);
-  const [nodes, set节点管理] = useState<Node[]>([]);
+const UsersPage: React.FC = () => {
+  const [users, setUsers] = useState<ProxyUser[]>([]);
+  const [nodes, setNodes] = useState<Node[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [bindOpen, setBindOpen] = useState(false);
@@ -64,27 +68,31 @@ const 用户管理: React.FC = () => {
   const [form] = Form.useForm();
   const [bindForm] = Form.useForm();
 
-  const fetch用户管理 = async (silent = false) => {
+  const fetchUsers = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      set用户管理(await apiRequest<ProxyUser[]>('/users'));
+      setUsers(await apiRequest<ProxyUser[]>('/users'));
     } catch {
       if (!silent) message.error('Failed to load proxy users.');
-    } finally { if (!silent) setLoading(false); }
+    } finally {
+      if (!silent) setLoading(false);
+    }
   };
 
-  const fetch节点管理 = async () => {
+  const fetchNodes = async () => {
     try {
-      set节点管理(await apiRequest<Node[]>('/nodes'));
-    } catch { /* handled when binding */ }
+      setNodes(await apiRequest<Node[]>('/nodes'));
+    } catch {
+      /* handled when binding */
+    }
   };
 
   useEffect(() => {
-    fetch用户管理();
-    fetch节点管理();
+    void fetchUsers();
+    void fetchNodes();
     // Traffic/online state changes as the backend's traffic scheduler ticks
     // (10s), so refresh in the background to keep those columns current.
-    const interval = setInterval(() => fetch用户管理(true), 10000);
+    const interval = setInterval(() => void fetchUsers(true), 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -123,20 +131,27 @@ const 用户管理: React.FC = () => {
     }
     message.success(editing ? 'User updated.' : 'User created.');
     setModalOpen(false);
-    fetch用户管理();
+    void fetchUsers();
   };
 
   const removeUser = async (id: number) => {
-    try { await apiRequest(`/users/${id}`, { method: 'DELETE' }); message.success('User deleted.'); fetch用户管理(); }
-    catch (err) { message.error((err as { message?: string }).message || 'Failed to delete user.'); }
+    try {
+      await apiRequest(`/users/${id}`, { method: 'DELETE' });
+      message.success('User deleted.');
+      void fetchUsers();
+    } catch (err) {
+      message.error((err as { message?: string }).message || 'Failed to delete user.');
+    }
   };
 
   const openBind = async (u: ProxyUser) => {
     setBindingUser(u);
     try {
       const list = await apiRequest<Node[]>(`/users/${u.id}/listeners`);
-      setBoundNodeIds(list.map(n => n.id));
-    } catch { setBoundNodeIds([]); }
+      setBoundNodeIds(list.map((n: Node) => n.id));
+    } catch {
+      setBoundNodeIds([]);
+    }
     bindForm.resetFields();
     setBindOpen(true);
   };
@@ -144,7 +159,10 @@ const 用户管理: React.FC = () => {
   const saveBindings = async () => {
     const values = await bindForm.validateFields();
     try {
-      await apiRequest(`/users/${bindingUser!.id}/listeners`, { method: 'POST', body: JSON.stringify({ listener_ids: values.listener_ids || [] }) });
+      await apiRequest(`/users/${bindingUser!.id}/listeners`, {
+        method: 'POST',
+        body: JSON.stringify({ listener_ids: values.listener_ids || [] }),
+      });
     } catch (err) {
       message.error((err as { message?: string }).message || 'Failed to update node bindings.');
       return;
@@ -222,9 +240,9 @@ const 用户管理: React.FC = () => {
       key: 'actions',
       render: (_: unknown, u: ProxyUser) => (
         <Space>
-          <Button icon={<LinkOutlined />} onClick={() => openBind(u)}>节点管理</Button>
+          <Button icon={<LinkOutlined />} onClick={() => void openBind(u)}>节点管理</Button>
           <Button icon={<EditOutlined />} onClick={() => openEdit(u)}>Edit</Button>
-          <Popconfirm title="Delete this proxy user?" onConfirm={() => removeUser(u.id)}>
+          <Popconfirm title="Delete this proxy user?" onConfirm={() => void removeUser(u.id)}>
             <Button danger icon={<DeleteOutlined />}>Delete</Button>
           </Popconfirm>
         </Space>
@@ -247,7 +265,7 @@ const 用户管理: React.FC = () => {
       <Modal
         title={editing ? 'Edit Proxy User' : 'Create Proxy User'}
         open={modalOpen}
-        onOk={saveUser}
+        onOk={() => void saveUser()}
         onCancel={() => setModalOpen(false)}
         destroyOnClose
       >
@@ -280,7 +298,7 @@ const 用户管理: React.FC = () => {
       <Modal
         title={`Bind 节点管理${bindingUser ? ` · ${bindingUser.username}` : ''}`}
         open={bindOpen}
-        onOk={saveBindings}
+        onOk={() => void saveBindings()}
         onCancel={() => setBindOpen(false)}
         destroyOnClose
       >
@@ -289,7 +307,7 @@ const 用户管理: React.FC = () => {
             <Select
               mode="multiple"
               placeholder="Select nodes"
-              options={nodes.map(n => ({
+              options={nodes.map((n: Node) => ({
                 value: n.id,
                 label: `${n.name} · ${n.protocol} · :${n.port}`,
               }))}
@@ -304,4 +322,4 @@ const 用户管理: React.FC = () => {
   );
 };
 
-export default 用户管理;
+export default UsersPage;

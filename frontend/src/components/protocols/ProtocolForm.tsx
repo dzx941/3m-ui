@@ -1,3 +1,4 @@
+import React from 'react';
 import type { Protocol } from './types';
 import { Hysteria2Form, ShadowsocksForm, TrojanForm, TuicForm, VlessForm, VmessForm, WireGuardForm } from './forms';
 

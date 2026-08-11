@@ -6,7 +6,9 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/dzx941/3m-ui/backend/internal/auth"
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/database"
 	"github.com/dzx941/3m-ui/backend/internal/listener"
@@ -23,6 +25,7 @@ func TestHealthAndMihomoAPIs(t *testing.T) {
 	cfg.Database.Path = "/tmp/3m-ui-router-test/db.sqlite"
 	cfg.Mihomo.Binary = "/tmp/dummy-nonexistent"
 	cfg.Mihomo.Config = "/tmp/3m-ui-router-test/config.yaml"
+	cfg.JWT.Secret = "super-secret-token-key-for-testing-purposes"
 
 	// Init DB
 	db, err := database.InitDB(cfg.Database.Path)
@@ -56,8 +59,14 @@ func TestHealthAndMihomoAPIs(t *testing.T) {
 
 	// Test GET /api/v1/dashboard (Unified Aggregator)
 	{
+		token, _, err := auth.GenerateToken(cfg.JWT.Secret, 1, "admin", "admin", 1*time.Hour)
+		if err != nil {
+			t.Fatalf("failed to generate testing JWT: %v", err)
+		}
+
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/api/v1/dashboard", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
 		r.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {

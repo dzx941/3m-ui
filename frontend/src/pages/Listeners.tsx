@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import {
   Typography,
   Table,
@@ -61,12 +62,14 @@ const formatBytes = (bytes: number): string => {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let value = bytes;
   let i = 0;
-  while (value >= 1024 && i < units.length - 1) { value /= 1024; i++; }
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i++;
+  }
   return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
 };
 
-
-const 入站管理: React.FC = () => {
+const ListenersPage: React.FC = () => {
   const [data, setData] = useState<NodeRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [modalOpen, setModalOpen] = useState<boolean>(false);
@@ -75,9 +78,9 @@ const 入站管理: React.FC = () => {
   const [trafficByListener, setTrafficByListener] = useState<Record<number, ListenerTrafficStats>>({});
 
   // Track selected protocol to dynamically show/hide inputs
-  const selected协议 = Form.useWatch('protocol', form);
+  const selectedProtocol = Form.useWatch('protocol', form);
 
-  const fetch节点管理 = async () => {
+  const fetchNodes = async () => {
     setLoading(true);
     try {
       const list = await apiRequest<NodeRecord[]>('/nodes');
@@ -108,9 +111,9 @@ const 入站管理: React.FC = () => {
   };
 
   useEffect(() => {
-    fetch节点管理();
-    fetchTraffic();
-    const interval = setInterval(fetchTraffic, 10000);
+    void fetchNodes();
+    void fetchTraffic();
+    const interval = setInterval(() => void fetchTraffic(), 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -156,7 +159,7 @@ const 入站管理: React.FC = () => {
     try {
       await apiRequest(`/nodes/${id}`, { method: 'DELETE' });
       message.success('Node deleted successfully.');
-      fetch节点管理();
+      void fetchNodes();
     } catch {
       message.error('Network connection error.');
     }
@@ -167,7 +170,7 @@ const 入站管理: React.FC = () => {
     try {
       await apiRequest(`/nodes/${record.ID}`, { method: 'PUT', body: JSON.stringify(updated) });
       message.success(`Node ${checked ? 'enabled' : 'disabled'} successfully.`);
-      fetch节点管理();
+      void fetchNodes();
     } catch {
       message.error('Network connection error.');
     }
@@ -202,7 +205,7 @@ const 入站管理: React.FC = () => {
 
       message.success(`Node ${editingRecord ? 'updated' : 'created'} successfully.`);
       setModalOpen(false);
-      fetch节点管理();
+      void fetchNodes();
     } catch {
       // Validation failed
     }
@@ -264,7 +267,7 @@ const 入站管理: React.FC = () => {
       render: (enabled: boolean, record: NodeRecord) => (
         <Switch
           checked={enabled}
-          onChange={(checked) => handleToggleEnabled(record, checked)}
+          onChange={(checked) => void handleToggleEnabled(record, checked)}
           checkedChildren="On"
           unCheckedChildren="Off"
         />
@@ -278,7 +281,7 @@ const 入站管理: React.FC = () => {
           <Button
             type="text"
             icon={<ReloadOutlined style={{ color: '#52c41a' }} />}
-            onClick={() => handleReload(record.ID)}
+            onClick={() => void handleReload(record.ID)}
             title="Hot Reload"
           />
           <Button
@@ -289,7 +292,7 @@ const 入站管理: React.FC = () => {
           />
           <Popconfirm
             title="Are you sure you want to delete this node?"
-            onConfirm={() => handleDelete(record.ID)}
+            onConfirm={() => void handleDelete(record.ID)}
             okText="Yes"
             cancelText="No"
           >
@@ -332,7 +335,7 @@ const 入站管理: React.FC = () => {
       <Modal
         title={editingRecord ? 'Edit Server Node' : 'Add Server Node'}
         open={modalOpen}
-        onOk={handleFormSubmit}
+        onOk={() => void handleFormSubmit()}
         onCancel={() => setModalOpen(false)}
         destroyOnClose
         width={600}
@@ -404,7 +407,7 @@ const 入站管理: React.FC = () => {
             Do not place passwords or UUIDs in the node configuration.
           </Typography.Paragraph>
 
-          <ProtocolForm protocol={selected协议} />
+          <ProtocolForm protocol={selectedProtocol} />
 
           <Form.Item name="enabled" label="Status Enabled" valuePropName="checked">
             <Switch checkedChildren="On" unCheckedChildren="Off" />
@@ -416,4 +419,4 @@ const 入站管理: React.FC = () => {
   );
 };
 
-export default 入站管理;
+export default ListenersPage;
