@@ -87,4 +87,22 @@ func TestBindListenersIsReplacement(t *testing.T) {
 	if len(got) != 1 || got[0].ID != listeners[2].ID {
 		t.Fatalf("expected replacement binding, got %#v", got)
 	}
+
+	if err := GlobalService.BindListeners(u.ID, []uint{listeners[2].ID, listeners[2].ID, listeners[0].ID}); err != nil {
+		t.Fatal(err)
+	}
+	got, err = GlobalService.GetListeners(u.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].ID != listeners[0].ID || got[1].ID != listeners[2].ID {
+		t.Fatalf("expected deduplicated replacement binding, got %#v", got)
+	}
+	var rows []models.ListenerUser
+	if err := db.Unscoped().Where("proxy_user_id = ?", u.ID).Find(&rows).Error; err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 3 {
+		t.Fatalf("expected soft-deleted bindings to be reused without duplicates, got %#v", rows)
+	}
 }
