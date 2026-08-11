@@ -18,18 +18,24 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/security"
 	"github.com/dzx941/3m-ui/backend/internal/traffic"
 	"github.com/dzx941/3m-ui/backend/internal/user"
+
 	"github.com/gin-gonic/gin"
 )
+
 
 //go:embed web/dist/*
 var frontendFiles embed.FS
 
+
 func main() {
+
 	if len(os.Args) > 1 &&
 		(os.Args[1] == "--version" || os.Args[1] == "version") {
+
 		fmt.Println(versionString())
 		return
 	}
+
 
 	configPath := defaultConfigPath()
 
@@ -38,9 +44,11 @@ func main() {
 		log.Fatalf("load config: %v", err)
 	}
 
+
 	if _, err := database.InitDB(cfg.Database.Path); err != nil {
 		log.Fatalf("initialize database: %v", err)
 	}
+
 
 	security.InitCredentialKey(cfg.Security.CredentialKey)
 
@@ -56,17 +64,22 @@ func main() {
 		cfg.Mihomo.Config,
 	)
 
-	user.InitService(database.GlobalDB)
+	user.InitService(
+		database.GlobalDB,
+	)
 
 	traffic.InitGlobalService()
+
 
 	r := router.SetupRouter(cfg)
 
 	mountFrontend(r)
 
+
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 
 	log.Printf("3m-ui listening on %s", addr)
+
 
 	if err := r.Run(addr); err != nil {
 		log.Fatalf("run server: %v", err)
@@ -74,85 +87,102 @@ func main() {
 }
 
 
+
 func defaultConfigPath() string {
-	if value := os.Getenv("3M_UI_CONFIG"); value != "" {
+
+	if value := os.Getenv("THREE_M_UI_CONFIG"); value != "" {
 		return value
 	}
+
 
 	if _, err := os.Stat("/etc/3m-ui/config.yaml"); err == nil {
 		return "/etc/3m-ui/config.yaml"
 	}
 
+
 	return "backend/config/config.yaml"
 }
 
 
+
 func mountFrontend(r *gin.Engine) {
+
+
 	staticFS, err := fs.Sub(frontendFiles, "web/dist")
+
 	if err != nil {
 		log.Printf("frontend assets unavailable: %v", err)
 		return
 	}
 
-	// Disable automatic redirect problems
-	r.RedirectTrailingSlash = false
-	r.RedirectFixedPath = false
+
+	fileServer := http.FileServer(
+		http.FS(staticFS),
+	)
 
 
-	// Explicit root route
-	// Prevent Gin 301 redirect loop on /
-	r.GET("/", func(c *gin.Context) {
-		c.FileFromFS(
-			"index.html",
-			http.FS(staticFS),
-		)
-	})
-
-
-	// SPA fallback
 	r.NoRoute(func(c *gin.Context) {
+
 
 		path := c.Request.URL.Path
 
-		// API should never fallback to frontend
-		if len(path) >= 4 && path[:4] == "/api" {
-			c.JSON(
-				http.StatusNotFound,
-				gin.H{
-					"error": "api endpoint not found",
-				},
-			)
-			return
-		}
 
+		if path == "/" {
 
-		// Frontend routes:
-		// /users
-		// /dashboard
-		// /listeners
-		// etc.
-		if filepath.Ext(path) == "" {
-
-			c.FileFromFS(
-				"index.html",
-				http.FS(staticFS),
+			c.Data(
+				http.StatusOK,
+				"text/html; charset=utf-8",
+				mustReadFile(staticFS,"index.html"),
 			)
 
 			return
 		}
 
 
-		// Static assets:
-		// /assets/*.js
-		// /assets/*.css
-		// favicon.ico
-		err := c.FileFromFS(
-			path[1:],
-			http.FS(staticFS),
+		f, err := staticFS.Open(path[1:])
+
+
+		if err == nil {
+
+			defer f.Close()
+
+			fileServer.ServeHTTP(c.Writer,c.Request)
+
+			return
+		}
+
+
+		c.Data(
+			http.StatusOK,
+			"text/html; charset=utf-8",
+			mustReadFile(staticFS,"index.html"),
 		)
 
-		if err != nil {
-			c.Status(http.StatusNotFound)
-		}
 	})
+}
+
+
+
+func mustReadFile(
+	fsys fs.FS,
+	name string,
+) []byte {
+
+
+	data,err := fs.ReadFile(fsys,name)
+
+
+	if err != nil {
+
+		log.Printf(
+			"read frontend %s failed:%v",
+			name,
+			err,
+		)
+
+		return []byte("3m-ui frontend unavailable")
+	}
+
+
+	return data
 }
