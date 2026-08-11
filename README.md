@@ -1,5 +1,7 @@
 # 3m-ui
 
+**Current version:** `v0.1.0-rc.1`
+
 3m-ui is an easy-to-use VPS Web management panel built on top of the Mihomo Core, leveraging its inbound and listener capabilities. It is designed to act similarly to 3x-ui, but with a robust Mihomo backend core.
 
 ## Tech Stack
@@ -74,7 +76,7 @@
    ```
 3. Run the Go server:
    ```bash
-   go run cmd/server/main.go
+   go run ./cmd/server
    ```
    The backend API will be accessible at `http://localhost:8080/api/v1`.
 
@@ -108,3 +110,108 @@ cd frontend
 pnpm build
 ```
 This generates the static bundle in `frontend/dist` which can be served by any static asset host or backend handler.
+
+---
+
+## Production Installation
+
+3m-ui is distributed as a single Linux server binary with the built frontend embedded into the Go executable. Official release assets include Linux binaries for `amd64`, `arm64`, and `armv7`, plus installer, updater, and uninstaller scripts. The first release-candidate line is `v0.1.0-rc.1`.
+
+### Supported Platforms
+
+- Debian and Ubuntu with systemd
+- Alpine Linux with OpenRC
+- CPU architectures: `amd64`, `arm64`, `armv7`
+
+### Install
+
+Run the installer as root on the target server:
+
+```bash
+curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/install.sh | sh
+```
+
+The installer detects the OS, CPU architecture, and init system, downloads the matching release binary from `https://github.com/dzx941/3m-ui/releases`, writes the service definition, enables the service, and starts 3m-ui automatically.
+
+After installation, open:
+
+```text
+http://SERVER_IP:8080/
+```
+
+### Version
+
+After installation, verify the installed binary and build metadata:
+
+```bash
+3m-ui --version
+```
+
+### Upgrade
+
+Upgrade keeps the database, user data, Mihomo configuration files, and existing application configuration. It backs up `/etc/3m-ui` before replacing the binary.
+
+```bash
+curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/update.sh | sh
+```
+
+To upgrade to a specific release candidate manually, download the matching binary from that GitHub Release, stop the service, replace `/usr/local/bin/3m-ui`, and start the service again. Keep `/etc/3m-ui` and `/var/lib/3m-ui` in place to preserve configuration and the SQLite database.
+
+### Uninstall
+
+Remove the binary, service, configuration, and logs while keeping persistent data in `/var/lib/3m-ui`:
+
+```bash
+curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/uninstall.sh | sh
+```
+
+Remove all data as well:
+
+```bash
+curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/uninstall.sh -o uninstall.sh
+sh uninstall.sh --purge
+```
+
+### Production Directory Layout
+
+```text
+/usr/local/bin/3m-ui       # Installed server binary
+/etc/3m-ui/config.yaml     # Application configuration
+/var/lib/3m-ui/            # Persistent application data
+/var/lib/3m-ui/3m-ui.db    # SQLite database
+/var/lib/3m-ui/mihomo/     # Generated Mihomo configuration files
+/var/log/3m-ui/            # Log directory reserved for deployments
+```
+
+### Service Management
+
+systemd:
+
+```bash
+systemctl status 3m-ui
+systemctl restart 3m-ui
+```
+
+OpenRC:
+
+```bash
+rc-service 3m-ui status
+rc-service 3m-ui restart
+```
+
+## Release and Packaging
+
+The release pipeline runs from `.github/workflows/release.yml` on `v*` tags and manual dispatch. It builds the frontend with pnpm, copies `frontend/dist` into the backend embed directory, cross-compiles Linux binaries into `dist/`, copies deployment scripts, and publishes all artifacts to a GitHub Release.
+
+Local packaging commands:
+
+```bash
+make build        # Build embedded frontend and host binary into dist/3m-ui
+make build-linux  # Build Linux release binaries
+make release      # Clean, build, cross-compile, and copy scripts
+make clean        # Remove dist/
+```
+
+## Release Candidate Checklist
+
+See [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) before tagging or publishing a release candidate.

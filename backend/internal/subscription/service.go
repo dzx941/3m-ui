@@ -37,7 +37,7 @@ func (s *Service) Create(userID uint, format string) (*models.Subscription, erro
 
 	sub := &models.Subscription{
 		UserID: userID,
-		Token: token,
+		Token:  token,
 		Format: format,
 	}
 
