@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache-dependency-path: backend/go.sum
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+
+      - name: Embed frontend assets
+        run: |
+          rm -rf backend/cmd/server/web/dist
+          mkdir -p backend/cmd/server/web
+          cp -R frontend/dist backend/cmd/server/web/dist
+
+      - name: Build Linux binaries
+        working-directory: backend
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf
+          mkdir -p ../dist
+          CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags "-s -w" -o ../dist/3m-ui-linux-amd64 ./cmd/server
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm64 CC=aarch64-linux-gnu-gcc go build -trimpath -ldflags "-s -w" -o ../dist/3m-ui-linux-arm64 ./cmd/server
+          CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 CC=arm-linux-gnueabihf-gcc go build -trimpath -ldflags "-s -w" -o ../dist/3m-ui-linux-armv7 ./cmd/server
+
+      - name: Add deployment scripts
+        run: cp scripts/install.sh scripts/update.sh scripts/uninstall.sh dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('manual-{0}', github.run_number) }}
+          name: ${{ github.ref_type == 'tag' && github.ref_name || format('Manual build {0}', github.run_number) }}
+          files: |
+            dist/3m-ui-linux-amd64
+            dist/3m-ui-linux-arm64
+            dist/3m-ui-linux-armv7
+            dist/install.sh
+            dist/update.sh
+            dist/uninstall.sh

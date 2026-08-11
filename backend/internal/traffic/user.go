@@ -21,10 +21,10 @@ func NewUserService(db *gorm.DB) *UserService {
 // UploadBytes, DownloadBytes) plus LastSeen/Online when online is true.
 func (s *UserService) AddSample(userID uint, up, down int64, online bool) error {
 	record := &models.TrafficRecord{
-		ProxyUserID: userID,
-		UploadBytes: up,
+		ProxyUserID:   userID,
+		UploadBytes:   up,
 		DownloadBytes: down,
-		Online: online,
+		Online:        online,
 	}
 	if err := s.db.Create(record).Error; err != nil {
 		return err

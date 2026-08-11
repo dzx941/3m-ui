@@ -34,17 +34,17 @@ func RegisterRoutes(r *gin.RouterGroup) {
 
 	r.POST("/subscriptions", func(c *gin.Context) {
 		var req struct {
-			UserID uint `json:"user_id"`
+			UserID uint   `json:"user_id"`
 			Format string `json:"format"`
 		}
 		if c.ShouldBindJSON(&req) != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error":"invalid request"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 			return
 		}
 		s := NewService(database.GlobalDB)
 		sub, err := s.Create(req.UserID, strings.ToLower(req.Format))
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error":err.Error()})
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusOK, sub)

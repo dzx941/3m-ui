@@ -6,8 +6,8 @@ import (
 )
 
 type Service struct {
-	mu sync.Mutex
-	last Snapshot
+	mu       sync.Mutex
+	last     Snapshot
 	lastTime time.Time
 }
 
@@ -33,9 +33,9 @@ func (s *Service) Update(totalUpload, totalDownload int64, connections int) Snap
 	now := time.Now()
 	seconds := now.Sub(s.lastTime).Seconds()
 	result := Snapshot{
-		UploadBytes: totalUpload,
+		UploadBytes:   totalUpload,
 		DownloadBytes: totalDownload,
-		Connections: connections,
+		Connections:   connections,
 	}
 
 	if seconds > 0 {

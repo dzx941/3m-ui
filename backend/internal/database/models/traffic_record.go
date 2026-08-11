@@ -7,8 +7,8 @@ import "gorm.io/gorm"
 type TrafficRecord struct {
 	gorm.Model
 
-	ProxyUserID uint `gorm:"index;not null" json:"proxy_user_id"`
-	UploadBytes int64 `gorm:"not null;default:0" json:"upload_bytes"`
+	ProxyUserID   uint  `gorm:"index;not null" json:"proxy_user_id"`
+	UploadBytes   int64 `gorm:"not null;default:0" json:"upload_bytes"`
 	DownloadBytes int64 `gorm:"not null;default:0" json:"download_bytes"`
-	Online bool `gorm:"default:false" json:"online"`
+	Online        bool  `gorm:"default:false" json:"online"`
 }
