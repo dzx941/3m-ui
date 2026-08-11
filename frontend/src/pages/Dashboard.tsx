@@ -12,6 +12,7 @@ import {
   TeamOutlined,
   ApiOutlined,
 } from '@ant-design/icons';
+import { apiRequest } from '../api/request';
 
 const { Title, Paragraph } = Typography;
 
@@ -56,7 +57,6 @@ interface DashboardData {
   };
 }
 
-const API_BASE = 'http://localhost:8080/api/v1';
 
 const formatRate = (bytesPerSec: number): string => {
   if (!bytesPerSec || bytesPerSec === 0) return '0 B/s';
@@ -81,14 +81,10 @@ const Dashboard: React.FC = () => {
 
   const fetchDashboardData = async () => {
     try {
-      const res = await fetch(`${API_BASE}/dashboard`);
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-      const result: DashboardData = await res.json();
+      const result = await apiRequest<DashboardData>('/dashboard');
       setData(result);
       setErrorMsg('');
-    } catch (err: any) {
+    } catch {
       setErrorMsg('Backend service unreachable');
       setData(null);
     }
@@ -104,18 +100,11 @@ const Dashboard: React.FC = () => {
   const handleAction = async (action: 'start' | 'stop' | 'restart') => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/mihomo/${action}`, {
-        method: 'POST',
-      });
-      const resData = await res.json();
-      if (res.ok) {
-        message.success(`Mihomo Core ${action}ed successfully!`);
-        await fetchDashboardData();
-      } else {
-        message.error(resData.error || `Failed to ${action} Mihomo Core.`);
-      }
+      await apiRequest(`/mihomo/${action}`, { method: 'POST' });
+      message.success(`Mihomo Core ${action}ed successfully!`);
+      await fetchDashboardData();
     } catch (err) {
-      message.error(`Connection failed while trying to ${action} Mihomo.`);
+      message.error((err as { message?: string }).message || `Connection failed while trying to ${action} Mihomo.`);
     } finally {
       setLoading(false);
     }

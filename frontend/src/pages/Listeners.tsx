@@ -17,9 +17,10 @@ import {
   Col,
 } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
+import { apiRequest } from '../api/request';
+import { ProtocolForm } from '../components/protocols';
 
 const { Title, Paragraph } = Typography;
-const { TextArea } = Input;
 const { Option } = Select;
 
 interface NodeRecord {
@@ -65,7 +66,6 @@ const formatBytes = (bytes: number): string => {
   return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
 };
 
-const API_BASE = 'http://localhost:8080/api/v1';
 
 const Listeners: React.FC = () => {
   const [data, setData] = useState<NodeRecord[]>([]);
@@ -81,14 +81,9 @@ const Listeners: React.FC = () => {
   const fetchNodes = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/nodes`);
-      if (res.ok) {
-        const list = await res.json();
-        setData(list || []);
-      } else {
-        message.error('Failed to fetch nodes from backend.');
-      }
-    } catch (err) {
+      const list = await apiRequest<NodeRecord[]>('/nodes');
+      setData(list || []);
+    } catch {
       message.error('Backend service unreachable.');
     } finally {
       setLoading(false);
@@ -97,9 +92,7 @@ const Listeners: React.FC = () => {
 
   const fetchTraffic = async () => {
     try {
-      const res = await fetch(`${API_BASE}/traffic/connections`);
-      if (!res.ok) return;
-      const body: { connections: ConnectionView[] } = await res.json();
+      const body = await apiRequest<{ connections: ConnectionView[] }>('/traffic/connections');
       const grouped: Record<number, ListenerTrafficStats> = {};
       for (const conn of body.connections || []) {
         if (conn.listener_id === null) continue;
@@ -110,7 +103,7 @@ const Listeners: React.FC = () => {
         grouped[conn.listener_id] = stats;
       }
       setTrafficByListener(grouped);
-    } catch (err) {
+    } catch {
       // Traffic stats are a non-critical overlay; ignore transient failures.
     }
   };
@@ -132,7 +125,7 @@ const Listeners: React.FC = () => {
       tls: false,
       udp: true,
       enabled: true,
-      rawConfig: '{}',
+      protocolConfig: {},
     });
     setModalOpen(true);
   };
@@ -144,36 +137,28 @@ const Listeners: React.FC = () => {
     // Node-level config contains protocol options only. Authentication
     // credentials are managed by Proxy Users and are intentionally never
     // displayed or accepted on the node form.
-    let rawConfig = record.config || '{}';
+    let protocolConfig: Record<string, unknown> = {};
     let flow = '';
 
     try {
       const parsed = JSON.parse(record.config || '{}');
       if (parsed.flow) flow = parsed.flow;
       const cleaned = { ...parsed };
-      delete cleaned.password;
-      delete cleaned.uuid;
-      rawConfig = JSON.stringify(cleaned, null, 2);
-    } catch (e) {
+      protocolConfig = cleaned;
+    } catch {
       // Ignore malformed legacy config here; backend validation will report it.
     }
 
-    form.setFieldsValue({ ...record, flow, rawConfig });
+    form.setFieldsValue({ ...record, flow, protocolConfig });
     setModalOpen(true);
   };
 
   const handleDelete = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/nodes/${id}`, {
-        method: 'DELETE',
-      });
-      if (res.ok) {
-        message.success('Node deleted successfully.');
-        fetchNodes();
-      } else {
-        message.error('Failed to delete node.');
-      }
-    } catch (err) {
+      await apiRequest(`/nodes/${id}`, { method: 'DELETE' });
+      message.success('Node deleted successfully.');
+      fetchNodes();
+    } catch {
       message.error('Network connection error.');
     }
   };
@@ -181,33 +166,19 @@ const Listeners: React.FC = () => {
   const handleToggleEnabled = async (record: NodeRecord, checked: boolean) => {
     const updated = { ...record, enabled: checked, status: checked ? 'active' : 'inactive' };
     try {
-      const res = await fetch(`${API_BASE}/nodes/${record.ID}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated),
-      });
-      if (res.ok) {
-        message.success(`Node ${checked ? 'enabled' : 'disabled'} successfully.`);
-        fetchNodes();
-      } else {
-        message.error('Failed to update status.');
-      }
-    } catch (err) {
+      await apiRequest(`/nodes/${record.ID}`, { method: 'PUT', body: JSON.stringify(updated) });
+      message.success(`Node ${checked ? 'enabled' : 'disabled'} successfully.`);
+      fetchNodes();
+    } catch {
       message.error('Network connection error.');
     }
   };
 
   const handleReload = async (id: number) => {
     try {
-      const res = await fetch(`${API_BASE}/nodes/${id}/reload`, {
-        method: 'POST',
-      });
-      if (res.ok) {
-        message.success('Mihomo configuration reloaded!');
-      } else {
-        message.error('Failed to hot-reload configuration.');
-      }
-    } catch (err) {
+      await apiRequest(`/nodes/${id}/reload`, { method: 'POST' });
+      message.success('Mihomo configuration reloaded!');
+    } catch {
       message.error('Network connection error.');
     }
   };
@@ -216,17 +187,7 @@ const Listeners: React.FC = () => {
     try {
       const values = await form.validateFields();
 
-      // Combine password/uuid/flow inputs with rawConfig to create the unified config field
-      let configObj: Record<string, any> = {};
-      try {
-        configObj = JSON.parse(values.rawConfig || '{}');
-      } catch (e) {
-        message.error('Extra Parameters must be valid JSON syntax.');
-        return;
-      }
-
-      // Only node-level options belong here. ProxyUser credentials are injected
-      // by the backend Config Engine based on ListenerUser bindings.
+      const configObj: Record<string, unknown> = values.protocolConfig || {};
       if (values.flow) configObj.flow = values.flow;
 
       const payload = {
@@ -236,23 +197,14 @@ const Listeners: React.FC = () => {
       };
 
       const method = editingRecord ? 'PUT' : 'POST';
-      const url = editingRecord ? `${API_BASE}/nodes/${editingRecord.ID}` : `${API_BASE}/nodes`;
+      const url = editingRecord ? `/nodes/${editingRecord.ID}` : '/nodes';
 
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+      await apiRequest(url, { method, body: JSON.stringify(payload) });
 
-      if (res.ok) {
-        message.success(`Node ${editingRecord ? 'updated' : 'created'} successfully.`);
-        setModalOpen(false);
-        fetchNodes();
-      } else {
-        const errorData = await res.json();
-        message.error(errorData.error || 'Failed to save node.');
-      }
-    } catch (err) {
+      message.success(`Node ${editingRecord ? 'updated' : 'created'} successfully.`);
+      setModalOpen(false);
+      fetchNodes();
+    } catch {
       // Validation failed
     }
   };
@@ -403,7 +355,7 @@ const Listeners: React.FC = () => {
                 rules={[{ required: true, message: 'Select node protocol' }]}
               >
                 <Select placeholder="Choose protocol" onChange={() => {
-                  form.setFieldsValue({ rawConfig: '{}' });
+                  form.setFieldsValue({ protocolConfig: {} });
                 }}>
                   <Option value="shadowsocks">Shadowsocks</Option>
                   <Option value="vmess">VMess</Option>
@@ -411,6 +363,7 @@ const Listeners: React.FC = () => {
                   <Option value="trojan">Trojan</Option>
                   <Option value="hysteria2">Hysteria 2</Option>
                   <Option value="tuic">TUIC</Option>
+                  <Option value="wireguard">WireGuard</Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -452,23 +405,12 @@ const Listeners: React.FC = () => {
             Do not place passwords or UUIDs in the node configuration.
           </Typography.Paragraph>
 
-          {selectedProtocol === 'vless' && (
-            <Form.Item name="flow" label="Flow Parameter">
-              <Input placeholder="e.g. xtls-rprx-vision" />
-            </Form.Item>
-          )}
+          <ProtocolForm protocol={selectedProtocol} />
 
           <Form.Item name="enabled" label="Status Enabled" valuePropName="checked">
             <Switch checkedChildren="On" unCheckedChildren="Off" />
           </Form.Item>
 
-          <Form.Item
-            name="rawConfig"
-            label="Extra JSON Settings"
-            extra="Additional settings merged dynamically to this server node."
-          >
-            <TextArea rows={4} placeholder={`e.g. \n{\n  "obfs": "http"\n}`} />
-          </Form.Item>
         </Form>
       </Modal>
     </div>

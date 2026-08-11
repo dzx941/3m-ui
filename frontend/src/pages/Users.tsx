@@ -4,10 +4,10 @@ import {
   Switch, DatePicker, Select, message, Popconfirm, Progress,
 } from 'antd';
 import { UserAddOutlined, EditOutlined, DeleteOutlined, LinkOutlined } from '@ant-design/icons';
+import { apiRequest } from '../api/request';
 import dayjs, { Dayjs } from 'dayjs';
 
 const { Title, Paragraph } = Typography;
-const API_BASE = 'http://localhost:8080/api/v1';
 
 interface ProxyUser {
   id: number;
@@ -68,9 +68,7 @@ const Users: React.FC = () => {
   const fetchUsers = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/users`);
-      if (!res.ok) throw new Error();
-      setUsers(await res.json());
+      setUsers(await apiRequest<ProxyUser[]>('/users'));
     } catch {
       if (!silent) message.error('Failed to load proxy users.');
     } finally { if (!silent) setLoading(false); }
@@ -78,8 +76,7 @@ const Users: React.FC = () => {
 
   const fetchNodes = async () => {
     try {
-      const res = await fetch(`${API_BASE}/nodes`);
-      if (res.ok) setNodes(await res.json());
+      setNodes(await apiRequest<Node[]>('/nodes'));
     } catch { /* handled when binding */ }
   };
 
@@ -118,15 +115,11 @@ const Users: React.FC = () => {
     };
     if (!payload.password) delete payload.password;
 
-    const url = editing ? `${API_BASE}/users/${editing.id}` : `${API_BASE}/users`;
-    const res = await fetch(url, {
-      method: editing ? 'PUT' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      message.error(data.error || 'Failed to save user.');
+    const url = editing ? `/users/${editing.id}` : '/users';
+    try {
+      await apiRequest(url, { method: editing ? 'PUT' : 'POST', body: JSON.stringify(payload) });
+    } catch (err) {
+      message.error((err as { message?: string }).message || 'Failed to save user.');
       return;
     }
     message.success(editing ? 'User updated.' : 'User created.');
@@ -135,32 +128,26 @@ const Users: React.FC = () => {
   };
 
   const removeUser = async (id: number) => {
-    const res = await fetch(`${API_BASE}/users/${id}`, { method: 'DELETE' });
-    if (res.ok) { message.success('User deleted.'); fetchUsers(); }
-    else message.error('Failed to delete user.');
+    try { await apiRequest(`/users/${id}`, { method: 'DELETE' }); message.success('User deleted.'); fetchUsers(); }
+    catch (err) { message.error((err as { message?: string }).message || 'Failed to delete user.'); }
   };
 
   const openBind = async (u: ProxyUser) => {
     setBindingUser(u);
-    const res = await fetch(`${API_BASE}/users/${u.id}/listeners`);
-    if (res.ok) {
-      const list: Node[] = await res.json();
+    try {
+      const list = await apiRequest<Node[]>(`/users/${u.id}/listeners`);
       setBoundNodeIds(list.map(n => n.id));
-    } else setBoundNodeIds([]);
+    } catch { setBoundNodeIds([]); }
     bindForm.resetFields();
     setBindOpen(true);
   };
 
   const saveBindings = async () => {
     const values = await bindForm.validateFields();
-    const res = await fetch(`${API_BASE}/users/${bindingUser!.id}/listeners`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ listener_ids: values.listener_ids || [] }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      message.error(data.error || 'Failed to update node bindings.');
+    try {
+      await apiRequest(`/users/${bindingUser!.id}/listeners`, { method: 'POST', body: JSON.stringify({ listener_ids: values.listener_ids || [] }) });
+    } catch (err) {
+      message.error((err as { message?: string }).message || 'Failed to update node bindings.');
       return;
     }
     message.success('Node bindings updated.');

@@ -1,6 +1,8 @@
 import React from 'react';
+import { logout } from '../api/auth';
+import { useI18n } from '../i18n';
 import { Layout, Menu } from 'antd';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   DashboardOutlined,
   CloudServerOutlined,
@@ -9,6 +11,7 @@ import {
   FileTextOutlined,
   CodeOutlined,
   SettingOutlined,
+  LogoutOutlined,
 } from '@ant-design/icons';
 
 const { Header, Content, Sider } = Layout;
@@ -19,6 +22,8 @@ interface SidebarLayoutProps {
 
 const SidebarLayout: React.FC<SidebarLayoutProps> = ({ children }) => {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { t } = useI18n();
 
   const menuItems = [
     {
@@ -73,7 +78,7 @@ const SidebarLayout: React.FC<SidebarLayoutProps> = ({ children }) => {
       </Sider>
       <Layout>
         <Header style={{ background: '#fff', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', boxShadow: '0 1px 4px rgba(0,21,41,.08)' }}>
-          <Link to="/login" style={{ color: '#333' }}>Logout</Link>
+          <a style={{ color: '#333' }} onClick={() => { logout(); navigate('/login', { replace: true }); }}><LogoutOutlined /> {t('auth.logout')}</a>
         </Header>
         <Content style={{ margin: '24px 16px', padding: 24, background: '#fff', minHeight: 280, borderRadius: 8 }}>
           {children}
