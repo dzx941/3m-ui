@@ -5,7 +5,6 @@ export type ListenerProtocol =
   | 'redir'
   | 'mixed'
   | 'tunnel'
-  | 'tun'
   | 'shadowsocks'
   | 'snell'
   | 'vmess'
@@ -22,6 +21,13 @@ export type ListenerProtocol =
 
 export type Protocol = ListenerProtocol;
 
+/**
+ * Mihomo listener types supported by the listener configuration UI.
+ *
+ * TUN is intentionally excluded: it is a top-level transparent-proxy/TUN
+ * feature, not a listener protocol, and therefore must not be serialized as
+ * an entry in the `listeners` array.
+ */
 export const LISTENER_PROTOCOLS: ListenerProtocol[] = [
   'socks',
   'http',
@@ -29,7 +35,6 @@ export const LISTENER_PROTOCOLS: ListenerProtocol[] = [
   'redir',
   'mixed',
   'tunnel',
-  'tun',
   'shadowsocks',
   'snell',
   'vmess',
