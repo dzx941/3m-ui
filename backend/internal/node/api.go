@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/converter"
@@ -123,8 +124,10 @@ func CreateClientAccess(c *gin.Context) {
 
 	var existing models.AccessToken
 	if err := database.GlobalDB.Where("listener_id = ? AND enabled = ?", listener.ID, true).First(&existing).Error; err == nil {
-		c.JSON(http.StatusOK, clientAccessResponse(c, existing))
-		return
+		if existing.ExpireAt == nil || existing.ExpireAt.After(time.Now()) {
+			c.JSON(http.StatusOK, clientAccessResponse(c, existing))
+			return
+		}
 	}
 
 	buf := make([]byte, 16)
