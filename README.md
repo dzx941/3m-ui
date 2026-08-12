@@ -1,143 +1,273 @@
 # 3m-ui
 
-3m-ui is an easy-to-use VPS Web management panel built on top of the Mihomo Core, leveraging its inbound and listener capabilities. It is designed to act similarly to 3x-ui, but with a robust Mihomo backend core.
+> **Mihomo Core Management Console & Client Configuration Distribution Platform**
+>
+> **Mihomo Core 管理控制台与客户端配置分发平台**
+
+[English](#english) · [中文](#中文)
+
+---
+
+<a id="english"></a>
+
+# English
+
+3m-ui is a lightweight web management console built around [Mihomo Core](https://github.com/MetaCubeX/mihomo). It is designed for VPS deployments where Mihomo listeners, proxy nodes, generated client configurations, and core runtime operations need to be managed from one interface.
+
+The project focuses on **Mihomo-native configuration management and client configuration distribution**, rather than acting as a traditional subscription-management panel.
+
+## Highlights
+
+- **Mihomo Core management** — manage the core binary, configuration, runtime status, and logs.
+- **Listener-oriented node management** — supported Mihomo proxy protocols can be created and managed from the panel.
+- **Client configuration export** — a configured listener can be exported as a client node configuration instead of exposing the raw server-side listener definition.
+- **Multiple client formats** — configuration conversion is handled through the integrated local `subconverter` service where supported.
+- **Access tokens** — generate scoped client access links with enable/disable and expiration controls.
+- **QR code sharing** — client configuration links can be copied or displayed as QR codes from the web UI.
+- **Bilingual UI** — Chinese and English localization with persisted language selection.
+- **Responsive web console** — React + Ant Design frontend backed by a Go API.
+- **SQLite storage** — application data is stored locally and does not require an external database service.
+- **systemd / OpenRC** — deployment scripts support common Linux service managers.
+- **amd64 / arm64 / armv7** — release packaging provides production and static Linux binaries.
+
+## Supported Listener Protocols
+
+3m-ui deliberately distinguishes **proxy protocols** from Mihomo traffic-capture or local inbound mechanisms.
+
+The listener editor currently treats the following as exportable proxy protocols:
+
+- Shadowsocks
+- Snell
+- VMess
+- VLESS
+- Trojan
+- Hysteria2
+- TUIC
+- ShadowQUIC
+- AnyTLS
+- Mieru
+- Sudoku
+- TrustTunnel
+
+The following are **not treated as exportable proxy-node protocols**:
+
+- SOCKS
+- HTTP
+- TPROXY
+- REDIR
+- Mixed
+- Tunnel
+- TUN
+- WireGuard
+
+This distinction is intentional: TUN and traffic-capture mechanisms are not proxy protocols, while WireGuard is primarily represented as an outbound proxy type rather than a Mihomo listener in the client-export pipeline.
+
+## Client Configuration Distribution
+
+A listener is configured once on the server. When a client configuration is requested, 3m-ui resolves the listener into a client-facing proxy node and generates the requested configuration format.
+
+The distribution flow is:
+
+```text
+Mihomo Listener
+      │
+      ▼
+3m-ui Access Token
+      │
+      ▼
+Client Configuration Resolver
+      │
+      ├── raw node/config
+      └── subconverter
+             │
+             ├── Mihomo / Clash
+             ├── sing-box
+             └── other supported client formats
+```
+
+Access tokens can be scoped to a configured target and may have an expiration time. Public subscription endpoints reject missing, disabled, or expired tokens instead of silently returning configuration data.
+
+### Public URL Resolution
+
+When a listener binds to `0.0.0.0`, the exported client configuration must not contain that non-routable bind address. 3m-ui resolves the public server address using the following priority:
+
+1. `PUBLIC_URL` environment setting
+2. `server.public_url` in the application configuration
+3. the trusted request host and scheme
+
+This allows a VPS deployment to expose a public domain or IP without changing the internal listener bind address.
+
+## Subconverter
+
+3m-ui can use a locally deployed [subconverter](https://github.com/asdlokj1qpi233/subconverter) instance for configuration conversion. The service is intended to listen on loopback, normally:
+
+```text
+127.0.0.1:25500
+```
+
+The converter is not exposed as a public service by the installation scripts. If subconverter is unavailable, the backend returns an explicit service-unavailable error instead of crashing or returning a partially generated profile.
+
+The installer and updater can manage the subconverter lifecycle together with 3m-ui when the corresponding release assets are available.
+
+## Security Model
+
+3m-ui is intended to run as a server-side management console, so administrative and public configuration paths are separated.
+
+Important characteristics include:
+
+- Administrative APIs require authenticated access.
+- Client access tokens can be disabled or expired.
+- Unknown tokens return `404 Not Found`.
+- Disabled tokens return `403 Forbidden`.
+- Expired tokens return `410 Gone`.
+- An unavailable local subconverter returns `503 Service Unavailable`.
+- The subconverter service is intended to remain bound to loopback.
+- Configuration and SQLite data remain under the application data directories.
+
+Do not expose the administrative API directly to an untrusted network without appropriate TLS, firewall rules, and access controls.
 
 ## Tech Stack
 
 ### Backend
-- **Language**: Go 1.25+
-- **Framework**: Gin Gonic
-- **ORM**: GORM
-- **Database**: SQLite
-- **Auth**: Bcrypt & standard JWT placeholder
+
+- Go 1.25+
+- Gin
+- GORM
+- SQLite
+- bcrypt-based password authentication
+- JWT-based authenticated API sessions
+- YAML configuration
 
 ### Frontend
-- **Framework**: React 19
-- **Build Tool**: Vite
-- **Language**: TypeScript
-- **UI Components**: Ant Design (v6)
-- **Routing**: React Router (BrowserRouter)
 
----
+- React 19
+- TypeScript
+- Vite
+- Ant Design 6
+- React Router
+- i18n localization
 
-## Directory Structure
+## Repository Structure
 
 ```text
 3m-ui/
-├── backend/                  # Go Backend Code
-│   ├── cmd/
-│   │   └── server/           # Main entry point (main.go)
-│   ├── config/               # Configuration YAML files (config.yaml)
-│   ├── data/                 # SQLite databases (.db files)
-│   └── internal/             # Private application and business logic
-│       ├── auth/             # Cryptography/Auth helpers (bcrypt, jwt)
-│       ├── config/           # Config loading package
-│       ├── database/         # Database GORM models and initialization
-│       │   └── models/       # Model definitions (User, Listener, etc.)
-│       ├── listener/         # Listener management logic
-│       ├── mihomo/           # Mihomo Core interaction logic
-│       ├── router/           # Gin Web routing setup
-│       ├── subscription/     # Subscription logic
-│       └── system/           # Linux system operating tasks
-├── frontend/                 # React Frontend Code
+├── backend/
+│   ├── cmd/server/              # Server entry point
+│   ├── internal/
+│   │   ├── auth/                # Authentication and password handling
+│   │   ├── config/              # Application configuration
+│   │   ├── converter/            # Client configuration conversion
+│   │   ├── database/             # SQLite/GORM database layer
+│   │   ├── listener/             # Listener/node management
+│   │   ├── mihomo/               # Mihomo Core integration
+│   │   ├── router/               # HTTP API and public endpoints
+│   │   └── system/               # Linux service/system operations
+│   └── ...
+├── frontend/
 │   ├── src/
-│   │   ├── api/              # API Client interfaces
-│   │   ├── components/       # Shared UI components
-│   │   ├── layouts/          # Page layouts (Sidebar, header, etc.)
-│   │   ├── pages/            # View pages (Dashboard, Listeners, Subscriptions, etc.)
-│   │   ├── stores/           # Zustand / Redux state stores
-│   │   ├── App.tsx           # Route registrations
-│   │   └── main.tsx          # Application bootstrap
-├── deploy/                   # Deployment scripts (.gitkeep)
-└── docs/                     # Architectural documents (.gitkeep)
+│   │   ├── api/                 # API clients
+│   │   ├── components/           # Shared React components
+│   │   ├── i18n/                # Chinese/English translations
+│   │   ├── layouts/             # Application layouts
+│   │   └── pages/               # Console pages
+│   └── ...
+├── scripts/
+│   ├── install.sh
+│   ├── update.sh
+│   └── uninstall.sh
+├── .github/workflows/            # CI and release workflows
+├── Makefile
+└── README.md
 ```
 
----
+## Requirements
 
-## Getting Started
+For development:
 
-### Prerequisites
-- [Go 1.25+](https://go.dev/doc/install)
-- [NodeJS v22+](https://nodejs.org/en)
-- [pnpm](https://pnpm.io/)
+- Go 1.25 or newer
+- Node.js 22 or newer
+- pnpm
+- Git
 
-### Running Backend (Development)
+For production, use the published Linux release binaries when possible.
 
-1. Navigate to the backend folder:
-   ```bash
-   cd backend
-   ```
-2. Initialize dependencies & run test checks:
-   ```bash
-   go vet ./...
-   go test ./...
-   ```
-3. Run the Go server:
-   ```bash
-   go run ./cmd/server
-   ```
-   The backend API will be accessible at `http://localhost:8080/api/v1`.
+## Development
 
-### Running Frontend (Development)
+### Backend
 
-1. Navigate to the frontend folder:
-   ```bash
-   cd frontend
-   ```
-2. Install dependencies:
-   ```bash
-   pnpm install
-   ```
-3. Run the Vite development server:
-   ```bash
-   pnpm dev
-   ```
-   The frontend will be accessible at `http://localhost:5173`.
-
-### Production Build
-
-#### Backend Compile
 ```bash
 cd backend
-go build -o server cmd/server/main.go
+go mod download
+go vet ./...
+go test ./...
+go run ./cmd/server
 ```
 
-#### Frontend Compile
+The development API normally listens on:
+
+```text
+http://127.0.0.1:8080/api/v1
+```
+
+### Frontend
+
 ```bash
 cd frontend
+pnpm install
+pnpm dev
+```
+
+The Vite development server normally listens on:
+
+```text
+http://127.0.0.1:5173
+```
+
+### Production Frontend Build
+
+```bash
+cd frontend
+pnpm lint
 pnpm build
 ```
-This generates the static bundle in `frontend/dist` which can be served by any static asset host or backend handler.
 
----
+## Build
 
-## Production Installation
+The project supports embedded frontend assets and Linux release packaging.
 
-3m-ui is distributed as a single Linux server binary with the built frontend embedded into the Go executable. Official release assets include production Linux binaries for `amd64`, `arm64`, and `armv7`, static Linux binaries for the same architectures, plus installer, updater, and uninstaller scripts. The first release-candidate line is `v0.1.0-rc.1`.
+```bash
+make build
+make build-linux
+make build-linux-static
+make release
+make clean
+```
 
-### Supported Platforms
+The release workflow produces Linux binaries for:
 
-- Debian and Ubuntu with systemd
-- RHEL-compatible distributions such as Rocky Linux, AlmaLinux, CentOS, and Fedora with systemd
-- Alpine Linux with OpenRC
-- Arch Linux and openSUSE with systemd
-- CPU architectures: `amd64`, `arm64`, `armv7`
+| Architecture | Normal | Static |
+| --- | --- | --- |
+| amd64 | `3m-ui-linux-amd64` | `3m-ui-linux-amd64-static` |
+| arm64 | `3m-ui-linux-arm64` | `3m-ui-linux-arm64-static` |
+| armv7 | `3m-ui-linux-armv7` | `3m-ui-linux-armv7-static` |
 
-### Install
+Static builds use the pure-Go SQLite implementation where configured by the build tags, making them suitable for musl/Alpine environments.
 
-Run the installer as root on the target server:
+## Installation
+
+Run the release installer as root:
 
 ```bash
 curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/install.sh | sh
 ```
 
-The installer detects the OS, CPU architecture, package manager, and init system, installs basic TLS/download prerequisites when possible, downloads the matching release binary from `https://github.com/dzx941/3m-ui/releases`, writes the service definition, enables the service, and starts 3m-ui automatically.
-
-To force the static `modernc.org/sqlite` binary on distributions where the production CGO binary is not suitable, set `THREE_M_UI_STATIC=1`:
+For a static binary:
 
 ```bash
 curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/install.sh | THREE_M_UI_STATIC=1 sh
 ```
+
+The installer detects CPU architecture and init system, installs required download/TLS utilities where possible, installs Mihomo and subconverter, creates the application configuration, installs the service definition, and starts 3m-ui.
 
 After installation, open:
 
@@ -145,87 +275,459 @@ After installation, open:
 http://SERVER_IP:8080/
 ```
 
-### Version
+If the server is behind a reverse proxy or domain, configure `PUBLIC_URL` or `server.public_url` so generated client links use the correct public address.
 
-After installation, verify the installed binary and build metadata:
+## Upgrade
 
-```bash
-3m-ui --version
-```
-
-### Upgrade
-
-Upgrade keeps the database, user data, Mihomo configuration files, and existing application configuration. It backs up `/etc/3m-ui` before replacing the binary.
+The updater downloads and validates new release assets before replacing the running binary. It keeps persistent application data and creates a configuration backup before the replacement step.
 
 ```bash
 curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/update.sh | sh
 ```
 
-Use the matching static updater command when the installed binary was selected with `THREE_M_UI_STATIC=1`:
+For static releases:
 
 ```bash
 curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/update.sh | THREE_M_UI_STATIC=1 sh
 ```
 
-To upgrade to a specific release candidate manually, download the matching binary from that GitHub Release, stop the service, replace `/usr/local/bin/3m-ui`, and start the service again. Keep `/etc/3m-ui` and `/var/lib/3m-ui` in place to preserve configuration and the SQLite database.
+If a release asset cannot be downloaded or verified, the update should abort without replacing the existing working binary.
 
-### Uninstall
+## Uninstall
 
-Remove the binary, service, configuration, and logs while keeping persistent data in `/var/lib/3m-ui`:
+Remove the service, binary, configuration, and deployment files while keeping persistent data:
 
 ```bash
 curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/uninstall.sh -o /tmp/uninstall.sh
 sh /tmp/uninstall.sh
 ```
 
-Remove all data as well:
+To remove persistent application data as well:
 
 ```bash
-curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/uninstall.sh -o uninstall.sh
-sh uninstall.sh --purge
+sh /tmp/uninstall.sh --purge
 ```
 
-### Production Directory Layout
+## Production Paths
 
 ```text
-/usr/local/bin/3m-ui       # Installed server binary
-/etc/3m-ui/config.yaml     # Application configuration
-/var/lib/3m-ui/            # Persistent application data
-/var/lib/3m-ui/3m-ui.db    # SQLite database
-/var/lib/3m-ui/mihomo/     # Generated Mihomo configuration files
-/var/log/3m-ui/            # Log directory reserved for deployments
+/usr/local/bin/3m-ui          # 3m-ui executable
+/usr/local/bin/mihomo         # Mihomo Core executable
+/etc/3m-ui/config.yaml        # Application configuration
+/var/lib/3m-ui/               # Persistent application data
+/var/lib/3m-ui/3m-ui.db       # SQLite database
+/var/lib/3m-ui/mihomo/        # Mihomo configuration data
+/var/lib/3m-ui/backups/       # Upgrade backups
+/var/log/3m-ui/               # Reserved log directory
 ```
 
-### Service Management
+## Service Management
 
-systemd:
+### systemd
 
 ```bash
 systemctl status 3m-ui
 systemctl restart 3m-ui
+journalctl -u 3m-ui -f
 ```
 
-OpenRC:
+### OpenRC
 
 ```bash
 rc-service 3m-ui status
 rc-service 3m-ui restart
+rc-service 3m-ui stop
 ```
 
-## Release and Packaging
+## CI and Release
 
-The release pipeline runs from `.github/workflows/release.yml` on `v*` tags and manual dispatch. It builds the frontend with pnpm, copies `frontend/dist` into the backend embed directory, cross-compiles production CGO Linux binaries backed by `mattn/go-sqlite3`, builds static `modernc.org/sqlite` Linux binaries with the `sqlite_modernc` build tag, copies deployment scripts, and publishes all artifacts to a GitHub Release.
+GitHub Actions is used for frontend validation, backend tests, Linux builds, and release packaging.
 
-Local packaging commands:
+Before a release, the recommended checks are:
 
 ```bash
-make build        # Build embedded frontend and host binary into dist/3m-ui
-make build-linux         # Build production Linux release binaries with mattn/go-sqlite3
-make build-linux-static  # Build static Linux release binaries with modernc.org/sqlite
-make release             # Clean, build, cross-compile, and copy scripts
-make clean        # Remove dist/
+cd frontend
+pnpm lint
+pnpm build
+
+cd ../backend
+go vet ./...
+go test ./...
 ```
 
-## Release Candidate Checklist
+Release tags use the `v*` convention. Release packaging includes the server binaries and deployment scripts.
 
-See [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md) before tagging or publishing a release candidate.
+## Contributing
+
+Bug reports, documentation improvements, and code contributions are welcome. For larger changes, open an issue first so the architecture and compatibility impact can be discussed before implementation.
+
+Please keep Mihomo protocol behavior aligned with the official Mihomo documentation and avoid treating traffic-capture mechanisms such as TUN as proxy protocols.
+
+## License
+
+See the repository license file for the applicable license and redistribution terms.
+
+---
+
+<a id="中文"></a>
+
+# 中文
+
+3m-ui 是一个围绕 [Mihomo Core](https://github.com/MetaCubeX/mihomo) 构建的轻量级 Web 管理控制台，主要用于 VPS 场景下的 Mihomo 核心管理、Listener/节点配置管理以及客户端配置分发。
+
+项目的核心定位是 **Mihomo 原生配置管理 + 客户端配置分发平台**，而不是传统意义上的订阅管理面板。
+
+## 核心特性
+
+- **Mihomo Core 管理**：管理 Mihomo 核心、配置、运行状态和日志。
+- **Listener/节点管理**：按照 Mihomo 支持的代理协议创建和管理服务端 Listener。
+- **客户端节点导出**：创建 Listener 后，对外导出时转换为客户端代理节点配置，而不是直接暴露服务端 Listener 配置。
+- **多格式配置转换**：通过本地 `subconverter` 服务生成不同客户端所需的配置格式。
+- **客户端 Access Token**：可以创建带作用域、启用/禁用以及过期时间的客户端访问 Token。
+- **二维码分享**：客户端链接支持直接复制或生成二维码。
+- **中英双语**：支持中文、英文切换，并保存用户的语言选择。
+- **现代 Web 控制台**：React + Ant Design 前端，Go 后端 API。
+- **SQLite 数据库**：无需额外部署 MySQL/PostgreSQL 等数据库服务。
+- **systemd / OpenRC**：支持常见 Linux 服务管理系统。
+- **amd64 / arm64 / armv7**：提供普通版和静态 Linux 构建版本。
+
+## Listener 支持协议
+
+3m-ui 会明确区分 **代理协议** 和 Mihomo 中的流量接管/本地入站机制。
+
+当前 Listener 编辑器将以下协议作为可以导出客户端节点的代理协议：
+
+- Shadowsocks
+- Snell
+- VMess
+- VLESS
+- Trojan
+- Hysteria2
+- TUIC
+- ShadowQUIC
+- AnyTLS
+- Mieru
+- Sudoku
+- TrustTunnel
+
+以下类型**不会被当作可导出的代理节点协议**：
+
+- SOCKS
+- HTTP
+- TPROXY
+- REDIR
+- Mixed
+- Tunnel
+- TUN
+- WireGuard
+
+这是有意设计的：TUN 和流量接管机制并不是代理协议；WireGuard 在客户端配置体系中主要作为 outbound 类型，而不是 Mihomo Listener 导出协议。
+
+## 客户端配置分发
+
+在服务器上配置一次 Listener 后，3m-ui 会在客户端请求配置时，将服务端 Listener 解析成客户端可以使用的代理节点配置，并根据请求格式生成对应配置。
+
+整体流程：
+
+```text
+Mihomo Listener
+      │
+      ▼
+客户端 Access Token
+      │
+      ▼
+客户端配置解析器
+      │
+      ├── 原始节点/配置
+      └── subconverter
+             │
+             ├── Mihomo / Clash
+             ├── sing-box
+             └── 其他支持的客户端格式
+```
+
+Access Token 可以绑定特定目标，并支持设置过期时间。公共客户端接口不会在 Token 不存在、被禁用或已经过期时继续返回配置。
+
+### 公网地址解析
+
+如果 Listener 监听的是 `0.0.0.0`，不能直接把 `0.0.0.0` 作为客户端节点地址。因此 3m-ui 会按照以下优先级解析公网地址：
+
+1. `PUBLIC_URL` 环境变量
+2. 应用配置中的 `server.public_url`
+3. 请求中的可信 Host 和协议
+
+这样可以让 Listener 继续监听 `0.0.0.0`，同时让导出的客户端节点使用 VPS 公网 IP 或域名。
+
+## Subconverter
+
+3m-ui 可以使用本地部署的 [subconverter](https://github.com/asdlokj1qpi233/subconverter) 进行客户端配置转换。默认建议监听：
+
+```text
+127.0.0.1:25500
+```
+
+安装脚本不会把 subconverter 作为公共服务直接暴露到公网。如果 subconverter 不可用，后端会返回明确的服务不可用错误，而不会崩溃或输出不完整的客户端配置。
+
+安装和更新脚本可以在对应 Release 资源存在时一并管理 subconverter 的生命周期。
+
+## 安全设计
+
+3m-ui 是一个服务器端管理控制台，因此管理 API 与公共客户端配置接口是分开的。
+
+主要安全机制包括：
+
+- 管理 API 需要身份认证。
+- 客户端 Access Token 可以禁用。
+- Access Token 可以设置过期时间。
+- 不存在的 Token 返回 `404 Not Found`。
+- 被禁用的 Token 返回 `403 Forbidden`。
+- 已过期的 Token 返回 `410 Gone`。
+- subconverter 不可用时返回 `503 Service Unavailable`。
+- subconverter 默认只监听本机回环地址。
+- 配置文件和 SQLite 数据保存在应用数据目录中。
+
+生产环境不要直接把管理 API 暴露到不可信网络。建议配合 HTTPS、反向代理、防火墙和访问控制使用。
+
+## 技术栈
+
+### 后端
+
+- Go 1.25+
+- Gin
+- GORM
+- SQLite
+- bcrypt 密码认证
+- JWT API 会话认证
+- YAML 配置
+
+### 前端
+
+- React 19
+- TypeScript
+- Vite
+- Ant Design 6
+- React Router
+- i18n 国际化
+
+## 项目结构
+
+```text
+3m-ui/
+├── backend/
+│   ├── cmd/server/              # 后端入口
+│   ├── internal/
+│   │   ├── auth/                # 登录、密码和认证
+│   │   ├── config/              # 应用配置
+│   │   ├── converter/            # 客户端配置转换
+│   │   ├── database/             # SQLite/GORM 数据层
+│   │   ├── listener/              # Listener/节点管理
+│   │   ├── mihomo/                # Mihomo Core 集成
+│   │   ├── router/                # HTTP API 和公共接口
+│   │   └── system/                # Linux 系统操作
+│   └── ...
+├── frontend/
+│   ├── src/
+│   │   ├── api/                 # API 请求
+│   │   ├── components/           # 公共组件
+│   │   ├── i18n/                 # 中英文翻译
+│   │   ├── layouts/              # 页面布局
+│   │   └── pages/                # 管理页面
+│   └── ...
+├── scripts/
+│   ├── install.sh               # 安装脚本
+│   ├── update.sh                # 更新脚本
+│   └── uninstall.sh             # 卸载脚本
+├── .github/workflows/            # CI / Release 工作流
+├── Makefile
+└── README.md
+```
+
+## 开发环境
+
+要求：
+
+- Go 1.25+
+- Node.js 22+
+- pnpm
+- Git
+
+### 后端
+
+```bash
+cd backend
+go mod download
+go vet ./...
+go test ./...
+go run ./cmd/server
+```
+
+开发环境后端默认 API 地址：
+
+```text
+http://127.0.0.1:8080/api/v1
+```
+
+### 前端
+
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+Vite 默认地址：
+
+```text
+http://127.0.0.1:5173
+```
+
+### 前端生产构建
+
+```bash
+cd frontend
+pnpm lint
+pnpm build
+```
+
+## 构建
+
+项目支持前端资源嵌入以及 Linux Release 构建。
+
+```bash
+make build
+make build-linux
+make build-linux-static
+make release
+make clean
+```
+
+Release 支持：
+
+| 架构 | 普通版 | 静态版 |
+| --- | --- | --- |
+| amd64 | `3m-ui-linux-amd64` | `3m-ui-linux-amd64-static` |
+| arm64 | `3m-ui-linux-arm64` | `3m-ui-linux-arm64-static` |
+| armv7 | `3m-ui-linux-armv7` | `3m-ui-linux-armv7-static` |
+
+静态版本使用纯 Go SQLite 实现的构建方式，因此更适合 Alpine/musl 环境。
+
+## 安装
+
+在目标 VPS 上使用 root 执行：
+
+```bash
+curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/install.sh | sh
+```
+
+如果需要强制安装静态版本：
+
+```bash
+curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/install.sh | THREE_M_UI_STATIC=1 sh
+```
+
+安装脚本会自动检测 CPU 架构和 init 系统，在可能的情况下安装下载/TLS 所需工具，然后安装 Mihomo、subconverter，生成应用配置，创建服务并启动 3m-ui。
+
+安装完成后访问：
+
+```text
+http://SERVER_IP:8080/
+```
+
+如果通过域名或反向代理访问，建议配置 `PUBLIC_URL` 或 `server.public_url`，保证客户端导出的节点链接使用正确的公网地址。
+
+## 更新
+
+更新脚本会在替换运行中的程序之前下载并验证 Release 资源，同时保留数据库和持久化数据，并创建配置备份。
+
+```bash
+curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/update.sh | sh
+```
+
+静态版本：
+
+```bash
+curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/update.sh | THREE_M_UI_STATIC=1 sh
+```
+
+如果 Release 文件下载失败或验证失败，更新应该直接终止，不替换当前正在正常工作的程序。
+
+## 卸载
+
+卸载程序、服务、配置和部署文件，但保留持久化数据：
+
+```bash
+curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/uninstall.sh -o /tmp/uninstall.sh
+sh /tmp/uninstall.sh
+```
+
+同时删除持久化数据：
+
+```bash
+sh /tmp/uninstall.sh --purge
+```
+
+## 生产环境目录
+
+```text
+/usr/local/bin/3m-ui          # 3m-ui 主程序
+/usr/local/bin/mihomo         # Mihomo Core
+/etc/3m-ui/config.yaml        # 应用配置
+/var/lib/3m-ui/               # 持久化数据
+/var/lib/3m-ui/3m-ui.db       # SQLite 数据库
+/var/lib/3m-ui/mihomo/        # Mihomo 配置
+/var/lib/3m-ui/backups/       # 更新备份
+/var/log/3m-ui/               # 预留日志目录
+```
+
+## 服务管理
+
+### systemd
+
+```bash
+systemctl status 3m-ui
+systemctl restart 3m-ui
+journalctl -u 3m-ui -f
+```
+
+### OpenRC
+
+```bash
+rc-service 3m-ui status
+rc-service 3m-ui restart
+rc-service 3m-ui stop
+```
+
+## CI 与 Release
+
+GitHub Actions 用于执行前端检查、后端测试、Linux 构建和 Release 打包。
+
+发布前建议执行：
+
+```bash
+cd frontend
+pnpm lint
+pnpm build
+
+cd ../backend
+go vet ./...
+go test ./...
+```
+
+Release 使用 `v*` 标签触发，发布资源包含 Linux 主程序以及安装、更新、卸载脚本。
+
+## 贡献
+
+欢迎提交 Bug、文档改进和代码贡献。较大的架构修改建议先创建 Issue 讨论，以便确认兼容性和实现方案。
+
+涉及 Mihomo 协议时，请以 Mihomo 官方文档为准，并避免把 TUN 等流量接管机制错误地当作代理协议。
+
+## License
+
+具体许可证以及再分发条款请以仓库中的 License 文件为准。
+
+---
+
+## Documentation / 文档
+
+- Mihomo Core: https://github.com/MetaCubeX/mihomo
+- Subconverter: https://github.com/asdlokj1qpi233/subconverter
