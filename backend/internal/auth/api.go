@@ -1,7 +1,9 @@
 package auth
 
 import (
+	"crypto/subtle"
 	"net/http"
+	"strings"
 
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/database"
@@ -43,11 +45,11 @@ func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "current_password and new_password are required"})
 			return
 		}
-		if len(req.NewPassword) < 8 {
+		if len([]rune(req.NewPassword)) < 8 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "new password must be at least 8 characters"})
 			return
 		}
-		if req.NewPassword == req.CurrentPassword {
+		if subtle.ConstantTimeCompare([]byte(req.NewPassword), []byte(req.CurrentPassword)) == 1 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "new password must differ from current password"})
 			return
 		}
@@ -109,24 +111,32 @@ func RequireAuth(secret string) gin.HandlerFunc {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
+
+		// Never trust mutable authorization claims from an old JWT. Re-read the
+		// account so a demoted or deleted administrator loses access immediately.
+		var user models.User
+		if err := database.GlobalDB.First(&user, claims.UserID).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+			return
+		}
+		if !strings.EqualFold(user.Role, "admin") {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "administrator access required"})
+			return
+		}
+
 		c.Set("auth.claims", claims)
+		c.Set("auth.user", &user)
 
 		// A freshly created administrator may authenticate with the preserved
 		// default password, but must not use management APIs until it has been
 		// replaced. The password endpoint itself and /me remain available.
-		if c.Request.URL.Path != "/api/v1/auth/password" && c.Request.URL.Path != "/api/v1/auth/me" {
-			var user models.User
-			if err := database.GlobalDB.First(&user, claims.UserID).Error; err != nil {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
-				return
-			}
-			if user.MustChangePassword {
-				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-					"error": "password change required",
-					"code":  "PASSWORD_CHANGE_REQUIRED",
-				})
-				return
-			}
+		path := c.Request.URL.Path
+		if path != "/api/v1/auth/password" && path != "/api/v1/auth/me" && user.MustChangePassword {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "password change required",
+				"code":  "PASSWORD_CHANGE_REQUIRED",
+			})
+			return
 		}
 
 		c.Next()
