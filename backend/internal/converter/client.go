@@ -8,11 +8,9 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
-	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"github.com/dzx941/3m-ui/backend/internal/security"
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
@@ -82,156 +80,63 @@ func GenerateRawConfig(db *gorm.DB, token models.AccessToken, req *http.Request)
 	if db == nil {
 		return nil, fmt.Errorf("database is not initialized")
 	}
-	if token.Type != "user" && token.Type != "proxy" {
-		return nil, fmt.Errorf("invalid access token type")
+	if token.ListenerID == 0 {
+		return nil, fmt.Errorf("access token is not bound to a listener")
 	}
 
-	proxies := make([]map[string]interface{}, 0)
+	var listener models.Listener
+	if err := db.First(&listener, token.ListenerID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("listener not found")
+		}
+		return nil, fmt.Errorf("failed to fetch listener: %w", err)
+	}
+	if !listener.Enabled {
+		return nil, fmt.Errorf("listener is disabled")
+	}
+
 	serverHost := ResolveServerAddress(config.GlobalConfig, req)
+	proxy := map[string]interface{}{
+		"name":   listener.Name,
+		"type":   strings.ToLower(strings.TrimSpace(listener.Protocol)),
+		"server": serverHost,
+		"port":   listener.Port,
+	}
 
-	// Direct listener access is intentionally scoped separately so existing
-	// user/proxy tokens remain backwards compatible with the old API contract.
-	if token.Scope == "listener" {
-		var l models.Listener
-		if err := db.First(&l, token.TargetID).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return nil, fmt.Errorf("listener not found")
+	// Protocol-specific listener options are stored as JSON and copied into
+	// the generated Mihomo proxy entry without dropping protocol-only fields.
+	if listener.Config != "" {
+		var options map[string]interface{}
+		if err := json.Unmarshal([]byte(listener.Config), &options); err != nil {
+			return nil, fmt.Errorf("invalid listener config for %q: %w", listener.Name, err)
+		}
+		for key, value := range options {
+			if key == "name" || key == "type" || key == "server" || key == "port" {
+				continue
 			}
-			return nil, fmt.Errorf("failed to fetch listener: %w", err)
+			proxy[key] = value
 		}
-		if !l.Enabled {
-			return nil, fmt.Errorf("listener is disabled")
-		}
+	}
 
-		p := map[string]interface{}{
-			"name":   l.Name,
-			"type":   l.Protocol,
-			"server": serverHost,
-			"port":   l.Port,
-			"udp":    l.UDP,
-		}
-		if l.Config != "" {
-			var opts map[string]interface{}
-			if err := json.Unmarshal([]byte(l.Config), &opts); err != nil {
-				return nil, fmt.Errorf("invalid listener config for %q: %w", l.Name, err)
-			}
-			for k, v := range opts {
-				p[k] = v
-			}
-		}
-		proxies = append(proxies, p)
-	} else if token.Type == "user" {
-		var u models.ProxyUser
-		if err := db.First(&u, token.TargetID).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				return nil, fmt.Errorf("proxy user not found")
-			}
-			return nil, fmt.Errorf("failed to fetch proxy user: %w", err)
-		}
-		if !u.Enabled || (!u.ExpireTime.IsZero() && u.ExpireTime.Before(timeNow())) {
-			return nil, fmt.Errorf("proxy user is disabled or expired")
-		}
-
-		password := ""
-		if u.PasswordEncrypted != "" {
-			var err error
-			password, err = security.Decrypt(u.PasswordEncrypted)
-			if err != nil {
-				return nil, fmt.Errorf("failed to decrypt proxy user credentials")
-			}
-		}
-
-		var listeners []models.Listener
-		err := db.Raw(`
-			SELECT listeners.* FROM listeners
-			JOIN listener_users ON listener_users.listener_id = listeners.id
-			WHERE listener_users.proxy_user_id = ?
-			AND listeners.enabled = 1
-		`, token.TargetID).Scan(&listeners).Error
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch user listeners: %w", err)
-		}
-
-		for _, l := range listeners {
-			p := map[string]interface{}{
-				"name":   l.Name,
-				"type":   l.Protocol,
-				"server": serverHost,
-				"port":   l.Port,
-				"udp":    l.UDP,
-			}
-			var opts map[string]interface{}
-			if l.Config != "" {
-				if err := json.Unmarshal([]byte(l.Config), &opts); err != nil {
-					return nil, fmt.Errorf("invalid listener config for %q: %w", l.Name, err)
-				}
-				for k, v := range opts {
-					p[k] = v
-				}
-			}
-			if password != "" {
-				if _, ok := p["password"]; !ok {
-					p["password"] = password
-				}
-				if _, ok := p["username"]; !ok && u.Username != "" {
-					p["username"] = u.Username
-				}
-			}
-			if u.UUID != "" {
-				if _, ok := p["uuid"]; !ok {
-					p["uuid"] = u.UUID
-				}
-			}
-			proxies = append(proxies, p)
-		}
-	} else {
-		visual, err := mihomoConfig.GetVisualConfig(db)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load visual config: %w", err)
-		}
-		idx := int(token.TargetID)
-		if idx < 0 || idx >= len(visual.Proxies) {
-			return nil, fmt.Errorf("proxy node not found")
-		}
-		pe := visual.Proxies[idx]
-		p := map[string]interface{}{
-			"name":   pe.Name,
-			"type":   pe.Type,
-			"server": pe.Server,
-			"port":   pe.Port,
-		}
-		for k, v := range pe.Options {
-			p[k] = v
-		}
-		proxies = append(proxies, p)
+	if listener.UDP {
+		proxy["udp"] = true
 	}
 
 	cfg := map[string]interface{}{
-		"mixed-port": 7890,
-		"proxies":    proxies,
+		"proxies": []interface{}{proxy},
 		"proxy-groups": []interface{}{
 			map[string]interface{}{
 				"name":    "PROXY",
 				"type":    "select",
-				"proxies": getProxyNames(proxies),
+				"proxies": []string{listener.Name},
 			},
 		},
 		"rules": []string{"MATCH,PROXY"},
 	}
+
+	// Listener credentials may be stored encrypted in Config. Do not add a
+	// second credential source here; Config remains the single listener source.
+	_ = security.Decrypt
+
 	return yaml.Marshal(cfg)
 }
-
-func getProxyNames(proxies []map[string]interface{}) []string {
-	names := make([]string, 0, len(proxies))
-	for _, p := range proxies {
-		if name, ok := p["name"].(string); ok && strings.TrimSpace(name) != "" {
-			names = append(names, name)
-		}
-	}
-	if len(names) == 0 {
-		names = append(names, "DIRECT")
-	}
-	return names
-}
-
-var timeNow = func() time.Time { return time.Now() }
