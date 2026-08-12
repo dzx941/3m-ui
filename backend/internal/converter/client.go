@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
@@ -139,9 +140,6 @@ func GenerateRawConfig(db *gorm.DB, token models.AccessToken, req *http.Request)
 				}
 			}
 
-			// Never invent credentials from the username. Use the encrypted
-			// password/UUID stored for the proxy user, while allowing an explicit
-			// listener option to take precedence when the protocol requires it.
 			if password != "" {
 				if _, ok := p["password"]; !ok {
 					p["password"] = password
@@ -207,6 +205,4 @@ func getProxyNames(proxies []map[string]interface{}) []string {
 	return names
 }
 
-// Isolated behind a helper so generated configs can be tested without changing
-// time semantics elsewhere in the converter package.
 var timeNow = func() time.Time { return time.Now() }
