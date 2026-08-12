@@ -37,7 +37,7 @@ func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 
 		var req struct {
 			CurrentPassword string `json:"current_password" binding:"required"`
-			NewPassword     string `json:"new_password" binding:"required"`
+			NewPassword string `json:"new_password" binding:"required"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "current_password and new_password are required"})
@@ -45,6 +45,10 @@ func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 		}
 		if len(req.NewPassword) < 8 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "new password must be at least 8 characters"})
+			return
+		}
+		if req.NewPassword == req.CurrentPassword {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "new password must differ from current password"})
 			return
 		}
 
@@ -59,26 +63,36 @@ func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 		}
 		hash, err := HashPassword(req.NewPassword)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
 			return
 		}
 		if err := database.GlobalDB.Model(&user).Updates(map[string]any{
-			"password_hash":        hash,
+			"password_hash": hash,
 			"must_change_password": false,
 		}).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save password"})
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "password changed successfully"})
 	})
 
 	rg.GET("/me", RequireAuth(cfg.JWT.Secret), func(c *gin.Context) {
-		claims, _ := ClaimsFromContext(c)
+		claims, ok := ClaimsFromContext(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+			return
+		}
+		var user models.User
+		if err := database.GlobalDB.First(&user, claims.UserID).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{
-			"user_id":    claims.UserID,
-			"username":   claims.Username,
-			"role":       claims.Role,
+			"user_id": claims.UserID,
+			"username": claims.Username,
+			"role": claims.Role,
 			"expires_at": claims.ExpiresAt,
+			"must_change_password": user.MustChangePassword,
 		})
 	})
 }
@@ -96,6 +110,28 @@ func RequireAuth(secret string) gin.HandlerFunc {
 			return
 		}
 		c.Set("auth.claims", claims)
+		c.Next()
+	}
+}
+
+// RequirePasswordChanged prevents access to management APIs until the
+// initial password has been replaced. Login and /auth/password remain usable.
+func RequirePasswordChanged() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		claims, ok := ClaimsFromContext(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+			return
+		}
+		var user models.User
+		if err := database.GlobalDB.First(&user, claims.UserID).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+			return
+		}
+		if user.MustChangePassword {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "password change required", "code": "PASSWORD_CHANGE_REQUIRED"})
+			return
+		}
 		c.Next()
 	}
 }
