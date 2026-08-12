@@ -1,4 +1,4 @@
-export type Protocol = 'shadowsocks' | 'vmess' | 'vless' | 'trojan' | 'hysteria2' | 'wireguard' | 'tuic';
+export type Protocol = 'shadowsocks' | 'vmess' | 'vless' | 'trojan' | 'hysteria2' | 'tuic';
 
 export interface ProxyNode {
   id?: string;
@@ -6,18 +6,14 @@ export interface ProxyNode {
   type: Protocol;
   server: string;
   port: number;
-
   uuid?: string;
   password?: string;
   cipher?: string;
-
   tls?: boolean;
   sni?: string;
   servername?: string;
-
   flow?: string;
   path?: string;
   host?: string;
-
   [key: string]: unknown;
 }
