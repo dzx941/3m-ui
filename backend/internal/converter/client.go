@@ -11,7 +11,6 @@ import (
 
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
-	"github.com/dzx941/3m-ui/backend/internal/security"
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 )
@@ -103,8 +102,6 @@ func GenerateRawConfig(db *gorm.DB, token models.AccessToken, req *http.Request)
 		"port":   listener.Port,
 	}
 
-	// Protocol-specific listener options are stored as JSON and copied into
-	// the generated Mihomo proxy entry without dropping protocol-only fields.
 	if listener.Config != "" {
 		var options map[string]interface{}
 		if err := json.Unmarshal([]byte(listener.Config), &options); err != nil {
@@ -133,10 +130,6 @@ func GenerateRawConfig(db *gorm.DB, token models.AccessToken, req *http.Request)
 		},
 		"rules": []string{"MATCH,PROXY"},
 	}
-
-	// Listener credentials may be stored encrypted in Config. Do not add a
-	// second credential source here; Config remains the single listener source.
-	_ = security.Decrypt
 
 	return yaml.Marshal(cfg)
 }
