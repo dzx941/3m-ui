@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Typography,
   Table,
@@ -19,9 +19,9 @@ import {
 import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiRequest } from '../api/request';
 import { ProtocolForm } from '../components/protocols';
+import { LISTENER_PROTOCOLS, type ListenerProtocol } from '../components/protocols/types';
 
 const { Title, Paragraph } = Typography;
-const { Option } = Select;
 
 interface NodeRecord {
   ID: number;
@@ -57,6 +57,29 @@ interface ListenerTrafficStats {
   download: number;
 }
 
+const protocolLabels: Record<ListenerProtocol, string> = {
+  socks: 'SOCKS5',
+  http: 'HTTP',
+  tproxy: 'TPROXY',
+  redir: 'REDIR',
+  mixed: 'Mixed',
+  tunnel: 'Tunnel',
+  tun: 'TUN',
+  shadowsocks: 'Shadowsocks',
+  snell: 'Snell',
+  vmess: 'VMess',
+  vless: 'VLESS',
+  trojan: 'Trojan',
+  hysteria2: 'Hysteria 2',
+  'hysteria2-realm': 'Hysteria 2 Realm',
+  tuic: 'TUIC',
+  shadowquic: 'ShadowQuic',
+  anytls: 'AnyTLS',
+  mieru: 'Mieru',
+  sudoku: 'Sudoku',
+  trusttunnel: 'TrustTunnel',
+};
+
 const formatBytes = (bytes: number): string => {
   if (!bytes) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -64,19 +87,19 @@ const formatBytes = (bytes: number): string => {
   let i = 0;
   while (value >= 1024 && i < units.length - 1) {
     value /= 1024;
-    i++;
+    i += 1;
   }
   return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
 };
 
 const ListenersPage: React.FC = () => {
   const [data, setData] = useState<NodeRecord[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [modalOpen, setModalOpen] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<NodeRecord | null>(null);
   const [form] = Form.useForm();
   const [trafficByListener, setTrafficByListener] = useState<Record<number, ListenerTrafficStats>>({});
-  const selectedProtocol = Form.useWatch('protocol', form);
+  const selectedProtocol = Form.useWatch('protocol', form) as ListenerProtocol | undefined;
 
   const fetchNodes = async () => {
     setLoading(true);
@@ -104,7 +127,7 @@ const ListenersPage: React.FC = () => {
       }
       setTrafficByListener(grouped);
     } catch {
-      // Traffic statistics are non-critical and may fail transiently.
+      // Traffic is non-critical.
     }
   };
 
@@ -118,7 +141,15 @@ const ListenersPage: React.FC = () => {
   const handleOpenAdd = () => {
     setEditingRecord(null);
     form.resetFields();
-    form.setFieldsValue({ bind_address: '0.0.0.0', port: 10086, protocol: 'shadowsocks', tls: false, udp: true, enabled: true, protocolConfig: {} });
+    form.setFieldsValue({
+      bind_address: '0.0.0.0',
+      port: 10086,
+      protocol: 'shadowsocks',
+      tls: false,
+      udp: true,
+      enabled: true,
+      protocolConfig: {},
+    });
     setModalOpen(true);
   };
 
@@ -128,11 +159,13 @@ const ListenersPage: React.FC = () => {
     let protocolConfig: Record<string, unknown> = {};
     try {
       protocolConfig = JSON.parse(record.config || '{}');
-      if (protocolConfig['reality-config'] && typeof protocolConfig['reality-config'] !== 'string') {
-        protocolConfig['reality-config'] = JSON.stringify(protocolConfig['reality-config'], null, 2);
+      for (const key of ['reality-config', 'plugin-opts', 'restls-opts', 'jls-opts', 'tls', 'users', 'xhttp-opts']) {
+        if (protocolConfig[key] && typeof protocolConfig[key] !== 'string') {
+          protocolConfig[key] = JSON.stringify(protocolConfig[key], null, 2);
+        }
       }
     } catch {
-      // Ignore malformed legacy config; backend validation will report it.
+      // Keep empty config for malformed legacy data.
     }
     form.setFieldsValue({ ...record, protocolConfig });
     setModalOpen(true);
@@ -149,9 +182,11 @@ const ListenersPage: React.FC = () => {
   };
 
   const handleToggleEnabled = async (record: NodeRecord, checked: boolean) => {
-    const updated = { ...record, enabled: checked, status: checked ? 'active' : 'inactive' };
     try {
-      await apiRequest(`/nodes/${record.ID}`, { method: 'PUT', body: JSON.stringify(updated) });
+      await apiRequest(`/nodes/${record.ID}`, {
+        method: 'PUT',
+        body: JSON.stringify({ ...record, enabled: checked, status: checked ? 'active' : 'inactive' }),
+      });
       message.success(`Node ${checked ? 'enabled' : 'disabled'} successfully.`);
       void fetchNodes();
     } catch {
@@ -172,15 +207,25 @@ const ListenersPage: React.FC = () => {
     try {
       const values = await form.validateFields();
       const configObj: Record<string, unknown> = { ...(values.protocolConfig || {}) };
-      if (typeof configObj['reality-config'] === 'string' && configObj['reality-config'].trim() !== '') {
-        try {
-          configObj['reality-config'] = JSON.parse(configObj['reality-config']);
-        } catch {
-          message.error('Reality Config must contain valid JSON.');
-          return;
+      for (const key of ['reality-config', 'plugin-opts', 'restls-opts', 'jls-opts', 'tls', 'users', 'xhttp-opts']) {
+        const value = configObj[key];
+        if (typeof value === 'string' && value.trim() !== '') {
+          try {
+            configObj[key] = JSON.parse(value);
+          } catch {
+            message.error(`${key} must contain valid JSON.`);
+            return;
+          }
         }
       }
-      const payload = { ...values, config: JSON.stringify(configObj), status: values.enabled ? 'active' : 'inactive' };
+      const payload = {
+        ...values,
+        protocol: values.protocol,
+        type: values.protocol,
+        listen: values.bind_address,
+        config: JSON.stringify(configObj),
+        status: values.enabled ? 'active' : 'inactive',
+      };
       const method = editingRecord ? 'PUT' : 'POST';
       const url = editingRecord ? `/nodes/${editingRecord.ID}` : '/nodes';
       await apiRequest(url, { method, body: JSON.stringify(payload) });
@@ -195,9 +240,9 @@ const ListenersPage: React.FC = () => {
   const columns = [
     { title: 'ID', dataIndex: 'ID', key: 'ID', width: 60 },
     { title: 'Name', dataIndex: 'name', key: 'name' },
-    { title: 'Protocol', dataIndex: 'protocol', key: 'protocol', render: (proto: string) => <Tag color="blue">{proto}</Tag> },
+    { title: 'Protocol', dataIndex: 'protocol', key: 'protocol', render: (proto: string) => <Tag color="blue">{protocolLabels[proto as ListenerProtocol] || proto}</Tag> },
     { title: 'Port', dataIndex: 'port', key: 'port' },
-    { title: 'TLS', dataIndex: 'tls', key: 'tls', render: (tls: boolean) => (tls ? <Tag color="green">TLS</Tag> : <Tag color="default">Plain</Tag>) },
+    { title: 'TLS', dataIndex: 'tls', key: 'tls', render: (tls: boolean) => (tls ? <Tag color="green">TLS</Tag> : <Tag>Plain</Tag>) },
     {
       title: 'Connections',
       key: 'connections',
@@ -239,31 +284,29 @@ const ListenersPage: React.FC = () => {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
-          <Title level={2} style={{ margin: 0 }}>Mihomo Server Nodes</Title>
-          <Paragraph style={{ margin: 0 }}>Manage Mihomo server listeners, protocols, security settings, and client access credentials.</Paragraph>
+          <Title level={2} style={{ margin: 0 }}>Mihomo Server Listeners</Title>
+          <Paragraph style={{ margin: 0 }}>Configure every listener type supported by the installed Mihomo core, including protocol-specific options.</Paragraph>
         </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenAdd}>Add Server Node</Button>
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenAdd}>Add Listener</Button>
       </div>
 
-      <Table dataSource={data} columns={columns} rowKey="ID" loading={loading} scroll={{ x: 'max-content' }} locale={{ emptyText: 'No server nodes found. Create one to get started.' }} />
+      <Table dataSource={data} columns={columns} rowKey="ID" loading={loading} scroll={{ x: 'max-content' }} locale={{ emptyText: 'No listeners found. Create one to get started.' }} />
 
-      <Modal title={editingRecord ? 'Edit Server Node' : 'Add Server Node'} open={modalOpen} onOk={() => void handleFormSubmit()} onCancel={() => setModalOpen(false)} destroyOnClose width={600}>
+      <Modal title={editingRecord ? 'Edit Listener' : 'Add Listener'} open={modalOpen} onOk={() => void handleFormSubmit()} onCancel={() => setModalOpen(false)} destroyOnClose width={760}>
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="name" label="Name" rules={[{ required: true, message: 'Please input node name' }]}>
-            <Input placeholder="e.g. hk-shadowsocks" />
+          <Form.Item name="name" label="Name" rules={[{ required: true, message: 'Please input listener name' }]}>
+            <Input placeholder="e.g. vless-reality" />
           </Form.Item>
 
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="protocol" label="Protocol" rules={[{ required: true, message: 'Select node protocol' }]}>
-                <Select placeholder="Choose protocol" onChange={() => form.setFieldsValue({ protocolConfig: {} })}>
-                  <Option value="shadowsocks">Shadowsocks</Option>
-                  <Option value="vmess">VMess</Option>
-                  <Option value="vless">VLESS</Option>
-                  <Option value="trojan">Trojan</Option>
-                  <Option value="hysteria2">Hysteria 2</Option>
-                  <Option value="tuic">TUIC</Option>
-                </Select>
+              <Form.Item name="protocol" label="Listener Protocol" rules={[{ required: true, message: 'Select listener protocol' }]}>
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  options={LISTENER_PROTOCOLS.map((protocol) => ({ value: protocol, label: protocolLabels[protocol] }))}
+                  onChange={() => form.setFieldsValue({ protocolConfig: {} })}
+                />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -275,8 +318,8 @@ const ListenersPage: React.FC = () => {
 
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="bind_address" label="Bind Address" rules={[{ required: true, message: 'Please enter bind IP' }]}>
-                <Input placeholder="e.g. 0.0.0.0" />
+              <Form.Item name="bind_address" label="Listen Address" rules={[{ required: true, message: 'Please enter listen address' }]}>
+                <Input placeholder="0.0.0.0" />
               </Form.Item>
             </Col>
             <Col span={6}>
@@ -290,10 +333,6 @@ const ListenersPage: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
-
-          <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
-            Authentication credentials are managed separately and bound to listeners. Do not place passwords or UUIDs in the listener configuration.
-          </Typography.Paragraph>
 
           <ProtocolForm protocol={selectedProtocol} />
 
