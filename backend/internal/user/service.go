@@ -2,6 +2,7 @@ package user
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,6 +12,25 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/security"
 	"gorm.io/gorm"
 )
+
+type Service struct {
+	db *gorm.DB
+}
+
+var GlobalService *Service
+
+func InitService(db *gorm.DB) {
+	GlobalService = &Service{db: db}
+}
+
+type CreateInput struct {
+	Username     string     `json:"username" binding:"required"`
+	Password     string     `json:"password"`
+	UUID         string     `json:"uuid"`
+	TrafficLimit int64      `json:"traffic_limit"`
+	ExpireTime   *time.Time `json:"expire_time"`
+	Enabled      *bool      `json:"enabled"`
+}
 
 type UpdateInput struct {
 	Username     string     `json:"username"`
@@ -262,18 +282,12 @@ type SafeUser struct {
 
 func ToSafeUser(u *models.ProxyUser) SafeUser {
 	return SafeUser{
-		ID:            u.ID,
-		Username:      u.Username,
-		UUIDMasked:    safeMask(u.UUID),
-		TrafficLimit:  u.TrafficLimit,
-		TrafficUsed:   u.TrafficUsed,
-		UploadBytes:   u.UploadBytes,
-		DownloadBytes: u.DownloadBytes,
-		LastSeen:      u.LastSeen,
-		Online:        u.Online,
-		ExpireTime:    u.ExpireTime,
-		Enabled:       u.Enabled,
-		Blocked:       !IsCredentialActive(*u),
+		ID: u.ID, Username: u.Username, UUIDMasked: safeMask(u.UUID),
+		TrafficLimit: u.TrafficLimit, TrafficUsed: u.TrafficUsed,
+		UploadBytes: u.UploadBytes, DownloadBytes: u.DownloadBytes,
+		LastSeen: u.LastSeen, Online: u.Online,
+		ExpireTime: u.ExpireTime, Enabled: u.Enabled,
+		Blocked: !IsCredentialActive(*u),
 	}
 }
 
@@ -288,4 +302,12 @@ func newUUID() (string, error) {
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80
 	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
+}
+
+func randomToken(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
