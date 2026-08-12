@@ -1,4 +1,49 @@
-export type Protocol = 'shadowsocks' | 'vmess' | 'vless' | 'trojan' | 'hysteria2' | 'tuic';
+export type ListenerProtocol =
+  | 'socks'
+  | 'http'
+  | 'tproxy'
+  | 'redir'
+  | 'mixed'
+  | 'tunnel'
+  | 'tun'
+  | 'shadowsocks'
+  | 'snell'
+  | 'vmess'
+  | 'vless'
+  | 'trojan'
+  | 'hysteria2'
+  | 'hysteria2-realm'
+  | 'tuic'
+  | 'shadowquic'
+  | 'anytls'
+  | 'mieru'
+  | 'sudoku'
+  | 'trusttunnel';
+
+export type Protocol = ListenerProtocol;
+
+export const LISTENER_PROTOCOLS: ListenerProtocol[] = [
+  'socks',
+  'http',
+  'tproxy',
+  'redir',
+  'mixed',
+  'tunnel',
+  'tun',
+  'shadowsocks',
+  'snell',
+  'vmess',
+  'vless',
+  'trojan',
+  'hysteria2',
+  'hysteria2-realm',
+  'tuic',
+  'shadowquic',
+  'anytls',
+  'mieru',
+  'sudoku',
+  'trusttunnel',
+];
 
 export interface ProxyNode {
   id?: string;
