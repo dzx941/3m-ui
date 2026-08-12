@@ -12,11 +12,11 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
 	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
+	"github.com/dzx941/3m-ui/backend/internal/security"
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 )
 
-// ResolveServerAddress cleans and returns the preferred server Host IP/Domain.
 func ResolveServerAddress(cfg *config.Config, req *http.Request) string {
 	if envURL := os.Getenv("PUBLIC_URL"); envURL != "" {
 		return cleanURLHost(envURL)
@@ -26,13 +26,10 @@ func ResolveServerAddress(cfg *config.Config, req *http.Request) string {
 	}
 	if req != nil && req.Host != "" {
 		host := req.Host
-		if strings.Contains(host, ":") {
-			h, _, err := net.SplitHostPort(host)
-			if err == nil {
-				return h
-			}
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			return h
 		}
-		return host
+		return strings.Trim(host, "[]")
 	}
 	return "127.0.0.1"
 }
@@ -47,19 +44,16 @@ func cleanURLHost(raw string) string {
 		u = strings.TrimPrefix(u, "http://")
 		u = strings.Split(u, "/")[0]
 	}
-	if strings.Contains(u, ":") {
-		h, _, err := net.SplitHostPort(u)
-		if err == nil {
-			return h
-		}
+	if h, _, err := net.SplitHostPort(u); err == nil {
+		u = h
 	}
+	u = strings.Trim(u, "[]")
 	if u == "" || strings.ContainsAny(u, "\r\n/\\") {
 		return "127.0.0.1"
 	}
 	return u
 }
 
-// GetSubscriptionURL builds the final client subscription URL.
 func GetSubscriptionURL(cfg *config.Config, req *http.Request, token string, target string) string {
 	var base string
 	if envURL := os.Getenv("PUBLIC_URL"); envURL != "" {
@@ -67,8 +61,6 @@ func GetSubscriptionURL(cfg *config.Config, req *http.Request, token string, tar
 	} else if cfg != nil && cfg.Server.PublicURL != "" {
 		base = cfg.Server.PublicURL
 	} else if req != nil && req.Host != "" {
-		// Do not trust a client-supplied X-Forwarded-Proto header. Deployments
-		// behind TLS-terminating proxies should set PUBLIC_URL/public_url.
 		scheme := "http"
 		if req.TLS != nil {
 			scheme = "https"
@@ -85,7 +77,6 @@ func GetSubscriptionURL(cfg *config.Config, req *http.Request, token string, tar
 	return fmt.Sprintf("%s/api/v1/client/sub/%s?target=%s", base, pathToken, url.QueryEscape(strings.ToLower(strings.TrimSpace(target))))
 }
 
-// GenerateRawConfig produces a standard Clash YAML configuration for a given token.
 func GenerateRawConfig(db *gorm.DB, token models.AccessToken, req *http.Request) ([]byte, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database is not initialized")
@@ -104,6 +95,18 @@ func GenerateRawConfig(db *gorm.DB, token models.AccessToken, req *http.Request)
 				return nil, fmt.Errorf("proxy user not found")
 			}
 			return nil, fmt.Errorf("failed to fetch proxy user: %w", err)
+		}
+		if !u.Enabled || (!u.ExpireTime.IsZero() && u.ExpireTime.Before(timeNow())) {
+			return nil, fmt.Errorf("proxy user is disabled or expired")
+		}
+
+		password := ""
+		if u.PasswordEncrypted != "" {
+			var err error
+			password, err = security.Decrypt(u.PasswordEncrypted)
+			if err != nil {
+				return nil, fmt.Errorf("failed to decrypt proxy user credentials")
+			}
 		}
 
 		var listeners []models.Listener
@@ -136,11 +139,21 @@ func GenerateRawConfig(db *gorm.DB, token models.AccessToken, req *http.Request)
 				}
 			}
 
-			if _, ok := p["password"]; !ok && u.Username != "" {
-				p["password"] = u.Username
+			// Never invent credentials from the username. Use the encrypted
+			// password/UUID stored for the proxy user, while allowing an explicit
+			// listener option to take precedence when the protocol requires it.
+			if password != "" {
+				if _, ok := p["password"]; !ok {
+					p["password"] = password
+				}
+				if _, ok := p["username"]; !ok && u.Username != "" {
+					p["username"] = u.Username
+				}
 			}
-			if _, ok := p["uuid"]; !ok && u.Username != "" {
-				p["uuid"] = u.Username
+			if u.UUID != "" {
+				if _, ok := p["uuid"]; !ok {
+					p["uuid"] = u.UUID
+				}
 			}
 			proxies = append(proxies, p)
 		}
@@ -193,3 +206,7 @@ func getProxyNames(proxies []map[string]interface{}) []string {
 	}
 	return names
 }
+
+// Isolated behind a helper so generated configs can be tested without changing
+// time semantics elsewhere in the converter package.
+var timeNow = func() time.Time { return time.Now() }
