@@ -5,14 +5,18 @@ import "testing"
 func TestIsMihomoListenerProtocol(t *testing.T) {
 	supported := []string{
 		"shadowsocks",
+		"snell",
 		"vmess",
 		"vless",
 		"trojan",
 		"hysteria2",
+		"hysteria2-realm",
 		"tuic",
 		"shadowquic",
 		"anytls",
 		"mieru",
+		"sudoku",
+		"trusttunnel",
 	}
 	for _, protocol := range supported {
 		if !IsMihomoListenerProtocol(protocol) {
@@ -30,7 +34,7 @@ func TestIsMihomoListenerProtocolRejectsInboundOnlyTypes(t *testing.T) {
 		"mixed",
 		"tunnel",
 		"tun",
-		"hysteria2-realm",
+		"wireguard",
 		"",
 	}
 	for _, protocol := range rejected {
