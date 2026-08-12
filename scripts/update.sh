@@ -6,11 +6,11 @@ CONFIG_DIR="/etc/3m-ui"
 DATA_DIR="/var/lib/3m-ui"
 SERVICE_NAME="3m-ui"
 
-[ "$(id -u)" -eq 0 ] || { echo "Please run as root." >&2; exit 1; }
-[ -x "$BIN_PATH" ] || { echo "3m-ui is not installed at $BIN_PATH" >&2; exit 1; }
+[ "$(id -u)" -eq 0 ] || { echo "Error: Please run as root." >&2; exit 1; }
+[ -x "$BIN_PATH" ] || { echo "Error: 3m-ui is not installed at $BIN_PATH" >&2; exit 1; }
 
 command_exists(){ command -v "$1" >/dev/null 2>&1; }
-arch_name(){ case "$(uname -m)" in x86_64|amd64) echo amd64;; aarch64|arm64) echo arm64;; armv7l|armv7*) echo armv7;; *) echo "Unsupported architecture" >&2; exit 1;; esac; }
+arch_name(){ case "$(uname -m)" in x86_64|amd64) echo amd64;; aarch64|arm64) echo arm64;; armv7l|armv7*) echo armv7;; *) echo "Error: Unsupported architecture" >&2; exit 1;; esac; }
 asset_suffix(){ 
     case "${THREE_M_UI_STATIC:-auto}" in
       1|true|yes) echo "-static";;
@@ -26,63 +26,75 @@ asset_suffix(){
         ;;
     esac
 }
-download(){ if command_exists curl; then curl -fsSL "$1" -o "$2"; elif command_exists wget; then wget -qO "$2" "$1"; else echo "curl or wget is required." >&2; exit 1; fi; }
+download(){ if command_exists curl; then curl -fsSL "$1" -o "$2"; elif command_exists wget; then wget -qO "$2" "$1"; else echo "Error: curl or wget is required." >&2; exit 1; fi; }
 
-install_mihomo() {
-    MIHOMO_BIN="/usr/local/bin/mihomo"
-    [ -x "$MIHOMO_BIN" ] && return
-    tmp="$(mktemp)"
-    case "$(uname -m)" in
-      x86_64|amd64) arch="linux-amd64-v3";;
-      aarch64|arm64) arch="linux-arm64";;
-      armv7l|armv7*) arch="linux-armv7";;
-      *) return;;
-    esac
-    url="https://github.com/MetaCubeX/mihomo/releases/latest/download/mihomo-$arch-compatible.gz"
-    download "$url" "$tmp" && gzip -dc "$tmp" > "$MIHOMO_BIN" && chmod 755 "$MIHOMO_BIN" || true
-    rm -f "$tmp"
-}
+# Initialize validation variables
+MIHOMO_STAGE_BIN=""
+SUBCONVERTER_STAGE_DIR=""
+PANEL_STAGE_BIN=""
 
 install_mihomo_update() {
-    MIHOMO_BIN="/usr/local/bin/mihomo"
-    tmp="$(mktemp)"
+    # Dynamic latest version lookup
+    tag_name=$(curl -sI https://github.com/MetaCubeX/mihomo/releases/latest | grep -i "location" | awk -F'/' '{print $NF}' | tr -d '\r\n ')
+    if [ -z "$tag_name" ]; then
+        tag_name="v1.19.29"
+    fi
+
     case "$(uname -m)" in
-      x86_64|amd64) asset="mihomo-linux-amd64-v3-compatible.gz";;
-      aarch64|arm64) asset="mihomo-linux-arm64-compatible.gz";;
-      armv7l|armv7*) asset="mihomo-linux-armv7-compatible.gz";;
+      x86_64|amd64) filename="mihomo-linux-amd64-compatible-${tag_name}.gz";;
+      aarch64|arm64) filename="mihomo-linux-arm64-${tag_name}.gz";;
+      armv7l|armv7*) filename="mihomo-linux-armv7-${tag_name}.gz";;
       *) return;;
     esac
-    echo "Updating Mihomo core..."
-    if download "https://github.com/MetaCubeX/mihomo/releases/latest/download/$asset" "$tmp"; then
-      gzip -dc "$tmp" > "$MIHOMO_BIN"
-      chmod 755 "$MIHOMO_BIN"
+
+    echo "Checking Mihomo core update ($tag_name)..."
+    tmp="$(mktemp)"
+    url="https://github.com/MetaCubeX/mihomo/releases/download/${tag_name}/${filename}"
+    if download "$url" "$tmp" && [ -s "$tmp" ]; then
+       stage_bin=$(mktemp)
+       if gzip -dc "$tmp" > "$stage_bin" 2>/dev/null && [ -s "$stage_bin" ]; then
+          chmod 755 "$stage_bin"
+          MIHOMO_STAGE_BIN="$stage_bin"
+          echo "Mihomo download and validation passed."
+       else
+          echo "Warning: Mihomo unpack failed. Retaining current installation." >&2
+          rm -f "$stage_bin"
+       fi
+       rm -f "$tmp"
+    else
+       echo "Warning: Mihomo download failed from $url. Retaining current installation." >&2
+       rm -f "$tmp"
     fi
-    rm -f "$tmp"
 }
 
 install_subconverter_update() {
-    SUBCONVERTER_DIR="/usr/local/subconverter"
-    SUBCONVERTER_BIN="/usr/local/bin/subconverter"
     case "$(uname -m)" in
       x86_64|amd64) asset="linux64";;
       aarch64|arm64) asset="aarch64";;
       armv7l|armv7*) asset="armv7";;
       *) return;;
     esac
-    echo "Updating subconverter..."
+
+    echo "Checking subconverter update..."
     tmp="$(mktemp)"
-    if download "https://github.com/asdlokj1qpi233/subconverter/releases/download/v0.9.9/subconverter_${asset}.tar.gz" "$tmp"; then
-      mkdir -p "/usr/local"
-      tar -xzf "$tmp" -C "/usr/local" || true
-      if [ -x "$SUBCONVERTER_DIR/subconverter" ]; then
-         ln -sf "$SUBCONVERTER_DIR/subconverter" "$SUBCONVERTER_BIN" || true
-         echo "Subconverter updated."
-      fi
+    url="https://github.com/asdlokj1qpi233/subconverter/releases/download/v0.9.9/subconverter_${asset}.tar.gz"
+    if download "$url" "$tmp" && [ -s "$tmp" ]; then
+       stage_dir=$(mktemp -d)
+       if tar -xzf "$tmp" -C "$stage_dir" 2>/dev/null && [ -x "$stage_dir/subconverter/subconverter" ]; then
+          SUBCONVERTER_STAGE_DIR="$stage_dir"
+          echo "Subconverter download and validation passed."
+       else
+          echo "Warning: Subconverter unpack failed. Retaining current installation." >&2
+          rm -rf "$stage_dir"
+       fi
+       rm -f "$tmp"
+    else
+       echo "Warning: Subconverter download failed from $url. Retaining current installation." >&2
+       rm -f "$tmp"
     fi
-    rm -f "$tmp"
 }
 
-stop_service(){
+stop_services(){
     if command_exists systemctl; then
         [ -f /etc/systemd/system/$SERVICE_NAME.service ] && systemctl stop $SERVICE_NAME || true
         [ -f /etc/systemd/system/subconverter.service ] && systemctl stop subconverter || true
@@ -92,7 +104,7 @@ stop_service(){
     fi
 }
 
-start_service(){
+start_services(){
     if command_exists systemctl; then
         [ -f /etc/systemd/system/$SERVICE_NAME.service ] && systemctl start $SERVICE_NAME || true
         [ -f /etc/systemd/system/subconverter.service ] && systemctl start subconverter || true
@@ -102,20 +114,53 @@ start_service(){
     fi
 }
 
-backup_dir="$DATA_DIR/backups/$(date +%Y%m%d%H%M%S)"; mkdir -p "$backup_dir"
+# 1. Download and validate new 3m-ui binary FIRST
+backup_dir="$DATA_DIR/backups/$(date +%Y%m%d%H%M%S)"
+mkdir -p "$backup_dir"
 [ -d "$CONFIG_DIR" ] && cp -a "$CONFIG_DIR" "$backup_dir/config"
 
-tmp="$(mktemp)"; download "https://github.com/$REPO/releases/latest/download/3m-ui-linux-$(arch_name)$(asset_suffix)" "$tmp"
+echo "Checking 3m-ui panel update..."
+tmp="$(mktemp)"
+url="https://github.com/$REPO/releases/latest/download/3m-ui-linux-$(arch_name)$(asset_suffix)"
 
+if download "$url" "$tmp" && [ -s "$tmp" ]; then
+    PANEL_STAGE_BIN="$tmp"
+    echo "3m-ui download and validation passed."
+else
+    echo "Error: Failed to download 3m-ui from $url. Aborting update to protect current installation." >&2
+    rm -f "$tmp"
+    exit 1
+fi
+
+# 2. Download and validate other components
 install_mihomo_update
 install_subconverter_update
 
-stop_service
+# 3. Stop Services ONLY after all components are successfully validated
+stop_services
 
-install_mihomo
-install -m 0755 "$tmp" "$BIN_PATH"
-rm -f "$tmp"
+# 4. Perform Safe In-Place Replacements
+# Replace 3m-ui panel
+if [ -n "$PANEL_STAGE_BIN" ] && [ -f "$PANEL_STAGE_BIN" ]; then
+    install -m 0755 "$PANEL_STAGE_BIN" "$BIN_PATH"
+    rm -f "$PANEL_STAGE_BIN"
+fi
 
-start_service
+# Replace Mihomo Core (if downloaded and validated)
+if [ -n "$MIHOMO_STAGE_BIN" ] && [ -f "$MIHOMO_STAGE_BIN" ]; then
+    mv -f "$MIHOMO_STAGE_BIN" "/usr/local/bin/mihomo"
+    chmod 755 "/usr/local/bin/mihomo"
+fi
 
-echo "3m-ui updated. Config backup: $backup_dir"
+# Replace Subconverter (if downloaded and validated)
+if [ -n "$SUBCONVERTER_STAGE_DIR" ] && [ -d "$SUBCONVERTER_STAGE_DIR/subconverter" ]; then
+    rm -rf /usr/local/subconverter
+    mv -f "$SUBCONVERTER_STAGE_DIR/subconverter" "/usr/local/subconverter"
+    ln -sf /usr/local/subconverter/subconverter "/usr/local/bin/subconverter"
+    rm -rf "$SUBCONVERTER_STAGE_DIR"
+fi
+
+# 5. Restart Services
+start_services
+
+echo "3m-ui updated successfully. Config backup: $backup_dir"

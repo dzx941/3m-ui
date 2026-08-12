@@ -159,23 +159,38 @@ install_mihomo() {
 
     mkdir -p "$MIHOMO_DIR"
 
+    # Dynamic lookup of latest MetaCubeX/mihomo release version tag (No API hit)
+    tag_name=$(curl -sI https://github.com/MetaCubeX/mihomo/releases/latest | grep -i "location" | awk -F'/' '{print $NF}' | tr -d '\r\n ')
+    if [ -z "$tag_name" ]; then
+        tag_name="v1.19.29"
+    fi
+
     arch="$(uname -m)"
     case "$arch" in
-        x86_64|amd64) mihomo_arch="linux-amd64-v3" ;;
-        aarch64|arm64) mihomo_arch="linux-arm64" ;;
-        armv7l|armv7*) mihomo_arch="linux-armv7" ;;
+        x86_64|amd64) filename="mihomo-linux-amd64-compatible-${tag_name}.gz" ;;
+        aarch64|arm64) filename="mihomo-linux-arm64-${tag_name}.gz" ;;
+        armv7l|armv7*) filename="mihomo-linux-armv7-${tag_name}.gz" ;;
         *) echo "Unsupported mihomo architecture: $arch"; return ;;
     esac
 
+    echo "Downloading Mihomo $tag_name for $arch..."
     tmp="$(mktemp)"
-    url="https://github.com/MetaCubeX/mihomo/releases/latest/download/mihomo-$mihomo_arch-compatible.gz"
+    url="https://github.com/MetaCubeX/mihomo/releases/download/${tag_name}/${filename}"
 
-    # fallback for releases that do not provide the compatible archive name
-    fallback_url="https://github.com/MetaCubeX/mihomo/releases/latest/download/mihomo-$mihomo_arch.gz"
-
-    if download "$url" "$tmp" || download "$fallback_url" "$tmp"; then
+    if download "$url" "$tmp" && [ -s "$tmp" ]; then
         gzip -dc "$tmp" > "$MIHOMO_BIN" 2>/dev/null || true
-        chmod 755 "$MIHOMO_BIN" || true
+        if [ -s "$MIHOMO_BIN" ]; then
+            chmod 755 "$MIHOMO_BIN" || true
+            echo "Mihomo installed successfully to $MIHOMO_BIN"
+        else
+            echo "Error: Unpacked Mihomo binary is empty. Exiting." >&2
+            rm -f "$tmp" "$MIHOMO_BIN"
+            exit 1
+        fi
+    else
+        echo "Error: Failed to download Mihomo from $url. Exiting." >&2
+        rm -f "$tmp"
+        exit 1
     fi
     rm -f "$tmp"
 }
@@ -204,17 +219,20 @@ install_subconverter() {
     tmp="$(mktemp)"
     url="https://github.com/asdlokj1qpi233/subconverter/releases/download/v0.9.9/subconverter_${sub_arch}.tar.gz"
 
-    if download "$url" "$tmp"; then
+    if download "$url" "$tmp" && [ -s "$tmp" ]; then
         mkdir -p "/usr/local"
-        tar -xzf "$tmp" -C "/usr/local" || true
-        if [ -x "$SUBCONVERTER_DIR/subconverter" ]; then
-            ln -sf "$SUBCONVERTER_DIR/subconverter" "$SUBCONVERTER_BIN" || true
-            echo "Subconverter installed successfully to $SUBCONVERTER_BIN"
+        if tar -xzf "$tmp" -C "/usr/local" 2>/dev/null; then
+            if [ -x "$SUBCONVERTER_DIR/subconverter" ]; then
+                ln -sf "$SUBCONVERTER_DIR/subconverter" "$SUBCONVERTER_BIN" || true
+                echo "Subconverter installed successfully to $SUBCONVERTER_BIN"
+            else
+                echo "Warning: Subconverter executable not found after unpack. Skipping subconverter."
+            fi
         else
-            echo "Warning: Subconverter executable not found after unpack. Skipping subconverter installation."
+            echo "Warning: Subconverter tar unpack failed. Skipping subconverter."
         fi
     else
-        echo "Warning: Failed to download subconverter from $url. Skipping subconverter installation."
+        echo "Warning: Failed to download subconverter from $url. Skipping subconverter."
     fi
     rm -f "$tmp"
 }
@@ -411,6 +429,11 @@ download \
 "https://github.com/$REPO/releases/latest/download/3m-ui-linux-$arch$(asset_suffix)" \
 "$tmp"
 
+if [ ! -s "$tmp" ]; then
+    echo "Error: Downloaded 3m-ui binary is empty. Exiting." >&2
+    rm -f "$tmp"
+    exit 1
+fi
 
 install -m 755 "$tmp" "$BIN_PATH"
 
