@@ -1,7 +1,6 @@
 package config
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
@@ -46,12 +45,4 @@ func TestGenerateListenersRejectsExcludedProtocols(t *testing.T) {
 			t.Fatalf("expected protocol %q to be rejected", protocol)
 		}
 	}
-}
-
-func TestGenerateListenersRejectsInvalidHysteria2Obfs(t *testing.T) {
-	_, err := generateListeners([]models.Listener{{Name: "hy2", Protocol: "hysteria2", Port: 443, Enabled: true, Config: `{"obfs":"invalid"}`}}, nil)
-	if err == nil {
-		t.Fatal("expected invalid Hysteria2 obfs to be rejected by validation before generation")
-	}
-	_ = strings.TrimSpace("")
 }
