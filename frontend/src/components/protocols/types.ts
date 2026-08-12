@@ -10,8 +10,7 @@ export type ListenerProtocol =
   | 'anytls'
   | 'mieru'
   | 'sudoku'
-  | 'trusttunnel'
-  | 'mieru';
+  | 'trusttunnel';
 
 export type Protocol = ListenerProtocol;
 
