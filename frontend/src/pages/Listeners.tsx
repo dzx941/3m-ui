@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Typography,
   Table,
@@ -19,6 +19,7 @@ import {
 import { PlusOutlined, EditOutlined, DeleteOutlined, ReloadOutlined, CopyOutlined } from '@ant-design/icons';
 import { apiRequest } from '../api/request';
 import { ProtocolForm } from '../components/protocols';
+import { LISTENER_PROTOCOLS, type ListenerProtocol } from '../components/protocols/types';
 
 const { Title, Paragraph } = Typography;
 
@@ -67,6 +68,28 @@ interface ClientAccess {
   shadowrocket_link: string;
 }
 
+const protocolLabels: Record<ListenerProtocol, string> = {
+  shadowsocks: 'Shadowsocks',
+  snell: 'Snell',
+  vmess: 'VMess',
+  vless: 'VLESS',
+  trojan: 'Trojan',
+  hysteria2: 'Hysteria 2',
+  'hysteria2-realm': 'Hysteria 2 Realm',
+  tuic: 'TUIC (V4/V5)',
+  shadowquic: 'ShadowQUIC',
+  anytls: 'AnyTLS',
+  mieru: 'Mieru',
+  sudoku: 'Sudoku',
+  trusttunnel: 'TrustTunnel',
+};
+
+const JSON_CONFIG_FIELDS = new Set([
+  'users', 'simple-obfs', 'shadow-tls', 'res-tls', 'jls-config', 'kcp-tun',
+  'obfs-opts', 'mekya-config', 'mkcp-config', 'reality-config', 'tlsmirror-config',
+  'xhttp-config', 'ss-option', 'realm-opts', 'mux-option', 'jls-upstream', 'httpmask', 'token',
+]);
+
 const formatBytes = (bytes: number): string => {
   if (!bytes) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -74,7 +97,7 @@ const formatBytes = (bytes: number): string => {
   let i = 0;
   while (value >= 1024 && i < units.length - 1) {
     value /= 1024;
-    i++;
+    i += 1;
   }
   return `${value.toFixed(value >= 10 || i === 0 ? 0 : 1)} ${units[i]}`;
 };
@@ -88,7 +111,7 @@ const ListenersPage: React.FC = () => {
   const [clientModalOpen, setClientModalOpen] = useState(false);
   const [form] = Form.useForm();
   const [trafficByListener, setTrafficByListener] = useState<Record<number, ListenerTrafficStats>>({});
-  const selectedProtocol = Form.useWatch('protocol', form);
+  const selectedProtocol = Form.useWatch('protocol', form) as ListenerProtocol | undefined;
 
   const fetchNodes = async () => {
     setLoading(true);
@@ -134,8 +157,6 @@ const ListenersPage: React.FC = () => {
       bind_address: '0.0.0.0',
       port: 10086,
       protocol: 'shadowsocks',
-      tls: false,
-      udp: true,
       enabled: true,
       protocolConfig: {},
     });
@@ -146,15 +167,17 @@ const ListenersPage: React.FC = () => {
     setEditingRecord(record);
     form.resetFields();
     let protocolConfig: Record<string, unknown> = {};
-    let flow = '';
     try {
-      const parsed = JSON.parse(record.config || '{}');
-      if (parsed.flow) flow = parsed.flow;
-      protocolConfig = { ...parsed };
+      protocolConfig = JSON.parse(record.config || '{}');
+      for (const key of JSON_CONFIG_FIELDS) {
+        if (protocolConfig[key] !== undefined && typeof protocolConfig[key] !== 'string') {
+          protocolConfig[key] = JSON.stringify(protocolConfig[key], null, 2);
+        }
+      }
     } catch {
-      // Keep the form usable for legacy malformed records.
+      protocolConfig = {};
     }
-    form.setFieldsValue({ ...record, flow, protocolConfig });
+    form.setFieldsValue({ ...record, protocolConfig });
     setModalOpen(true);
   };
 
@@ -196,17 +219,31 @@ const ListenersPage: React.FC = () => {
       setClientAccess(access);
       setClientModalOpen(true);
     } catch (error: unknown) {
-      message.error(error instanceof Error ? error.message : 'Failed to generate client configuration.');
+      message.error(error instanceof Error ? error.message : 'This listener does not have a client proxy representation.');
     }
   };
 
   const handleFormSubmit = async () => {
     try {
       const values = await form.validateFields();
-      const configObj: Record<string, unknown> = values.protocolConfig || {};
-      if (values.flow) configObj.flow = values.flow;
+      const configObj: Record<string, unknown> = { ...(values.protocolConfig || {}) };
+      for (const key of JSON_CONFIG_FIELDS) {
+        const value = configObj[key];
+        if (typeof value === 'string' && value.trim() !== '') {
+          try {
+            configObj[key] = JSON.parse(value);
+          } catch {
+            message.error(`${key} must contain valid JSON.`);
+            return;
+          }
+        }
+      }
+
       const payload = {
         ...values,
+        protocol: values.protocol,
+        type: values.protocol,
+        listen: values.bind_address,
         config: JSON.stringify(configObj),
         status: values.enabled ? 'active' : 'inactive',
       };
@@ -218,9 +255,10 @@ const ListenersPage: React.FC = () => {
       setModalOpen(false);
       void fetchNodes();
 
-      // A new listener immediately receives a listener-bound client access token.
-      if (!editingRecord && created?.ID) {
+      if (!editingRecord && created?.ID && values.protocol !== 'hysteria2-realm') {
         await generateClientAccess(created.ID);
+      } else if (!editingRecord && values.protocol === 'hysteria2-realm') {
+        message.info('Hysteria 2 Realm is an auxiliary realm service, not a client proxy node; no client link is generated.');
       }
     } catch {
       // Validation or API failure is already surfaced by the form/request layer.
@@ -239,28 +277,15 @@ const ListenersPage: React.FC = () => {
   const columns = [
     { title: 'ID', dataIndex: 'ID', key: 'ID', width: 60 },
     { title: 'Name', dataIndex: 'name', key: 'name' },
-    { title: 'Listener Type', dataIndex: 'protocol', key: 'protocol', render: (proto: string) => <Tag color="blue">{proto}</Tag> },
+    { title: 'Listener Type', dataIndex: 'protocol', key: 'protocol', render: (proto: string) => <Tag color="blue">{protocolLabels[proto as ListenerProtocol] || proto}</Tag> },
     { title: 'Port', dataIndex: 'port', key: 'port' },
-    { title: 'TLS', dataIndex: 'tls', key: 'tls', render: (tls: boolean) => (tls ? <Tag color="green">TLS</Tag> : <Tag>Plain</Tag>) },
+    { title: 'Connections', key: 'connections', render: (_: unknown, record: NodeRecord) => <Tag color={trafficByListener[record.ID]?.connections ? 'blue' : 'default'}>{trafficByListener[record.ID]?.connections || 0}</Tag> },
+    { title: 'Traffic', key: 'traffic', render: (_: unknown, record: NodeRecord) => <span>↑ {formatBytes(trafficByListener[record.ID]?.upload || 0)} &nbsp; ↓ {formatBytes(trafficByListener[record.ID]?.download || 0)}</span> },
+    { title: 'Status', dataIndex: 'enabled', key: 'enabled', render: (enabled: boolean, record: NodeRecord) => <Switch checked={enabled} onChange={(checked) => void handleToggleEnabled(record, checked)} checkedChildren="On" unCheckedChildren="Off" /> },
     {
-      title: 'Connections', key: 'connections', render: (_: unknown, record: NodeRecord) => {
-        const stats = trafficByListener[record.ID];
-        return <Tag color={stats?.connections ? 'blue' : 'default'}>{stats?.connections || 0}</Tag>;
-      },
-    },
-    {
-      title: 'Traffic', key: 'traffic', render: (_: unknown, record: NodeRecord) => {
-        const stats = trafficByListener[record.ID];
-        return <span>↑ {formatBytes(stats?.upload || 0)} &nbsp; ↓ {formatBytes(stats?.download || 0)}</span>;
-      },
-    },
-    {
-      title: 'Status', dataIndex: 'enabled', key: 'enabled', render: (enabled: boolean, record: NodeRecord) => (
-        <Switch checked={enabled} onChange={(checked) => void handleToggleEnabled(record, checked)} checkedChildren="On" unCheckedChildren="Off" />
-      ),
-    },
-    {
-      title: 'Actions', key: 'actions', render: (_: unknown, record: NodeRecord) => (
+      title: 'Actions',
+      key: 'actions',
+      render: (_: unknown, record: NodeRecord) => (
         <Space size="middle">
           <Button type="text" icon={<CopyOutlined style={{ color: '#722ed1' }} />} onClick={() => void generateClientAccess(record.ID)} title="Generate Client Link" />
           <Button type="text" icon={<ReloadOutlined style={{ color: '#52c41a' }} />} onClick={() => void handleReload(record.ID)} title="Hot Reload" />
@@ -286,31 +311,28 @@ const ListenersPage: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <Title level={2} style={{ margin: 0 }}>Mihomo Listeners</Title>
-          <Paragraph style={{ margin: 0 }}>Create Mihomo listeners and immediately generate client configuration links.</Paragraph>
+          <Paragraph style={{ margin: 0 }}>Create supported Mihomo listeners and generate matching client configuration links.</Paragraph>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenAdd}>Add Listener</Button>
       </div>
 
       <Table dataSource={data} columns={columns} rowKey="ID" loading={loading} scroll={{ x: 'max-content' }} locale={{ emptyText: 'No listeners found. Create one to get started.' }} />
 
-      <Modal title={editingRecord ? 'Edit Listener' : 'Add Listener'} open={modalOpen} onOk={() => void handleFormSubmit()} onCancel={() => setModalOpen(false)} destroyOnClose width={600}>
+      <Modal title={editingRecord ? 'Edit Listener' : 'Add Listener'} open={modalOpen} onOk={() => void handleFormSubmit()} onCancel={() => setModalOpen(false)} destroyOnClose width={760}>
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="name" label="Name" rules={[{ required: true, message: 'Please input listener name' }]}>
-            <Input placeholder="e.g. hk-shadowsocks" />
+            <Input placeholder="e.g. vless-reality" />
           </Form.Item>
 
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="protocol" label="Listener Type" rules={[{ required: true, message: 'Select listener type' }]}>
-                <Select placeholder="Choose listener type" onChange={() => form.setFieldsValue({ protocolConfig: {} })}>
-                  <Select.Option value="shadowsocks">Shadowsocks</Select.Option>
-                  <Select.Option value="vmess">VMess</Select.Option>
-                  <Select.Option value="vless">VLESS</Select.Option>
-                  <Select.Option value="trojan">Trojan</Select.Option>
-                  <Select.Option value="hysteria2">Hysteria 2</Select.Option>
-                  <Select.Option value="tuic">TUIC</Select.Option>
-                  <Select.Option value="wireguard">WireGuard</Select.Option>
-                </Select>
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  options={LISTENER_PROTOCOLS.map((protocol) => ({ value: protocol, label: protocolLabels[protocol] }))}
+                  onChange={() => form.setFieldsValue({ protocolConfig: {} })}
+                />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -320,27 +342,17 @@ const ListenersPage: React.FC = () => {
             </Col>
           </Row>
 
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item name="bind_address" label="Bind Address" rules={[{ required: true, message: 'Please enter bind IP' }]}>
-                <Input placeholder="e.g. 0.0.0.0" />
-              </Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item name="tls" label="TLS" valuePropName="checked"><Switch checkedChildren="Enabled" unCheckedChildren="Disabled" /></Form.Item>
-            </Col>
-            <Col span={6}>
-              <Form.Item name="udp" label="UDP" valuePropName="checked"><Switch checkedChildren="Enabled" unCheckedChildren="Disabled" /></Form.Item>
-            </Col>
-          </Row>
+          <Form.Item name="bind_address" label="Listen Address" rules={[{ required: true, message: 'Please enter listen address' }]}>
+            <Input placeholder="0.0.0.0" />
+          </Form.Item>
 
           <Typography.Paragraph type="secondary">
-            SOCKS, HTTP, TProxy, Redir, Mixed, Tunnel and TUN are not listener choices here. Only listener protocols that can be exported as client proxy configurations are exposed.
+            SOCKS, HTTP, TProxy, Redir, Mixed, Tunnel, TUN and WireGuard are intentionally excluded. They are not part of the listener-to-client distribution model used by this page.
           </Typography.Paragraph>
 
           <ProtocolForm protocol={selectedProtocol} />
 
-          <Form.Item name="enabled" label="Status Enabled" valuePropName="checked">
+          <Form.Item name="enabled" label="Enabled" valuePropName="checked">
             <Switch checkedChildren="On" unCheckedChildren="Off" />
           </Form.Item>
         </Form>
