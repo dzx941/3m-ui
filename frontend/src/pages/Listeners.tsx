@@ -57,9 +57,10 @@ interface ListenerTrafficStats {
 }
 
 interface ClientAccess {
+  id: number;
   name: string;
-  type: string;
-  target_id: number;
+  type: 'listener';
+  listener_id: number;
   mihomo_link: string;
   clash_link: string;
   singbox_link: string;
@@ -194,8 +195,8 @@ const ListenersPage: React.FC = () => {
       const access = await apiRequest<ClientAccess>(`/nodes/${id}/client-access`, { method: 'POST' });
       setClientAccess(access);
       setClientModalOpen(true);
-    } catch (e: any) {
-      message.error(e?.message || 'Failed to generate client configuration.');
+    } catch (error: unknown) {
+      message.error(error instanceof Error ? error.message : 'Failed to generate client configuration.');
     }
   };
 
@@ -217,7 +218,7 @@ const ListenersPage: React.FC = () => {
       setModalOpen(false);
       void fetchNodes();
 
-      // New listeners immediately receive a client distribution link.
+      // A new listener immediately receives a listener-bound client access token.
       if (!editingRecord && created?.ID) {
         await generateClientAccess(created.ID);
       }
@@ -334,7 +335,7 @@ const ListenersPage: React.FC = () => {
           </Row>
 
           <Typography.Paragraph type="secondary">
-            SOCKS, HTTP, TProxy, Redir, Mixed, Tunnel and TUN are not listener choices here. This page only exposes listeners that can be exported as client proxy configurations.
+            SOCKS, HTTP, TProxy, Redir, Mixed, Tunnel and TUN are not listener choices here. Only listener protocols that can be exported as client proxy configurations are exposed.
           </Typography.Paragraph>
 
           <ProtocolForm protocol={selectedProtocol} />
