@@ -82,14 +82,16 @@ func GenerateRawConfig(db *gorm.DB, token models.AccessToken, req *http.Request)
 	if db == nil {
 		return nil, fmt.Errorf("database is not initialized")
 	}
-	if token.Type != "listener" && token.Type != "user" && token.Type != "proxy" {
+	if token.Type != "user" && token.Type != "proxy" {
 		return nil, fmt.Errorf("invalid access token type")
 	}
 
 	proxies := make([]map[string]interface{}, 0)
 	serverHost := ResolveServerAddress(config.GlobalConfig, req)
 
-	if token.Type == "listener" {
+	// Direct listener access is intentionally scoped separately so existing
+	// user/proxy tokens remain backwards compatible with the old API contract.
+	if token.Scope == "listener" {
 		var l models.Listener
 		if err := db.First(&l, token.TargetID).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
