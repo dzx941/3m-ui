@@ -14,5 +14,5 @@ type AccessToken struct {
 	Token      string     `gorm:"uniqueIndex;not null" json:"-"`
 	Enabled    bool       `gorm:"default:true" json:"enabled"`
 	ExpireAt   *time.Time `json:"expire_at"`
-	ListenerID uint       `gorm:"not null;index" json:"listener_id"`
+	ListenerID uint       `gorm:"index" json:"listener_id"`
 }
