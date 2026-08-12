@@ -10,9 +10,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// GenerateMihomoListeners converts the unified Node/Listener model into the
-// native Mihomo listeners schema. Protocol-specific fields live in Config and
-// are copied verbatim after dotted form keys are expanded.
 func GenerateMihomoListeners(dbNodes []models.Listener) ([]map[string]interface{}, error) {
 	list := make([]map[string]interface{}, 0, len(dbNodes))
 	for _, node := range dbNodes {
@@ -33,6 +30,9 @@ func GenerateMihomoListeners(dbNodes []models.Listener) ([]map[string]interface{
 			"port":   node.Port,
 			"listen": firstNonEmpty(node.BindAddress, node.Listen, "0.0.0.0"),
 		}
+		if node.RoutingMark != 0 {
+			entry["routing-mark"] = node.RoutingMark
+		}
 		if node.Rule != "" {
 			entry["rule"] = node.Rule
 		}
@@ -46,10 +46,9 @@ func GenerateMihomoListeners(dbNodes []models.Listener) ([]map[string]interface{
 		}
 		normalizeListenerUsers(protocol, options)
 		for key, value := range options {
-			if value == nil {
-				continue
+			if value != nil {
+				entry[key] = value
 			}
-			entry[key] = value
 		}
 		list = append(list, entry)
 	}
@@ -61,8 +60,7 @@ func GenerateConfigYAML(dbNodes []models.Listener) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	root := map[string]interface{}{"listeners": listeners}
-	data, err := yaml.Marshal(root)
+	data, err := yaml.Marshal(map[string]interface{}{"listeners": listeners})
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal listeners yaml: %w", err)
 	}
@@ -115,9 +113,6 @@ func expandValue(value interface{}) interface{} {
 	return value
 }
 
-// The Mihomo listener schema intentionally uses different credential shapes:
-// AnyTLS/Hysteria2/Mieru use maps, TUIC V5 uses UUID->password, while VLESS,
-// VMess, Trojan, ShadowQUIC and TrustTunnel use user arrays.
 func normalizeListenerUsers(protocol string, options map[string]interface{}) {
 	users, ok := options["users"].([]interface{})
 	if !ok || len(users) == 0 {
