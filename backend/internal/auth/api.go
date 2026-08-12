@@ -4,6 +4,8 @@ import (
 	"crypto/subtle"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/database"
@@ -11,8 +13,64 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type loginAttempt struct {
+	count   int
+	blocked time.Time
+	last    time.Time
+}
+
+var loginLimiter = struct {
+	sync.Mutex
+	items map[string]loginAttempt
+}{items: make(map[string]loginAttempt)}
+
+const (
+	loginWindow     = 15 * time.Minute
+	loginMaxAttempt = 8
+)
+
+func allowLogin(ip string) bool {
+	now := time.Now()
+	loginLimiter.Lock()
+	defer loginLimiter.Unlock()
+
+	for key, attempt := range loginLimiter.items {
+		if now.Sub(attempt.last) > loginWindow {
+			delete(loginLimiter.items, key)
+		}
+	}
+
+	attempt := loginLimiter.items[ip]
+	if !attempt.blocked.IsZero() && now.Before(attempt.blocked) {
+		return false
+	}
+	if attempt.last.IsZero() || now.Sub(attempt.last) > loginWindow {
+		attempt.count = 0
+	}
+	attempt.last = now
+	if attempt.count >= loginMaxAttempt {
+		attempt.blocked = now.Add(loginWindow)
+		loginLimiter.items[ip] = attempt
+		return false
+	}
+	attempt.count++
+	loginLimiter.items[ip] = attempt
+	return true
+}
+
+func resetLoginLimit(ip string) {
+	loginLimiter.Lock()
+	delete(loginLimiter.items, ip)
+	loginLimiter.Unlock()
+}
+
 func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 	rg.POST("/login", func(c *gin.Context) {
+		if !allowLogin(c.ClientIP()) {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many login attempts; try again later"})
+			return
+		}
+
 		var input LoginInput
 		if err := c.ShouldBindJSON(&input); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
@@ -27,6 +85,7 @@ func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 			c.JSON(status, gin.H{"error": err.Error()})
 			return
 		}
+		resetLoginLimit(c.ClientIP())
 		c.JSON(http.StatusOK, result)
 	})
 
@@ -108,12 +167,10 @@ func RequireAuth(secret string) gin.HandlerFunc {
 		}
 		claims, err := ParseToken(secret, token)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 			return
 		}
 
-		// Never trust mutable authorization claims from an old JWT. Re-read the
-		// account so a demoted or deleted administrator loses access immediately.
 		var user models.User
 		if err := database.GlobalDB.First(&user, claims.UserID).Error; err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
@@ -127,9 +184,6 @@ func RequireAuth(secret string) gin.HandlerFunc {
 		c.Set("auth.claims", claims)
 		c.Set("auth.user", &user)
 
-		// A freshly created administrator may authenticate with the preserved
-		// default password, but must not use management APIs until it has been
-		// replaced. The password endpoint itself and /me remain available.
 		path := c.Request.URL.Path
 		if path != "/api/v1/auth/password" && path != "/api/v1/auth/me" && user.MustChangePassword {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
