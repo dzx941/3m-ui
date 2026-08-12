@@ -3,32 +3,48 @@ package listener
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
+	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"gopkg.in/yaml.v3"
 )
 
-// GenerateConfigYAML converts a list of GORM listeners to the Mihomo config YAML string
+// GenerateConfigYAML converts persisted listeners to Mihomo's native listeners
+// schema. The same protocol boundary is used by the visual editor and client
+// export so excluded local proxy endpoints can never leak into this generator.
 func GenerateConfigYAML(dbListeners []models.Listener) (string, error) {
-	var listenersList []map[string]interface{}
+	listenersList := make([]map[string]interface{}, 0, len(dbListeners))
 
 	for _, dl := range dbListeners {
-		// Only generate configuration for enabled listeners
 		if !dl.Enabled {
 			continue
 		}
 
-		// Initialize listener map with standard properties
-		lm := map[string]interface{}{
-			"name":   dl.Name,
-			"type":   dl.Type,
-			"listen": dl.Listen,
-			"port":   dl.Port,
+		protocol := strings.ToLower(strings.TrimSpace(dl.Protocol))
+		if protocol == "" {
+			protocol = strings.ToLower(strings.TrimSpace(dl.Type))
+		}
+		if !mihomoConfig.IsMihomoListenerProtocol(protocol) {
+			return "", fmt.Errorf("unsupported Mihomo listener protocol %q", protocol)
+		}
+		if dl.Port < 1 || dl.Port > 65535 {
+			return "", fmt.Errorf("listener %q has invalid port %d", dl.Name, dl.Port)
 		}
 
-		// Add optional standard fields
-		if dl.UDP {
-			lm["udp"] = true
+		listen := strings.TrimSpace(dl.BindAddress)
+		if listen == "" {
+			listen = strings.TrimSpace(dl.Listen)
+		}
+		if listen == "" {
+			listen = "0.0.0.0"
+		}
+
+		lm := map[string]interface{}{
+			"name":   dl.Name,
+			"type":   protocol,
+			"listen": listen,
+			"port":   dl.Port,
 		}
 		if dl.Proxy != "" {
 			lm["proxy"] = dl.Proxy
@@ -36,22 +52,18 @@ func GenerateConfigYAML(dbListeners []models.Listener) (string, error) {
 		if dl.Rule != "" {
 			lm["rule"] = dl.Rule
 		}
+		if dl.UDP && listenerHasUDP(protocol) {
+			lm["udp"] = true
+		}
 
-		// Merge extra custom config parameters if present
-		if dl.Config != "" {
+		if strings.TrimSpace(dl.Config) != "" {
 			var extra map[string]interface{}
-			// Try to parse as JSON first
-			if err := json.Unmarshal([]byte(dl.Config), &extra); err == nil {
-				for k, v := range extra {
+			if err := json.Unmarshal([]byte(dl.Config), &extra); err != nil {
+				return "", fmt.Errorf("listener %q has invalid protocol config: %w", dl.Name, err)
+			}
+			for k, v := range extra {
+				if k != "tls" && k != "udp" {
 					lm[k] = v
-				}
-			} else {
-				// Fallback to YAML parse
-				var extraYaml map[string]interface{}
-				if err := yaml.Unmarshal([]byte(dl.Config), &extraYaml); err == nil {
-					for k, v := range extraYaml {
-						lm[k] = v
-					}
 				}
 			}
 		}
@@ -59,16 +71,13 @@ func GenerateConfigYAML(dbListeners []models.Listener) (string, error) {
 		listenersList = append(listenersList, lm)
 	}
 
-	// Create root structure
-	cfg := MihomoConfig{
-		Listeners: listenersList,
-	}
-
-	// Marshal to YAML string
-	yamlBytes, err := yaml.Marshal(&cfg)
+	yamlBytes, err := yaml.Marshal(&MihomoConfig{Listeners: listenersList})
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal mihomo config to yaml: %w", err)
 	}
-
 	return string(yamlBytes), nil
+}
+
+func listenerHasUDP(protocol string) bool {
+	return protocol == "shadowsocks" || protocol == "snell"
 }

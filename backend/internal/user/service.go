@@ -42,6 +42,7 @@ type UpdateInput struct {
 }
 
 type Credential struct {
+	Username string
 	Password string
 	UUID     string
 }
@@ -207,14 +208,6 @@ func (s *Service) GetListeners(userID uint) ([]models.Listener, error) {
 	return listeners, err
 }
 
-// IsCredentialActive reports whether a proxy user's credentials should
-// currently be included in generated Mihomo configuration: the user must be
-// enabled, not expired, and under its traffic limit (0 = unlimited).
-//
-// This is the single source of truth for traffic enforcement. Both
-// ActiveCredentialsByListener (config generation) and the traffic package's
-// enforcement scheduler call this function so the "which users are
-// blocked" decision is never duplicated.
 func IsCredentialActive(u models.ProxyUser) bool {
 	now := time.Now()
 	if !u.Enabled {
@@ -234,7 +227,10 @@ func (s *Service) ActiveCredentialsByListener() (map[uint][]Credential, error) {
 		ListenerID  uint
 		ProxyUserID uint
 	}
-	if err := s.db.Model(&models.ListenerUser{}).Select("listener_id, proxy_user_id").Find(&rows).Error; err != nil {
+	if err := s.db.Model(&models.ListenerUser{}).
+		Select("listener_id, proxy_user_id").
+		Where("deleted_at IS NULL").
+		Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	result := make(map[uint][]Credential)
@@ -253,7 +249,11 @@ func (s *Service) ActiveCredentialsByListener() (map[uint][]Credential, error) {
 		if err != nil {
 			return nil, fmt.Errorf("decrypt proxy user %d password: %w", u.ID, err)
 		}
-		result[row.ListenerID] = append(result[row.ListenerID], Credential{Password: password, UUID: u.UUID})
+		result[row.ListenerID] = append(result[row.ListenerID], Credential{
+			Username: u.Username,
+			Password: password,
+			UUID:     u.UUID,
+		})
 	}
 	return result, nil
 }
@@ -277,9 +277,7 @@ type SafeUser struct {
 	Online        bool       `json:"online"`
 	ExpireTime    time.Time  `json:"expire_time"`
 	Enabled       bool       `json:"enabled"`
-	// Blocked reports whether enforcement currently excludes this user's
-	// credentials from generated Mihomo config (mirrors IsCredentialActive).
-	Blocked bool `json:"blocked"`
+	Blocked       bool       `json:"blocked"`
 }
 
 func ToSafeUser(u *models.ProxyUser) SafeUser {
@@ -294,7 +292,6 @@ func ToSafeUser(u *models.ProxyUser) SafeUser {
 }
 
 func encryptPassword(plain string) (string, error) { return security.Encrypt(plain) }
-
 func decryptPassword(encoded string) (string, error) { return security.Decrypt(encoded) }
 
 func newUUID() (string, error) {
@@ -304,8 +301,7 @@ func newUUID() (string, error) {
 	}
 	b[6] = (b[6] & 0x0f) | 0x40
 	b[8] = (b[8] & 0x3f) | 0x80
-	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x",
-		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16]), nil
 }
 
 func randomToken(n int) (string, error) {
