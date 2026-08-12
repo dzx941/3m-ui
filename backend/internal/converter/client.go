@@ -82,14 +82,43 @@ func GenerateRawConfig(db *gorm.DB, token models.AccessToken, req *http.Request)
 	if db == nil {
 		return nil, fmt.Errorf("database is not initialized")
 	}
-	if token.Type != "user" && token.Type != "proxy" {
+	if token.Type != "listener" && token.Type != "user" && token.Type != "proxy" {
 		return nil, fmt.Errorf("invalid access token type")
 	}
 
 	proxies := make([]map[string]interface{}, 0)
 	serverHost := ResolveServerAddress(config.GlobalConfig, req)
 
-	if token.Type == "user" {
+	if token.Type == "listener" {
+		var l models.Listener
+		if err := db.First(&l, token.TargetID).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil, fmt.Errorf("listener not found")
+			}
+			return nil, fmt.Errorf("failed to fetch listener: %w", err)
+		}
+		if !l.Enabled {
+			return nil, fmt.Errorf("listener is disabled")
+		}
+
+		p := map[string]interface{}{
+			"name":   l.Name,
+			"type":   l.Protocol,
+			"server": serverHost,
+			"port":   l.Port,
+			"udp":    l.UDP,
+		}
+		if l.Config != "" {
+			var opts map[string]interface{}
+			if err := json.Unmarshal([]byte(l.Config), &opts); err != nil {
+				return nil, fmt.Errorf("invalid listener config for %q: %w", l.Name, err)
+			}
+			for k, v := range opts {
+				p[k] = v
+			}
+		}
+		proxies = append(proxies, p)
+	} else if token.Type == "user" {
 		var u models.ProxyUser
 		if err := db.First(&u, token.TargetID).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
@@ -129,7 +158,6 @@ func GenerateRawConfig(db *gorm.DB, token models.AccessToken, req *http.Request)
 				"port":   l.Port,
 				"udp":    l.UDP,
 			}
-
 			var opts map[string]interface{}
 			if l.Config != "" {
 				if err := json.Unmarshal([]byte(l.Config), &opts); err != nil {
@@ -139,7 +167,6 @@ func GenerateRawConfig(db *gorm.DB, token models.AccessToken, req *http.Request)
 					p[k] = v
 				}
 			}
-
 			if password != "" {
 				if _, ok := p["password"]; !ok {
 					p["password"] = password
