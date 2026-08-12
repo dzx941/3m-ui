@@ -13,14 +13,13 @@ import (
 )
 
 type ProcessManager struct {
-	mu          sync.Mutex
-	cmd         *exec.Cmd
-	pid         int
-	startTime   time.Time
-	binaryPath  string
-	configPath  string
-	isSimulated bool
-	done        chan struct{}
+	mu         sync.Mutex
+	cmd        *exec.Cmd
+	pid        int
+	startTime  time.Time
+	binaryPath string
+	configPath string
+	done       chan struct{}
 }
 
 var globalPM *ProcessManager
@@ -36,14 +35,17 @@ func GetProcessManager(binary, config string) *ProcessManager {
 	return globalPM
 }
 
-// GetVersion returns the Mihomo core version.
+// GetVersion returns the installed Mihomo core version.
 func (pm *ProcessManager) GetVersion() (*VersionInfo, error) {
-	if _, err := os.Stat(pm.binaryPath); os.IsNotExist(err) {
-		return &VersionInfo{
-			Version: "v1.18.1-meta (Simulated Mock)",
-			Commit:  "70f900a",
-			Build:   "Go1.24.0",
-		}, nil
+	info, err := os.Stat(pm.binaryPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("mihomo binary not found: %s", pm.binaryPath)
+		}
+		return nil, fmt.Errorf("failed to stat mihomo binary: %w", err)
+	}
+	if info.IsDir() {
+		return nil, fmt.Errorf("mihomo binary path is a directory: %s", pm.binaryPath)
 	}
 
 	cmd := exec.Command(pm.binaryPath, "-v")
@@ -69,7 +71,8 @@ func (pm *ProcessManager) GetVersion() (*VersionInfo, error) {
 	}, nil
 }
 
-// Start starts the Mihomo process.
+// Start starts the Mihomo process. A missing or invalid binary is a hard
+// error; production must never silently substitute a mock process.
 func (pm *ProcessManager) Start() error {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
@@ -78,34 +81,42 @@ func (pm *ProcessManager) Start() error {
 		return fmt.Errorf("mihomo is already running (PID: %d)", pm.pid)
 	}
 
-	if pm.configPath != "" {
-		cfgDir := filepath.Dir(pm.configPath)
-		if err := os.MkdirAll(cfgDir, 0755); err != nil {
-			return fmt.Errorf("failed to create config directory: %w", err)
+	info, err := os.Stat(pm.binaryPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("mihomo binary not found: %s", pm.binaryPath)
 		}
-		if _, err := os.Stat(pm.configPath); os.IsNotExist(err) {
-			minimalConfig := []byte("mode: rule\nport: 7890\n")
-			if err := os.WriteFile(pm.configPath, minimalConfig, 0644); err != nil {
-				return fmt.Errorf("failed to create config file: %w", err)
-			}
+		return fmt.Errorf("failed to stat mihomo binary: %w", err)
+	}
+	if info.IsDir() {
+		return fmt.Errorf("mihomo binary path is a directory: %s", pm.binaryPath)
+	}
+	if info.Mode()&0111 == 0 {
+		return fmt.Errorf("mihomo binary is not executable: %s", pm.binaryPath)
+	}
+
+	if pm.configPath == "" {
+		return fmt.Errorf("mihomo config path is empty")
+	}
+
+	cfgDir := filepath.Dir(pm.configPath)
+	if err := os.MkdirAll(cfgDir, 0750); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+	if _, err := os.Stat(pm.configPath); err != nil {
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("failed to inspect config file: %w", err)
+		}
+		minimalConfig := []byte("mode: rule\nport: 7890\n")
+		if err := os.WriteFile(pm.configPath, minimalConfig, 0600); err != nil {
+			return fmt.Errorf("failed to create config file: %w", err)
 		}
 	}
 
-	var cmd *exec.Cmd
-	if _, err := os.Stat(pm.binaryPath); os.IsNotExist(err) {
-		// Keep the simulation path for development/tests, but never hide a real
-		// filesystem error. Production installations should always ship Mihomo.
-		pm.isSimulated = true
-		cmd = exec.Command("sleep", "3600")
-	} else {
-		pm.isSimulated = false
-		cfgDir := filepath.Dir(pm.configPath)
-		cmd = exec.Command(pm.binaryPath, "-d", cfgDir, "-f", pm.configPath)
-	}
-
+	cmd := exec.Command(pm.binaryPath, "-d", cfgDir, "-f", pm.configPath)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start process: %w", err)
+		return fmt.Errorf("failed to start mihomo: %w", err)
 	}
 
 	pm.cmd = cmd
@@ -114,8 +125,8 @@ func (pm *ProcessManager) Start() error {
 	pm.done = make(chan struct{})
 	done := pm.done
 
-	// Wait exactly once. os/exec.Cmd.Wait must not be called concurrently or
-	// more than once; Stop waits on this completion channel instead.
+	// Wait exactly once for every exec.Cmd. Stop synchronizes through done
+	// instead of calling Wait a second time.
 	go func(c *exec.Cmd, finished chan struct{}) {
 		_ = c.Wait()
 		close(finished)
@@ -124,7 +135,7 @@ func (pm *ProcessManager) Start() error {
 	return nil
 }
 
-// Stop stops the Mihomo process.
+// Stop stops the Mihomo process and waits for the single Wait goroutine.
 func (pm *ProcessManager) Stop() error {
 	pm.mu.Lock()
 	if !pm.isRunning() {
@@ -138,10 +149,10 @@ func (pm *ProcessManager) Stop() error {
 	pm.mu.Unlock()
 
 	pgid, err := syscall.Getpgid(pid)
-	if err == nil {
+	if err == nil && pgid > 0 {
 		_ = syscall.Kill(-pgid, syscall.SIGTERM)
-	} else {
-		_ = cmd.Process.Kill()
+	} else if cmd.Process != nil {
+		_ = cmd.Process.Signal(syscall.SIGTERM)
 	}
 
 	select {
@@ -149,7 +160,7 @@ func (pm *ProcessManager) Stop() error {
 	case <-time.After(3 * time.Second):
 		if pgid > 0 {
 			_ = syscall.Kill(-pgid, syscall.SIGKILL)
-		} else {
+		} else if cmd.Process != nil {
 			_ = cmd.Process.Kill()
 		}
 		<-done
@@ -160,6 +171,7 @@ func (pm *ProcessManager) Stop() error {
 	if pm.cmd == cmd {
 		pm.cmd = nil
 		pm.pid = 0
+		pm.startTime = time.Time{}
 		pm.done = nil
 	}
 	return nil
@@ -199,16 +211,12 @@ func (pm *ProcessManager) Status() (*StatusResponse, error) {
 	running := pm.isRunning()
 	pid := pm.pid
 	startTime := pm.startTime
-	simulated := pm.isSimulated
 	pm.mu.Unlock()
 
 	versionStr := "unknown"
 	vInfo, err := pm.GetVersion()
 	if err == nil && vInfo != nil {
 		versionStr = vInfo.Version
-		if simulated {
-			versionStr += " (Simulated)"
-		}
 	}
 
 	uptime := "0s"
