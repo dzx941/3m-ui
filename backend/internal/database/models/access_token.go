@@ -12,6 +12,6 @@ type AccessToken struct {
 	Token    string     `gorm:"uniqueIndex;not null" json:"-"`
 	Enabled  bool       `gorm:"default:true" json:"enabled"`
 	ExpireAt *time.Time `json:"expire_at"`
-	Type     string     `gorm:"not null" json:"type"`      // "user" or "proxy"
-	TargetID uint       `gorm:"not null" json:"target_id"` // ProxyUser ID or ProxyNode index
+	Type     string     `gorm:"not null" json:"type"`      // "listener", "user" (legacy), or "proxy" (legacy)
+	TargetID uint       `gorm:"not null" json:"target_id"` // Listener ID, ProxyUser ID, or ProxyNode index
 }
