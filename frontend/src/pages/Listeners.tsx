@@ -64,7 +64,6 @@ const protocolLabels: Record<ListenerProtocol, string> = {
   redir: 'REDIR',
   mixed: 'Mixed',
   tunnel: 'Tunnel',
-  tun: 'TUN',
   shadowsocks: 'Shadowsocks',
   snell: 'Snell',
   vmess: 'VMess',
@@ -285,7 +284,7 @@ const ListenersPage: React.FC = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <Title level={2} style={{ margin: 0 }}>Mihomo Server Listeners</Title>
-          <Paragraph style={{ margin: 0 }}>Configure every listener type supported by the installed Mihomo core, including protocol-specific options.</Paragraph>
+          <Paragraph style={{ margin: 0 }}>Configure every listener type supported by the installed Mihomo core. TUN is configured separately as a top-level Mihomo feature and is not a listener protocol.</Paragraph>
         </div>
         <Button type="primary" icon={<PlusOutlined />} onClick={handleOpenAdd}>Add Listener</Button>
       </div>
