@@ -36,6 +36,31 @@ type MihomoConfig struct {
 
 var GlobalConfig *Config
 
+// IsMihomoListenerProtocol reports whether protocol is a listener protocol
+// that 3m-ui currently knows how to export as a client proxy configuration.
+//
+// These are intentionally different from Mihomo's general inbound/listener
+// surface. SOCKS, HTTP, TPROXY, REDIR, Mixed and Tunnel are local inbound
+// transport/listener types and are not exported as remote client proxy nodes
+// by 3m-ui. TUN is also not a protocol and is therefore excluded here.
+// Auxiliary listener services such as hysteria2-realm are excluded as well.
+func IsMihomoListenerProtocol(protocol string) bool {
+	switch protocol {
+	case "shadowsocks",
+		"vmess",
+		"vless",
+		"trojan",
+		"hysteria2",
+		"tuic",
+		"shadowquic",
+		"anytls",
+		"mieru":
+		return true
+	default:
+		return false
+	}
+}
+
 func LoadConfig(path string) (*Config, error) {
 	file, err := os.Open(path)
 	if err != nil {
