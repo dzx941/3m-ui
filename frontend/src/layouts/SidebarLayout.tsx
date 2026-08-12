@@ -8,7 +8,6 @@ import {
   FileTextOutlined,
   SettingOutlined,
   LogoutOutlined,
-  ApiOutlined,
   UserOutlined,
   GlobalOutlined,
 } from '@ant-design/icons';
@@ -22,13 +21,14 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
   const navigate = useNavigate();
   const { t, locale, setLocale } = useI18n();
 
+  const section = location.pathname.split('/')[1] || 'dashboard';
+  const selected = section === 'listeners' || section === 'proxies' ? '/nodes' : `/${section}`;
+
   const items = [
     { key: '/dashboard', icon: <DashboardOutlined />, label: <Link to="/dashboard">{t('nav.dashboard')}</Link> },
     { key: '/core', icon: <CloudServerOutlined />, label: <Link to="/core">{t('nav.core')}</Link> },
-    { key: '/proxies', icon: <CloudServerOutlined />, label: <Link to="/proxies">{t('nav.nodes')}</Link> },
-    { key: '/listeners', icon: <ApiOutlined />, label: <Link to="/listeners">{t('nav.listeners')}</Link> },
+    { key: '/nodes', icon: <CloudServerOutlined />, label: <Link to="/nodes">{t('nav.nodes')}</Link> },
     { key: '/users', icon: <UserOutlined />, label: <Link to="/users">{t('nav.users')}</Link> },
-    { key: '/client-access', icon: <ApiOutlined />, label: <Link to="/client-access">{t('nav.clientAccess')}</Link> },
     { key: '/config', icon: <CodeOutlined />, label: <Link to="/config">{t('nav.config')}</Link> },
     { key: '/logs', icon: <FileTextOutlined />, label: <Link to="/logs">{t('nav.logs')}</Link> },
     { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">{t('nav.settings')}</Link> },
@@ -41,7 +41,7 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
           <span style={{ color: '#fff', fontWeight: 700, fontSize: 17 }}>3m-ui</span>
           <span style={{ color: 'rgba(255,255,255,.55)', marginLeft: 8, fontSize: 12 }}>Mihomo Console</span>
         </div>
-        <Menu theme="dark" mode="inline" selectedKeys={[`/${location.pathname.split('/')[1] || 'dashboard'}`]} items={items} style={{ marginBottom: 60 }} />
+        <Menu theme="dark" mode="inline" selectedKeys={[selected]} items={items} style={{ marginBottom: 60 }} />
         <div style={{ position: 'absolute', bottom: 24, left: 16, right: 16, display: 'flex', justifyContent: 'center' }}>
           <Button
             type="text"
