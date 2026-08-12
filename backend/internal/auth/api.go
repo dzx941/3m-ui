@@ -37,7 +37,7 @@ func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 
 		var req struct {
 			CurrentPassword string `json:"current_password" binding:"required"`
-			NewPassword string `json:"new_password" binding:"required"`
+			NewPassword     string `json:"new_password" binding:"required"`
 		}
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "current_password and new_password are required"})
@@ -67,7 +67,7 @@ func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 			return
 		}
 		if err := database.GlobalDB.Model(&user).Updates(map[string]any{
-			"password_hash": hash,
+			"password_hash":        hash,
 			"must_change_password": false,
 		}).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save password"})
@@ -88,10 +88,10 @@ func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
-			"user_id": claims.UserID,
-			"username": claims.Username,
-			"role": claims.Role,
-			"expires_at": claims.ExpiresAt,
+			"user_id":              claims.UserID,
+			"username":             claims.Username,
+			"role":                 claims.Role,
+			"expires_at":           claims.ExpiresAt,
 			"must_change_password": user.MustChangePassword,
 		})
 	})
@@ -110,28 +110,25 @@ func RequireAuth(secret string) gin.HandlerFunc {
 			return
 		}
 		c.Set("auth.claims", claims)
-		c.Next()
-	}
-}
 
-// RequirePasswordChanged prevents access to management APIs until the
-// initial password has been replaced. Login and /auth/password remain usable.
-func RequirePasswordChanged() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		claims, ok := ClaimsFromContext(c)
-		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
-			return
+		// A freshly created administrator may authenticate with the preserved
+		// default password, but must not use management APIs until it has been
+		// replaced. The password endpoint itself and /me remain available.
+		if c.Request.URL.Path != "/api/v1/auth/password" && c.Request.URL.Path != "/api/v1/auth/me" {
+			var user models.User
+			if err := database.GlobalDB.First(&user, claims.UserID).Error; err != nil {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+				return
+			}
+			if user.MustChangePassword {
+				c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+					"error": "password change required",
+					"code":  "PASSWORD_CHANGE_REQUIRED",
+				})
+				return
+			}
 		}
-		var user models.User
-		if err := database.GlobalDB.First(&user, claims.UserID).Error; err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
-			return
-		}
-		if user.MustChangePassword {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "password change required", "code": "PASSWORD_CHANGE_REQUIRED"})
-			return
-		}
+
 		c.Next()
 	}
 }
