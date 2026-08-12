@@ -35,41 +35,32 @@ func ValidateNode(l *models.Listener) error {
 
 	configMap := map[string]interface{}{}
 	if l.Config != "" {
-		if err := json.Unmarshal([]byte(l.Config), &configMap); err != nil {
-			return fmt.Errorf("invalid listener configuration (must be valid JSON): %w", err)
-		}
+		if err := json.Unmarshal([]byte(l.Config), &configMap); err != nil { return fmt.Errorf("invalid listener configuration (must be valid JSON): %w", err) }
 	}
 
-	if l.TLS && !hasTLSEnabler(proto, configMap) {
-		return fmt.Errorf("%s listener TLS requires certificate/private-key or a supported TLS alternative", proto)
-	}
+	if hasTLSEnabler(proto, configMap) { l.TLS = true }
+	if l.TLS && !hasTLSEnabler(proto, configMap) { return fmt.Errorf("%s listener TLS requires certificate/private-key or a supported TLS alternative", proto) }
 	return nil
 }
 
 func hasTLSEnabler(proto string, cfg map[string]interface{}) bool {
-	cert, certOK := nonEmptyString(cfg["certificate"])
-	key, keyOK := nonEmptyString(cfg["private-key"])
-	if !keyOK { key, keyOK = nonEmptyString(cfg["private_key"]) }
-	if certOK && keyOK && cert != "" && key != "" { return true }
-	if boolValue(cfg["allow-insecure"]) && (proto == "vless" || proto == "trojan") { return true }
+	cert := nonEmptyString(cfg["certificate"])
+	key := nonEmptyString(cfg["private-key"])
+	if key == "" { key = nonEmptyString(cfg["private_key"]) }
+	if cert != "" && key != "" { return true }
+	if proto != "vless" && proto != "trojan" { return false }
+	if boolValue(cfg["allow-insecure"]) { return true }
 	for _, key := range []string{"reality-config", "shadow-tls", "res-tls", "jls-config"} {
-		if _, ok := cfg[key]; ok && (proto == "vless" || proto == "trojan") { return true }
+		if _, ok := cfg[key]; ok { return true }
 	}
-	if proto == "vless" {
-		if _, ok := cfg["decryption"]; ok { return true }
-	}
-	if proto == "trojan" {
-		if _, ok := cfg["ss-option"]; ok { return true }
-	}
+	if proto == "vless" { if _, ok := cfg["decryption"]; ok { return true } }
+	if proto == "trojan" { if _, ok := cfg["ss-option"]; ok { return true } }
 	return false
 }
 
-func nonEmptyString(v interface{}) (string, bool) {
-	s, ok := v.(string)
-	return strings.TrimSpace(s), ok && strings.TrimSpace(s) != ""
+func nonEmptyString(v interface{}) string {
+	s, _ := v.(string)
+	return strings.TrimSpace(s)
 }
 
-func boolValue(v interface{}) bool {
-	b, ok := v.(bool)
-	return ok && b
-}
+func boolValue(v interface{}) bool { b, _ := v.(bool); return b }
