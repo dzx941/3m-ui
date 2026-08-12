@@ -118,15 +118,7 @@ const ListenersPage: React.FC = () => {
   const handleOpenAdd = () => {
     setEditingRecord(null);
     form.resetFields();
-    form.setFieldsValue({
-      bind_address: '0.0.0.0',
-      port: 10086,
-      protocol: 'shadowsocks',
-      tls: false,
-      udp: true,
-      enabled: true,
-      protocolConfig: {},
-    });
+    form.setFieldsValue({ bind_address: '0.0.0.0', port: 10086, protocol: 'shadowsocks', tls: false, udp: true, enabled: true, protocolConfig: {} });
     setModalOpen(true);
   };
 
@@ -136,6 +128,9 @@ const ListenersPage: React.FC = () => {
     let protocolConfig: Record<string, unknown> = {};
     try {
       protocolConfig = JSON.parse(record.config || '{}');
+      if (protocolConfig['reality-config'] && typeof protocolConfig['reality-config'] !== 'string') {
+        protocolConfig['reality-config'] = JSON.stringify(protocolConfig['reality-config'], null, 2);
+      }
     } catch {
       // Ignore malformed legacy config; backend validation will report it.
     }
@@ -176,12 +171,16 @@ const ListenersPage: React.FC = () => {
   const handleFormSubmit = async () => {
     try {
       const values = await form.validateFields();
-      const configObj: Record<string, unknown> = values.protocolConfig || {};
-      const payload = {
-        ...values,
-        config: JSON.stringify(configObj),
-        status: values.enabled ? 'active' : 'inactive',
-      };
+      const configObj: Record<string, unknown> = { ...(values.protocolConfig || {}) };
+      if (typeof configObj['reality-config'] === 'string' && configObj['reality-config'].trim() !== '') {
+        try {
+          configObj['reality-config'] = JSON.parse(configObj['reality-config']);
+        } catch {
+          message.error('Reality Config must contain valid JSON.');
+          return;
+        }
+      }
+      const payload = { ...values, config: JSON.stringify(configObj), status: values.enabled ? 'active' : 'inactive' };
       const method = editingRecord ? 'PUT' : 'POST';
       const url = editingRecord ? `/nodes/${editingRecord.ID}` : '/nodes';
       await apiRequest(url, { method, body: JSON.stringify(payload) });
@@ -219,9 +218,7 @@ const ListenersPage: React.FC = () => {
       title: 'Status',
       dataIndex: 'enabled',
       key: 'enabled',
-      render: (enabled: boolean, record: NodeRecord) => (
-        <Switch checked={enabled} onChange={(checked) => void handleToggleEnabled(record, checked)} checkedChildren="On" unCheckedChildren="Off" />
-      ),
+      render: (enabled: boolean, record: NodeRecord) => <Switch checked={enabled} onChange={(checked) => void handleToggleEnabled(record, checked)} checkedChildren="On" unCheckedChildren="Off" />,
     },
     {
       title: 'Actions',
