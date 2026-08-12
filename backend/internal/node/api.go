@@ -137,7 +137,7 @@ func CreateClientAccess(c *gin.Context) {
 	}
 
 	var existing models.AccessToken
-	if err := database.GlobalDB.Where("type = ? AND target_id = ? AND enabled = ?", "listener", listener.ID, true).First(&existing).Error; err == nil {
+	if err := database.GlobalDB.Where("scope = ? AND target_id = ? AND enabled = ?", "listener", listener.ID, true).First(&existing).Error; err == nil {
 		c.JSON(http.StatusOK, clientAccessResponse(c, existing))
 		return
 	}
@@ -152,7 +152,8 @@ func CreateClientAccess(c *gin.Context) {
 		Name:     listener.Name,
 		Token:    hex.EncodeToString(buf),
 		Enabled:  true,
-		Type:     "listener",
+		Type:     "user", // Keep the public token API compatible; Scope distinguishes direct listener access.
+		Scope:    "listener",
 		TargetID: listener.ID,
 	}
 	if err := database.GlobalDB.Create(&token).Error; err != nil {
@@ -168,7 +169,8 @@ func clientAccessResponse(c *gin.Context, token models.AccessToken) gin.H {
 		"id":                token.ID,
 		"name":              token.Name,
 		"token":             token.Token,
-		"type":               token.Type,
+		"type":               "listener",
+		"scope":              token.Scope,
 		"target_id":          token.TargetID,
 		"mihomo_link":       converter.GetSubscriptionURL(config.GlobalConfig, c.Request, token.Token, "mihomo"),
 		"clash_link":        converter.GetSubscriptionURL(config.GlobalConfig, c.Request, token.Token, "clash"),
