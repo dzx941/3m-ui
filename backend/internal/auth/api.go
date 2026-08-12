@@ -3,6 +3,8 @@ package auth
 import (
 	"crypto/subtle"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -82,7 +84,7 @@ func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 			if err.Error() != "invalid username or password" {
 				status = http.StatusInternalServerError
 			}
-			c.JSON(status, gin.H{"error": err.Error()})
+			c.JSON(status, gin.H{"error": "invalid username or password"})
 			return
 		}
 		resetLoginLimit(c.ClientIP())
@@ -134,6 +136,16 @@ func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save password"})
 			return
 		}
+
+		// The default credential is no longer useful after a successful change.
+		// Remove the one-time credential file so it cannot remain as a secret at rest.
+		passwordFile := filepath.Join(filepath.Dir(cfg.Database.Path), ".initial_admin_password")
+		if err := os.Remove(passwordFile); err != nil && !os.IsNotExist(err) {
+			// Do not fail an otherwise successful password change because cleanup
+			// is best-effort; the file is mode 0600 from initial creation.
+			_ = err
+		}
+
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "password changed successfully"})
 	})
 
