@@ -3,7 +3,6 @@ import type { ListenerProtocol } from './types';
 import {
   AnyTLSForm,
   Hysteria2Form,
-  Hysteria2RealmForm,
   MieruForm,
   ShadowsocksForm,
   ShadowQuicForm,
@@ -23,7 +22,6 @@ const forms: Record<ListenerProtocol, React.ComponentType> = {
   vless: VlessForm,
   trojan: TrojanForm,
   hysteria2: Hysteria2Form,
-  'hysteria2-realm': Hysteria2RealmForm,
   tuic: TuicForm,
   shadowquic: ShadowQuicForm,
   anytls: AnyTLSForm,
