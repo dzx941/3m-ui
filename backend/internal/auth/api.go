@@ -1,7 +1,13 @@
 package auth
 
 import (
+	"crypto/subtle"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/database"
@@ -9,8 +15,64 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type loginAttempt struct {
+	count   int
+	blocked time.Time
+	last    time.Time
+}
+
+var loginLimiter = struct {
+	sync.Mutex
+	items map[string]loginAttempt
+}{items: make(map[string]loginAttempt)}
+
+const (
+	loginWindow     = 15 * time.Minute
+	loginMaxAttempt = 8
+)
+
+func allowLogin(ip string) bool {
+	now := time.Now()
+	loginLimiter.Lock()
+	defer loginLimiter.Unlock()
+
+	for key, attempt := range loginLimiter.items {
+		if now.Sub(attempt.last) > loginWindow {
+			delete(loginLimiter.items, key)
+		}
+	}
+
+	attempt := loginLimiter.items[ip]
+	if !attempt.blocked.IsZero() && now.Before(attempt.blocked) {
+		return false
+	}
+	if attempt.last.IsZero() || now.Sub(attempt.last) > loginWindow {
+		attempt.count = 0
+	}
+	attempt.last = now
+	if attempt.count >= loginMaxAttempt {
+		attempt.blocked = now.Add(loginWindow)
+		loginLimiter.items[ip] = attempt
+		return false
+	}
+	attempt.count++
+	loginLimiter.items[ip] = attempt
+	return true
+}
+
+func resetLoginLimit(ip string) {
+	loginLimiter.Lock()
+	delete(loginLimiter.items, ip)
+	loginLimiter.Unlock()
+}
+
 func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 	rg.POST("/login", func(c *gin.Context) {
+		if !allowLogin(c.ClientIP()) {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many login attempts; try again later"})
+			return
+		}
+
 		var input LoginInput
 		if err := c.ShouldBindJSON(&input); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
@@ -22,9 +84,10 @@ func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 			if err.Error() != "invalid username or password" {
 				status = http.StatusInternalServerError
 			}
-			c.JSON(status, gin.H{"error": err.Error()})
+			c.JSON(status, gin.H{"error": "invalid username or password"})
 			return
 		}
+		resetLoginLimit(c.ClientIP())
 		c.JSON(http.StatusOK, result)
 	})
 
@@ -43,8 +106,12 @@ func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "current_password and new_password are required"})
 			return
 		}
-		if len(req.NewPassword) < 8 {
+		if len([]rune(req.NewPassword)) < 8 {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "new password must be at least 8 characters"})
+			return
+		}
+		if subtle.ConstantTimeCompare([]byte(req.NewPassword), []byte(req.CurrentPassword)) == 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "new password must differ from current password"})
 			return
 		}
 
@@ -59,26 +126,46 @@ func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 		}
 		hash, err := HashPassword(req.NewPassword)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
 			return
 		}
 		if err := database.GlobalDB.Model(&user).Updates(map[string]any{
 			"password_hash":        hash,
 			"must_change_password": false,
 		}).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save password"})
 			return
 		}
+
+		// The default credential is no longer useful after a successful change.
+		// Remove the one-time credential file so it cannot remain as a secret at rest.
+		passwordFile := filepath.Join(filepath.Dir(cfg.Database.Path), ".initial_admin_password")
+		if err := os.Remove(passwordFile); err != nil && !os.IsNotExist(err) {
+			// Do not fail an otherwise successful password change because cleanup
+			// is best-effort; the file is mode 0600 from initial creation.
+			_ = err
+		}
+
 		c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "password changed successfully"})
 	})
 
 	rg.GET("/me", RequireAuth(cfg.JWT.Secret), func(c *gin.Context) {
-		claims, _ := ClaimsFromContext(c)
+		claims, ok := ClaimsFromContext(c)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+			return
+		}
+		var user models.User
+		if err := database.GlobalDB.First(&user, claims.UserID).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{
-			"user_id":    claims.UserID,
-			"username":   claims.Username,
-			"role":       claims.Role,
-			"expires_at": claims.ExpiresAt,
+			"user_id":              claims.UserID,
+			"username":             claims.Username,
+			"role":                 claims.Role,
+			"expires_at":           claims.ExpiresAt,
+			"must_change_password": user.MustChangePassword,
 		})
 	})
 }
@@ -92,10 +179,32 @@ func RequireAuth(secret string) gin.HandlerFunc {
 		}
 		claims, err := ParseToken(secret, token)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 			return
 		}
+
+		var user models.User
+		if err := database.GlobalDB.First(&user, claims.UserID).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+			return
+		}
+		if !strings.EqualFold(user.Role, "admin") {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "administrator access required"})
+			return
+		}
+
 		c.Set("auth.claims", claims)
+		c.Set("auth.user", &user)
+
+		path := c.Request.URL.Path
+		if path != "/api/v1/auth/password" && path != "/api/v1/auth/me" && user.MustChangePassword {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "password change required",
+				"code":  "PASSWORD_CHANGE_REQUIRED",
+			})
+			return
+		}
+
 		c.Next()
 	}
 }

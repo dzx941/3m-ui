@@ -5,6 +5,8 @@ export interface ApiErrorPayload {
 }
 
 const TOKEN_KEY = '3m-ui.jwt';
+const USERNAME_KEY = '3m-ui.username';
+const MUST_CHANGE_KEY = '3m-ui.must_change_password';
 
 export const getApiBaseURL = () => {
   const configured = import.meta.env.VITE_API_BASE_URL as string | undefined;
@@ -12,10 +14,14 @@ export const getApiBaseURL = () => {
   return '/api/v1';
 };
 
+// Keep the JWT for the lifetime of the browser tab instead of persisting it
+// across restarts. The backend remains the authority for authentication.
+const storage = () => (typeof window !== 'undefined' ? window.sessionStorage : null);
+
 export const authToken = {
-  get: () => localStorage.getItem(TOKEN_KEY),
-  set: (token: string) => localStorage.setItem(TOKEN_KEY, token),
-  clear: () => localStorage.removeItem(TOKEN_KEY),
+  get: () => storage()?.getItem(TOKEN_KEY) ?? null,
+  set: (token: string) => storage()?.setItem(TOKEN_KEY, token),
+  clear: () => storage()?.removeItem(TOKEN_KEY),
   key: TOKEN_KEY,
 };
 
@@ -24,6 +30,22 @@ const normalizePath = (path: string) => {
   const base = getApiBaseURL();
   return `${base}${path.startsWith('/') ? path : `/${path}`}`;
 };
+
+function redirectToLogin() {
+  authToken.clear();
+  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+}
+
+function redirectToPasswordChange() {
+  if (typeof window !== 'undefined') {
+    sessionStorage.setItem(MUST_CHANGE_KEY, '1');
+    if (window.location.pathname !== '/change-password') {
+      window.location.href = '/change-password';
+    }
+  }
+}
 
 async function readResponse(res: Response): Promise<unknown> {
   const contentType = res.headers.get('content-type') || '';
@@ -52,6 +74,7 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
     res = await fetch(url, {
       ...init,
       headers,
+      credentials: 'same-origin',
     });
   } catch (err) {
     console.error('API Request failed:', err, 'URL:', url);
@@ -61,10 +84,15 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   const data = await readResponse(res);
   if (!res.ok) {
     if (res.status === 401) {
-      authToken.clear();
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
+      redirectToLogin();
+    }
+    if (
+      res.status === 403 &&
+      typeof data === 'object' &&
+      data !== null &&
+      (data as { code?: unknown }).code === 'PASSWORD_CHANGE_REQUIRED'
+    ) {
+      redirectToPasswordChange();
     }
 
     const message =
@@ -86,25 +114,33 @@ export async function downloadFile(path: string, fallbackName: string): Promise<
   let res: Response;
   const url = normalizePath(path);
   try {
-    res = await fetch(url, { headers });
+    res = await fetch(url, { headers, credentials: 'same-origin' });
   } catch (err) {
     console.error('API Download failed:', err, 'URL:', url);
     throw { message: 'Backend service unreachable', data: err } satisfies ApiErrorPayload;
   }
 
+  const data = await readResponse(res);
   if (!res.ok) {
-    if (res.status === 401) {
-      authToken.clear();
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-        window.location.href = '/login';
-      }
+    if (res.status === 401) redirectToLogin();
+    if (
+      res.status === 403 &&
+      typeof data === 'object' &&
+      data !== null &&
+      (data as { code?: unknown }).code === 'PASSWORD_CHANGE_REQUIRED'
+    ) {
+      redirectToPasswordChange();
     }
-    throw { message: `Request failed (${res.status})`, status: res.status } satisfies ApiErrorPayload;
+    const message =
+      typeof data === 'object' && data && 'error' in data
+        ? String((data as { error: unknown }).error)
+        : `Request failed (${res.status})`;
+    throw { message, status: res.status, data } satisfies ApiErrorPayload;
   }
 
   const blob = await res.blob();
   const disposition = res.headers.get('content-disposition') || '';
-  const match = disposition.match(/filename="?([^"]+)"?/i);
+  const match = disposition.match(/filename="?([^";]+)"?/i);
   const name = match?.[1] || fallbackName;
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
@@ -113,9 +149,11 @@ export async function downloadFile(path: string, fallbackName: string): Promise<
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(objectUrl);
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
 }
 
 export function apiUrl(path: string) {
   return normalizePath(path);
 }
+
+export { USERNAME_KEY, MUST_CHANGE_KEY };
