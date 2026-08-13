@@ -124,6 +124,22 @@ code { font-size: 14px; line-height: 135%; padding: 4px 8px; background: var(--c
 .config-control-actions { display: grid; grid-template-columns: 1fr; gap: 10px; }
 .config-preview { width: 100%; min-width: 0; overflow: auto !important; font-family: var(--mono) !important; white-space: pre !important; }
 
+.logs-page { min-width: 0; }
+.logs-heading { margin-bottom: 12px; }
+.logs-subtitle { margin-bottom: 0 !important; }
+.logs-toolbar { display: flex; align-items: center; justify-content: flex-start; margin-bottom: 12px; }
+.logs-card { overflow: hidden; background: #001529 !important; border-color: #001529 !important; }
+.logs-card .ant-card-body { padding: 0 !important; background: #001529 !important; }
+.logs-viewer { min-height: 300px; max-height: 60vh; overflow: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 14px 16px; background: #001529; color: #fff; font-family: var(--mono); font-size: 13px; line-height: 1.6; white-space: normal; }
+.logs-line { display: flex; align-items: flex-start; gap: 8px; min-width: max-content; margin-bottom: 3px; }
+.logs-time { color: #00ff00; flex: 0 0 auto; }
+.logs-level { flex: 0 0 auto; text-transform: uppercase; }
+.logs-level-error { color: #ff4d4f; }
+.logs-level-warn, .logs-level-warning { color: #faad14; }
+.logs-level-info { color: #1890ff; }
+.logs-payload { color: #fff; white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+.logs-empty { color: #888; text-align: center; padding: 48px 12px; }
+
 @media (max-width: 991px) {
   .app-sider { display: none !important; }
   .mobile-menu-button { display: inline-flex; margin-right: auto; }
@@ -162,6 +178,13 @@ code { font-size: 14px; line-height: 135%; padding: 4px 8px; background: var(--c
   .config-save-bar { position: sticky; bottom: calc(8px + env(safe-area-inset-bottom)); z-index: 10; padding-top: 8px; background: var(--surface); }
   .config-save-bar .ant-btn { width: 100%; }
   .config-preview { min-height: 360px; }
+
+  .logs-toolbar { margin-bottom: 10px; }
+  .logs-toolbar .ant-space { width: 100%; }
+  .logs-toolbar .ant-space-item { flex: 1 1 0; }
+  .logs-toolbar .ant-btn { width: 100%; }
+  .logs-viewer { max-height: calc(100svh - 220px); min-height: 360px; padding: 12px; font-size: 12px; line-height: 1.55; }
+  .logs-line { gap: 6px; }
 }
 
 @media (max-width: 575px) {
@@ -196,4 +219,9 @@ code { font-size: 14px; line-height: 135%; padding: 4px 8px; background: var(--c
   .config-page .ant-card-small { overflow: hidden; }
   .config-preview { min-height: 320px; font-size: 12px !important; line-height: 1.5 !important; }
   .config-page .ant-divider { margin: 16px 0; }
+
+  .logs-heading { margin-bottom: 10px; }
+  .logs-viewer { max-height: calc(100svh - 205px); min-height: 320px; padding: 10px; font-size: 11px; }
+  .logs-line { gap: 5px; margin-bottom: 4px; }
+  .logs-time { color: #7ee787; }
 }
