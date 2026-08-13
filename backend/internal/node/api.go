@@ -13,6 +13,7 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/converter"
 	"github.com/dzx941/3m-ui/backend/internal/database"
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
+	"github.com/dzx941/3m-ui/backend/internal/user"
 	"github.com/gin-gonic/gin"
 )
 
@@ -49,7 +50,7 @@ func GetNode(c *gin.Context) {
 	c.JSON(http.StatusOK, l)
 }
 
-// ExportNodeURI returns one URI per configured client credential. Public host
+// ExportNodeURI returns one URI per active client credential. Public host
 // comes from the request Host; wildcard listener addresses are never exposed.
 func ExportNodeURI(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
@@ -57,10 +58,21 @@ func ExportNodeURI(c *gin.Context) {
 	listener, err := GlobalService.GetByID(uint(id))
 	if err != nil { c.JSON(http.StatusNotFound, gin.H{"error": "listener not found"}); return }
 	if !listener.Enabled { c.JSON(http.StatusBadRequest, gin.H{"error": "listener is disabled"}); return }
+
 	host := c.GetHeader("X-Forwarded-Host")
 	if host == "" { host = c.Request.Host }
-	if host != "" { if parsed, err := url.Parse("//" + host); err == nil && parsed.Hostname() != "" { host = parsed.Hostname() } }
-	uris, err := ClientURIs(*listener, strings.TrimSpace(host))
+	if host != "" {
+		if parsed, err := url.Parse("//" + host); err == nil && parsed.Hostname() != "" { host = parsed.Hostname() }
+	}
+
+	credentials := []user.Credential{}
+	if user.GlobalService != nil {
+		byListener, err := user.GlobalService.ActiveCredentialsByListener()
+		if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load active credentials: " + err.Error()}); return }
+		credentials = byListener[listener.ID]
+	}
+
+	uris, err := ClientURIsWithCredentials(*listener, strings.TrimSpace(host), credentials)
 	if err != nil { c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()}); return }
 	c.JSON(http.StatusOK, gin.H{"name": listener.Name, "protocol": listener.Protocol, "uris": uris})
 }
