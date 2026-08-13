@@ -24,13 +24,15 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
     { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">{t('nav.settings')}</Link> },
   ];
 
+  const closeMobileMenu = () => setMobileOpen(false);
+
   const menu = (
     <Menu
       theme="dark"
       mode="inline"
       selectedKeys={[selected]}
       items={items}
-      onClick={() => setMobileOpen(false)}
+      onClick={closeMobileMenu}
       className="app-menu"
     />
   );
@@ -43,7 +45,7 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
 
   return (
     <Layout className="app-shell">
-      <Sider width={240} theme="dark" breakpoint="lg" collapsedWidth="0" className="app-sider">
+      <Sider width={240} theme="dark" className="app-sider">
         <div className="app-brand">
           <span className="app-brand-name">3m-ui</span>
           <span className="app-brand-subtitle">Mihomo Console</span>
@@ -81,11 +83,11 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
           placement="left"
           width="min(82vw, 300px)"
           open={mobileOpen}
-          onClose={() => setMobileOpen(false)}
+          onClose={closeMobileMenu}
           className="mobile-nav-drawer"
           styles={{ body: { padding: 0 } }}
         >
-          {menu}
+          <div className="mobile-nav-menu">{menu}</div>
           <div className="mobile-drawer-footer">
             <Button type="text" icon={<GlobalOutlined />} onClick={switchLocale} block>
               {locale === 'zh-CN' ? 'English' : '中文'}
