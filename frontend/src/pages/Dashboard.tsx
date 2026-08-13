@@ -39,19 +39,13 @@ export default function Dashboard() {
         apiRequest<Node[]>('/nodes'),
       ]);
 
-      // The dashboard endpoint historically reported the number of Mihomo
-      // outbound proxies as "listeners". Nodes/listeners are managed in the
-      // listeners table, so use the authoritative /nodes response here.
+      // /nodes is the authoritative source for the UI node count.
       const total = Array.isArray(nodes) ? nodes.length : 0;
       const enabled = Array.isArray(nodes) ? nodes.filter((node) => node.enabled).length : 0;
 
       setData({
         ...dashboard,
-        listeners: {
-          total,
-          enabled,
-          disabled: total - enabled,
-        },
+        listeners: { total, enabled, disabled: Math.max(0, total - enabled) },
       });
     } catch (e: any) {
       message.error(e.message || t('dashboard.unavailable'));
@@ -79,15 +73,18 @@ export default function Dashboard() {
 
   return (
     <>
-      <Title level={2}>{t('dashboard.title')}</Title>
-      <Paragraph>{t('dashboard.subtitle')}</Paragraph>
-      <Row gutter={[16, 16]}>
+      <div className="page-heading">
+        <Title level={2}>{t('dashboard.title')}</Title>
+        <Paragraph>{t('dashboard.subtitle')}</Paragraph>
+      </div>
+
+      <Row gutter={[12, 12]}>
         <Col xs={24} lg={10}>
           <Card title={t('core.title')} extra={data?.mihomo.running ? <Tag color="success">{t('dashboard.running')}</Tag> : <Tag>{t('dashboard.stoppedStatus')}</Tag>}>
-            <Space direction="vertical" style={{ width: '100%' }}>
+            <Space direction="vertical" size={14} style={{ width: '100%' }}>
               <Statistic title={t('dashboard.version')} value={data?.mihomo.version || '-'} />
               <div>PID: {data?.mihomo.pid || '-'}　{t('dashboard.uptime')}: {data?.mihomo.uptime || '-'}</div>
-              <Space>
+              <Space wrap>
                 <Button type="primary" icon={<PlayCircleOutlined />} disabled={!!data?.mihomo.running} loading={busy} onClick={() => act('start')}>
                   {t('dashboard.start')}
                 </Button>
@@ -101,38 +98,39 @@ export default function Dashboard() {
             </Space>
           </Card>
         </Col>
-        <Col xs={12} lg={5}>
+        <Col xs={12} sm={6} lg={5}>
           <Card title="CPU">
-            <Progress type="circle" percent={data?.system.cpu.percent || 0} />
+            <div className="dashboard-progress"><Progress type="circle" percent={data?.system.cpu.percent || 0} /></div>
           </Card>
         </Col>
-        <Col xs={12} lg={5}>
+        <Col xs={12} sm={6} lg={5}>
           <Card title={t('dashboard.memory')}>
-            <Progress type="circle" percent={data?.system.memory.percent || 0} />
+            <div className="dashboard-progress"><Progress type="circle" percent={data?.system.memory.percent || 0} /></div>
           </Card>
         </Col>
-        <Col xs={24} lg={4}>
+        <Col xs={24} sm={12} lg={4}>
           <Card title={t('dashboard.nodes')}>
-            <Statistic value={data?.listeners.enabled || 0} suffix={t('dashboard.countUnit')} />
+            <Statistic value={data?.listeners.total || 0} suffix={t('dashboard.countUnit')} />
+            <div className="dashboard-muted">{data?.listeners.enabled || 0} {t('dashboard.running')}</div>
           </Card>
         </Col>
         <Col xs={24}>
           <Card title={t('dashboard.network')}>
-            <Row gutter={16}>
-              <Col span={8}>
+            <Row gutter={[12, 12]}>
+              <Col xs={24} sm={8}>
                 <Statistic title={t('dashboard.connections')} value={data?.traffic.activeConnections || 0} />
               </Col>
-              <Col span={8}>
+              <Col xs={24} sm={8}>
                 <Statistic title={t('dashboard.upload')} value={fmt(data?.traffic.uploadRate || 0)} />
               </Col>
-              <Col span={8}>
+              <Col xs={24} sm={8}>
                 <Statistic title={t('dashboard.download')} value={fmt(data?.traffic.downloadRate || 0)} />
               </Col>
             </Row>
           </Card>
         </Col>
       </Row>
-      <Alert style={{ marginTop: 16 }} type="info" showIcon message={t('dashboard.consoleTitle')} description={t('dashboard.consoleDescription')} />
+      <Alert className="dashboard-alert" type="info" showIcon message={t('dashboard.consoleTitle')} description={t('dashboard.consoleDescription')} />
     </>
   );
 }
