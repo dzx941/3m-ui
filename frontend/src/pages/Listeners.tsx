@@ -34,38 +34,16 @@ const hydrateProtocolConfig = (protocol: ListenerProtocol, raw: Record<string, u
 const copyText = async (value: string): Promise<boolean> => {
   if (!value) return false;
   try {
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(value);
-      return true;
-    }
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) { await navigator.clipboard.writeText(value); return true; }
   } catch {
     // Fall through to the legacy clipboard implementation.
   }
-
   if (typeof document === 'undefined' || !document.body) return false;
   const textarea = document.createElement('textarea');
-  textarea.value = value;
-  textarea.setAttribute('readonly', '');
-  textarea.setAttribute('aria-hidden', 'true');
-  textarea.style.position = 'fixed';
-  textarea.style.left = '-9999px';
-  textarea.style.top = '0';
-  textarea.style.width = '1px';
-  textarea.style.height = '1px';
-  textarea.style.opacity = '0';
-  textarea.style.pointerEvents = 'none';
-  document.body.appendChild(textarea);
-  textarea.focus();
-  textarea.select();
-  textarea.setSelectionRange(0, textarea.value.length);
-  let copied = false;
-  try {
-    copied = document.execCommand('copy');
-  } catch {
-    copied = false;
-  } finally {
-    document.body.removeChild(textarea);
-  }
+  textarea.value = value; textarea.setAttribute('readonly', ''); textarea.setAttribute('aria-hidden', 'true');
+  textarea.style.position = 'fixed'; textarea.style.left = '-9999px'; textarea.style.top = '0'; textarea.style.width = '1px'; textarea.style.height = '1px'; textarea.style.opacity = '0'; textarea.style.pointerEvents = 'none';
+  document.body.appendChild(textarea); textarea.focus(); textarea.select(); textarea.setSelectionRange(0, textarea.value.length);
+  let copied = false; try { copied = document.execCommand('copy'); } catch { copied = false; } finally { document.body.removeChild(textarea); }
   return copied;
 };
 
@@ -102,15 +80,33 @@ const NodesPage: React.FC = () => {
     { title: t('nodes.protocol'), dataIndex: 'protocol', key: 'protocol', render: (value: ListenerProtocol) => <Tag color="blue">{protocolLabels[value]}</Tag> },
     { title: t('nodes.listen'), key: 'listen', render: (_: unknown, row: NodeRecord) => `${row.bind_address || row.listen || '0.0.0.0'}:${row.port}` },
     { title: t('nodes.status'), dataIndex: 'enabled', key: 'status', render: (enabled: boolean, row: NodeRecord) => <Switch checked={enabled} onChange={(checked) => void toggle(row, checked)} /> },
-    { title: t('nodes.actions'), key: 'actions', render: (_: unknown, row: NodeRecord) => <Space><Button type="text" icon={<ExportOutlined />} title={t('nodes.exportURI')} aria-label={t('nodes.exportURI')} onClick={() => void exportURI(row.ID)} /><Button type="text" icon={<LinkOutlined />} title={t('nodes.clientConfig')} aria-label={t('nodes.clientConfig')} onClick={() => void generateClientAccess(row.ID)} /><Button type="text" icon={<ReloadOutlined />} title={t('nodes.reload')} aria-label={t('nodes.reload')} onClick={() => void reload(row.ID)} /><Button type="text" icon={<EditOutlined />} title={t('nodes.edit')} aria-label={t('nodes.edit')} onClick={() => openEdit(row)} /><Popconfirm title={t('nodes.deleteConfirm')} onConfirm={() => void remove(row.ID)} okText={t('nodes.yes')} cancelText={t('nodes.no')}><Button type="text" danger icon={<DeleteOutlined />} aria-label={t('nodes.delete')} /></Popconfirm></Space> },
+    { title: t('nodes.actions'), key: 'actions', render: (_: unknown, row: NodeRecord) => <Space className="node-actions"><Button type="text" icon={<ExportOutlined />} title={t('nodes.exportURI')} aria-label={t('nodes.exportURI')} onClick={() => void exportURI(row.ID)} /><Button type="text" icon={<LinkOutlined />} title={t('nodes.clientConfig')} aria-label={t('nodes.clientConfig')} onClick={() => void generateClientAccess(row.ID)} /><Button type="text" icon={<ReloadOutlined />} title={t('nodes.reload')} aria-label={t('nodes.reload')} onClick={() => void reload(row.ID)} /><Button type="text" icon={<EditOutlined />} title={t('nodes.edit')} aria-label={t('nodes.edit')} onClick={() => openEdit(row)} /><Popconfirm title={t('nodes.deleteConfirm')} onConfirm={() => void remove(row.ID)} okText={t('nodes.yes')} cancelText={t('nodes.no')}><Button type="text" danger icon={<DeleteOutlined />} aria-label={t('nodes.delete')} /></Popconfirm></Space> },
   ];
 
-  return <div>
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}><div><Title level={2} style={{ margin: 0 }}>{title}</Title><Paragraph style={{ margin: 0 }}>{subtitle}</Paragraph></div><Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>{t('nodes.create')}</Button></div>
-    <Table rowKey="ID" loading={loading} dataSource={rows} columns={columns} scroll={{ x: 'max-content' }} />
-    <Modal title={editing ? t('nodes.editTitle') : t('nodes.createTitle')} open={open} onOk={() => void save()} onCancel={() => setOpen(false)} confirmLoading={saving} destroyOnClose width={820}><Form form={form} layout="vertical"><Form.Item name="name" label={t('nodes.name')} rules={[{ required: true, message: t('nodes.nameRequired') }]}><Input /></Form.Item><Space style={{ display: 'flex' }} align="start"><Form.Item name="protocol" label={listenerLabel} rules={[{ required: true }]} style={{ width: 280 }}><Select options={LISTENER_PROTOCOLS.map((value) => ({ value, label: protocolLabels[value] }))} onChange={() => form.setFieldValue('protocolConfig', {})} /></Form.Item><Form.Item name="port" label={t('nodes.port')} rules={[{ required: true }]} style={{ width: 180 }}><InputNumber min={1} max={65535} style={{ width: '100%' }} /></Form.Item><Form.Item name="bind_address" label={t('nodes.listenAddress')} rules={[{ required: true }]} style={{ width: 220 }}><Input placeholder="0.0.0.0" /></Form.Item></Space><ProtocolForm protocol={protocol} /><Form.Item name="enabled" label={t('nodes.enabled')} valuePropName="checked"><Switch /></Form.Item><Text type="secondary">{t('nodes.protocolHint')}</Text></Form></Modal>
-    <Modal title={`${t('nodes.clientConfig')} — ${access?.name || ''}`} open={accessOpen} onCancel={() => setAccessOpen(false)} footer={null} width={760} destroyOnClose><Paragraph type="secondary">{clientHint}</Paragraph><Space direction="vertical" style={{ width: '100%' }}>{access && ([[t('nodes.mihomoClash'), access.clash_link], [t('nodes.singbox'), access.singbox_link], [t('nodes.shadowrocket'), access.shadowrocket_link], [t('nodes.rawMihomo'), access.mihomo_link]] as Array<[string, string]>).map(([label, link]) => <Space key={label} style={{ display: 'flex' }}><Text strong style={{ width: 130 }}>{label}</Text><Input value={link} readOnly style={{ minWidth: 430 }} /><Button icon={<CopyOutlined />} onClick={() => void copy(link)}>{t('nodes.copy')}</Button></Space>)}</Space></Modal>
-    <Modal title={`${t('nodes.exportURI')} — ${uriExport?.name || ''}`} open={uriOpen} onCancel={() => setUriOpen(false)} footer={null} width={760} destroyOnClose><Paragraph type="secondary">{locale === 'zh-CN' ? '以下 URI 根据当前 Listener 和客户端凭据生成。一个用户对应一个 URI。' : 'These URIs are generated from the current Listener and client credentials. One URI is generated per user.'}</Paragraph><Space direction="vertical" style={{ width: '100%' }}>{uriExport?.uris.map((uri) => <Space key={uri} style={{ display: 'flex', width: '100%' }}><Input value={uri} readOnly /><Button icon={<CopyOutlined />} onClick={() => void copy(uri)}>{t('nodes.copy')}</Button></Space>)}</Space></Modal>
+  const renderNodeCard = (row: NodeRecord) => (
+    <div className="node-mobile-card" key={row.ID}>
+      <div className="node-mobile-card-head">
+        <div className="node-mobile-title"><Text strong>{row.name}</Text><Tag color="blue">{protocolLabels[row.protocol]}</Tag></div>
+        <Switch checked={row.enabled} onChange={(checked) => void toggle(row, checked)} />
+      </div>
+      <div className="node-mobile-meta"><span>{t('nodes.listen')}</span><Text code>{`${row.bind_address || row.listen || '0.0.0.0'}:${row.port}`}</Text></div>
+      <div className="node-mobile-actions">
+        <Button icon={<ExportOutlined />} onClick={() => void exportURI(row.ID)}>{t('nodes.exportURI')}</Button>
+        <Button icon={<LinkOutlined />} onClick={() => void generateClientAccess(row.ID)}>{t('nodes.clientConfig')}</Button>
+        <Button icon={<ReloadOutlined />} onClick={() => void reload(row.ID)}>{t('nodes.reload')}</Button>
+        <Button icon={<EditOutlined />} onClick={() => openEdit(row)}>{t('nodes.edit')}</Button>
+        <Popconfirm title={t('nodes.deleteConfirm')} onConfirm={() => void remove(row.ID)} okText={t('nodes.yes')} cancelText={t('nodes.no')}><Button danger icon={<DeleteOutlined />}>{t('nodes.delete')}</Button></Popconfirm>
+      </div>
+    </div>
+  );
+
+  return <div className="nodes-page">
+    <div className="page-heading nodes-heading"><div><Title level={2} style={{ margin: 0 }}>{title}</Title><Paragraph style={{ margin: 0 }}>{subtitle}</Paragraph></div><Button type="primary" size="large" icon={<PlusOutlined />} onClick={openCreate}>{t('nodes.create')}</Button></div>
+    <div className="nodes-desktop-table"><Table rowKey="ID" loading={loading} dataSource={rows} columns={columns} scroll={{ x: 'max-content' }} /></div>
+    <div className="nodes-mobile-list">{loading && rows.length === 0 ? <div className="nodes-mobile-loading">Loading…</div> : rows.map(renderNodeCard)}{!loading && rows.length === 0 && <div className="nodes-mobile-empty">{t('nodes.empty') || 'No nodes'}</div>}</div>
+    <Modal title={editing ? t('nodes.editTitle') : t('nodes.createTitle')} open={open} onOk={() => void save()} onCancel={() => setOpen(false)} confirmLoading={saving} destroyOnClose width={820} className="node-editor-modal"><Form form={form} layout="vertical"><Form.Item name="name" label={t('nodes.name')} rules={[{ required: true, message: t('nodes.nameRequired') }]}><Input /></Form.Item><div className="node-basic-fields"><Form.Item name="protocol" label={listenerLabel} rules={[{ required: true }]}><Select options={LISTENER_PROTOCOLS.map((value) => ({ value, label: protocolLabels[value] }))} onChange={() => form.setFieldValue('protocolConfig', {})} /></Form.Item><Form.Item name="port" label={t('nodes.port')} rules={[{ required: true }]}><InputNumber min={1} max={65535} style={{ width: '100%' }} /></Form.Item><Form.Item name="bind_address" label={t('nodes.listenAddress')} rules={[{ required: true }]}><Input placeholder="0.0.0.0" /></Form.Item></div><ProtocolForm protocol={protocol} /><Form.Item name="enabled" label={t('nodes.enabled')} valuePropName="checked"><Switch /></Form.Item><Text type="secondary">{t('nodes.protocolHint')}</Text></Form></Modal>
+    <Modal title={`${t('nodes.clientConfig')} — ${access?.name || ''}`} open={accessOpen} onCancel={() => setAccessOpen(false)} footer={null} width={760} destroyOnClose className="node-links-modal"><Paragraph type="secondary">{clientHint}</Paragraph><div className="node-link-list">{access && ([[t('nodes.mihomoClash'), access.clash_link], [t('nodes.singbox'), access.singbox_link], [t('nodes.shadowrocket'), access.shadowrocket_link], [t('nodes.rawMihomo'), access.mihomo_link]] as Array<[string, string]>).map(([label, link]) => <div className="node-link-row" key={label}><Text strong>{label}</Text><Input value={link} readOnly /><Button icon={<CopyOutlined />} onClick={() => void copy(link)}>{t('nodes.copy')}</Button></div>)}</div></Modal>
+    <Modal title={`${t('nodes.exportURI')} — ${uriExport?.name || ''}`} open={uriOpen} onCancel={() => setUriOpen(false)} footer={null} width={760} destroyOnClose className="node-links-modal"><Paragraph type="secondary">{locale === 'zh-CN' ? '以下 URI 根据当前 Listener 和客户端凭据生成。一个用户对应一个 URI。' : 'These URIs are generated from the current Listener and client credentials. One URI is generated per user.'}</Paragraph><div className="node-link-list">{uriExport?.uris.map((uri) => <div className="node-link-row" key={uri}><Input value={uri} readOnly /><Button icon={<CopyOutlined />} onClick={() => void copy(uri)}>{t('nodes.copy')}</Button></div>)}</div></Modal>
   </div>;
 };
 
