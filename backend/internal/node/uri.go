@@ -13,10 +13,13 @@ import (
 	"golang.org/x/crypto/curve25519"
 )
 
+// ClientURIs exports client share links from the same Listener schema used by
+// Mihomo config generation. Server-only fields are never copied blindly.
 func ClientURIs(listener models.Listener, host string) ([]string, error) {
 	host = normalizeExportHost(host, listener.BindAddress, listener.Listen)
 	if host == "" { return nil, fmt.Errorf("cannot determine public host for listener") }
-	cfg, err := decodeURIConfig(listener.Config); if err != nil { return nil, err }
+	cfg, err := decodeURIConfig(listener.Config)
+	if err != nil { return nil, err }
 	port := strconv.Itoa(listener.Port)
 	switch strings.ToLower(listener.Protocol) {
 	case "shadowsocks": return shadowsocksURIs(listener.Name, host, port, cfg)
@@ -30,24 +33,195 @@ func ClientURIs(listener models.Listener, host string) ([]string, error) {
 	}
 }
 
-func decodeURIConfig(raw string) (map[string]interface{}, error) { if strings.TrimSpace(raw) == "" { return map[string]interface{}{}, nil }; var cfg map[string]interface{}; if err := json.Unmarshal([]byte(raw), &cfg); err != nil { return nil, fmt.Errorf("invalid listener configuration: %w", err) }; if cfg == nil { return map[string]interface{}{}, nil }; return cfg, nil }
-func normalizeExportHost(requestHost, bind, listen string) string { h := strings.TrimSpace(requestHost); if h != "" { if host, _, err := net.SplitHostPort(h); err == nil { return strings.Trim(host, "[]") }; return strings.Trim(h, "[]") }; for _, candidate := range []string{bind, listen} { candidate = strings.TrimSpace(candidate); if candidate == "" || candidate == "0.0.0.0" || candidate == "::" || candidate == "*" || candidate == "127.0.0.1" || candidate == "::1" { continue }; if host, _, err := net.SplitHostPort(candidate); err == nil { return strings.Trim(host, "[]") }; return strings.Trim(candidate, "[]") }; return "" }
-func userMap(cfg map[string]interface{}) map[string]interface{} { if users, ok := cfg["users"].(map[string]interface{}); ok { return users }; return nil }
-func userRows(cfg map[string]interface{}) []map[string]interface{} { users, _ := cfg["users"].([]interface{}); rows := make([]map[string]interface{}, 0, len(users)); for _, raw := range users { if row, ok := raw.(map[string]interface{}); ok { rows = append(rows, row) } }; return rows }
-func query(base string, values map[string]string) string { q := url.Values{}; for k, v := range values { if v != "" { q.Set(k, v) } }; if encoded := q.Encode(); encoded != "" { return base + "?" + encoded }; return base }
+func decodeURIConfig(raw string) (map[string]interface{}, error) {
+	if strings.TrimSpace(raw) == "" { return map[string]interface{}{}, nil }
+	var cfg map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil { return nil, fmt.Errorf("invalid listener configuration: %w", err) }
+	if cfg == nil { return map[string]interface{}{}, nil }
+	return cfg, nil
+}
 
-func shadowsocksURIs(name, host, port string, cfg map[string]interface{}) ([]string, error) { cipher, _ := cfg["cipher"].(string); password, _ := cfg["password"].(string); if cipher == "" || password == "" { return nil, fmt.Errorf("shadowsocks listener requires cipher and password for URI export") }; encoded := base64.RawStdEncoding.EncodeToString([]byte(cipher+":"+password)); return []string{"ss://"+encoded+"@"+net.JoinHostPort(host, port)+"#"+url.PathEscape(name)}, nil }
+func normalizeExportHost(requestHost, bind, listen string) string {
+	for _, raw := range []string{requestHost, bind, listen} {
+		h := strings.TrimSpace(raw)
+		if h == "" || h == "0.0.0.0" || h == "::" || h == "*" || h == "127.0.0.1" || h == "::1" { continue }
+		if host, _, err := net.SplitHostPort(h); err == nil { return strings.Trim(host, "[]") }
+		if u, err := url.Parse("//" + h); err == nil && u.Hostname() != "" { return u.Hostname() }
+		return strings.Trim(h, "[]")
+	}
+	return ""
+}
+
+func userMap(cfg map[string]interface{}) map[string]interface{} {
+	if users, ok := cfg["users"].(map[string]interface{}); ok { return users }
+	return nil
+}
+
+func userRows(cfg map[string]interface{}) []map[string]interface{} {
+	users, _ := cfg["users"].([]interface{})
+	rows := make([]map[string]interface{}, 0, len(users))
+	for _, raw := range users { if row, ok := raw.(map[string]interface{}); ok { rows = append(rows, row) } }
+	return rows
+}
+
+func query(base string, values map[string]string) string {
+	q := url.Values{}
+	for k, v := range values { if v != "" { q.Set(k, v) } }
+	if encoded := q.Encode(); encoded != "" { return base + "?" + encoded }
+	return base
+}
+
+func addName(uri, name string) string {
+	if name == "" { return uri }
+	return uri + "#" + url.QueryEscape(name)
+}
+
+func tlsParams(cfg map[string]interface{}) map[string]string {
+	params := map[string]string{}
+	if certificate, ok := cfg["certificate"].(string); ok && strings.TrimSpace(certificate) != "" { params["security"] = "tls" }
+	if v, ok := cfg["servername"].(string); ok && v != "" { params["sni"] = v }
+	if v, ok := cfg["sni"].(string); ok && v != "" { params["sni"] = v }
+	if v, ok := cfg["client-fingerprint"].(string); ok && v != "" { params["fp"] = v }
+	if v, ok := cfg["fingerprint"].(string); ok && v != "" { params["fp"] = v }
+	if b, ok := cfg["skip-cert-verify"].(bool); ok && b { params["allowInsecure"] = "1" }
+	return params
+}
+
+func transportParams(cfg map[string]interface{}) map[string]string {
+	params := map[string]string{}
+	if v, ok := cfg["ws-path"].(string); ok && v != "" { params["type"] = "ws"; params["path"] = v }
+	if headers, ok := cfg["ws-headers"].(map[string]interface{}); ok { if host, ok := headers["Host"].(string); ok && host != "" { params["host"] = host } }
+	if v, ok := cfg["grpc-service-name"].(string); ok && v != "" { params["type"] = "grpc"; params["serviceName"] = v }
+	if xhttp, ok := cfg["xhttp-config"].(map[string]interface{}); ok { params["type"] = "xhttp"; if path, ok := xhttp["path"].(string); ok && path != "" { params["path"] = path } }
+	return params
+}
+
+func shadowsocksURIs(name, host, port string, cfg map[string]interface{}) ([]string, error) {
+	cipher, _ := cfg["cipher"].(string); password, _ := cfg["password"].(string)
+	if cipher == "" || password == "" { return nil, fmt.Errorf("shadowsocks listener requires cipher and password for URI export") }
+	encoded := base64.RawStdEncoding.EncodeToString([]byte(cipher + ":" + password))
+	return []string{addName("ss://"+encoded+"@"+net.JoinHostPort(host, port), name)}, nil
+}
 
 func vlessURIs(name, host, port string, cfg map[string]interface{}) ([]string, error) {
-	rows := userRows(cfg); if len(rows) == 0 { return nil, fmt.Errorf("vless listener requires at least one user for URI export") }; result := make([]string, 0, len(rows))
-	for _, row := range rows { uuid, _ := row["uuid"].(string); if uuid == "" { return nil, fmt.Errorf("vless user uuid is required") }; params := map[string]string{"type":"tcp", "security":"none"}; if flow, _ := row["flow"].(string); flow != "" { params["flow"] = flow }; if decryption, _ := cfg["decryption"].(string); decryption != "" { params["encryption"] = decryption }; if rc, ok := cfg["reality-config"].(map[string]interface{}); ok { params["security"]="reality"; publicKey, err := realityPublicKey(rc); if err != nil { return nil, err }; params["pbk"]=publicKey; params["sid"], _ = rc["short-id"].(string); params["sni"], _ = firstString(rc["server-names"]) }; if ws, ok := cfg["ws-path"].(string); ok && ws != "" { params["type"]="ws"; params["path"]=ws }; if grpc, ok := cfg["grpc-service-name"].(string); ok && grpc != "" { params["type"]="grpc"; params["serviceName"]=grpc }; result = append(result, query("vless://"+url.PathEscape(uuid)+"@"+net.JoinHostPort(host, port), params)+"#"+url.PathEscape(name)) }
+	rows := userRows(cfg); if len(rows) == 0 { return nil, fmt.Errorf("vless listener requires at least one user for URI export") }
+	result := make([]string, 0, len(rows))
+	for _, row := range rows {
+		uuid, _ := row["uuid"].(string); if uuid == "" { return nil, fmt.Errorf("vless user uuid is required") }
+		params := tlsParams(cfg); params["type"] = "tcp"
+		if flow, _ := row["flow"].(string); flow != "" { params["flow"] = flow }
+		if decryption, _ := cfg["decryption"].(string); decryption != "" { params["encryption"] = decryption }
+		if reality, ok := cfg["reality-config"].(map[string]interface{}); ok {
+			params["security"] = "reality"
+			publicKey, err := realityPublicKey(reality); if err != nil { return nil, err }
+			params["pbk"] = publicKey
+			if sid, ok := reality["short-id"].(string); ok && sid != "" { params["sid"] = sid }
+			if sni, ok := firstString(reality["server-names"]); ok { params["sni"] = sni }
+		}
+		for k, v := range transportParams(cfg) { params[k] = v }
+		result = append(result, addName(query("vless://"+url.PathEscape(uuid)+"@"+net.JoinHostPort(host, port), params), name))
+	}
 	return result, nil
 }
-func vmessURIs(name, host, port string, cfg map[string]interface{}) ([]string, error) { rows := userRows(cfg); if len(rows)==0 { return nil, fmt.Errorf("vmess listener requires at least one user for URI export") }; result:=make([]string,0,len(rows)); for _, row:=range rows { obj:=map[string]string{"v":"2","ps":name,"add":host,"port":port,"id":fmt.Sprint(row["uuid"]),"aid":"0","scy":"auto","net":"tcp","type":"none","tls":""}; if ws,ok:=cfg["ws-path"].(string);ok&&ws!=""{obj["net"]="ws";obj["path"]=ws};if grpc,ok:=cfg["grpc-service-name"].(string);ok&&grpc!=""{obj["net"]="grpc";obj["path"]=grpc};data,_:=json.Marshal(obj);result=append(result,"vmess://"+base64.RawStdEncoding.EncodeToString(data)) };return result,nil }
-func trojanURIs(name, host, port string, cfg map[string]interface{}) ([]string,error){rows:=userRows(cfg);if len(rows)==0{return nil,fmt.Errorf("trojan listener requires at least one user for URI export")};result:=make([]string,0,len(rows));for _,row:=range rows{password,_:=row["password"].(string);if password==""{return nil,fmt.Errorf("trojan user password is required")};result=append(result,query("trojan://"+url.PathEscape(password)+"@"+net.JoinHostPort(host,port),map[string]string{})+"#"+url.PathEscape(name))};return result,nil}
-func hysteria2URIs(name, host, port string, cfg map[string]interface{}) ([]string,error){users:=userMap(cfg);if len(users)==0{return nil,fmt.Errorf("hysteria2 listener requires at least one user for URI export")};result:=make([]string,0,len(users));for user,raw:=range users{password,_:=raw.(string);if password==""{return nil,fmt.Errorf("hysteria2 user %q has empty password",user)};result=append(result,"hysteria2://"+url.PathEscape(user)+":"+url.PathEscape(password)+"@"+net.JoinHostPort(host,port)+"#"+url.PathEscape(name))};return result,nil}
-func tuicURIs(name, host, port string, cfg map[string]interface{}) ([]string,error){users:=userMap(cfg);if len(users)==0{return nil,fmt.Errorf("tuic V5 listener requires at least one user for URI export")};result:=make([]string,0,len(users));for user,raw:=range users{password,_:=raw.(string);if password==""{return nil,fmt.Errorf("tuic user %q has empty password",user)};result=append(result,"tuic://"+url.PathEscape(user)+":"+url.PathEscape(password)+"@"+net.JoinHostPort(host,port)+"#"+url.PathEscape(name))};return result,nil}
-func anytlsURIs(name, host, port string, cfg map[string]interface{}) ([]string,error){users:=userMap(cfg);if len(users)==0{return nil,fmt.Errorf("anytls listener requires at least one user for URI export")};result:=make([]string,0,len(users));for user,raw:=range users{password,_:=raw.(string);if password==""{return nil,fmt.Errorf("anytls user %q has empty password",user)};result=append(result,"anytls://"+url.PathEscape(user)+":"+url.PathEscape(password)+"@"+net.JoinHostPort(host,port)+"#"+url.PathEscape(name))};return result,nil}
 
-func realityPublicKey(cfg map[string]interface{}) (string,error){if public,ok:=cfg["public-key"].(string);ok&&strings.TrimSpace(public)!=""{return public,nil};private,ok:=cfg["private-key"].(string);if !ok||strings.TrimSpace(private)==""{return "",fmt.Errorf("reality listener URI export requires reality-config.public-key or private-key")};var raw []byte;var err error;for _,decode:=range []func(string)([]byte,error){base64.RawStdEncoding.DecodeString,base64.StdEncoding.DecodeString,base64.RawURLEncoding.DecodeString,base64.URLEncoding.DecodeString}{raw,err=decode(strings.TrimSpace(private));if err==nil&&len(raw)==32{break}};if len(raw)!=32{return "",fmt.Errorf("invalid Reality private key: expected 32 decoded bytes")};public,err:=curve25519.X25519(raw,curve25519.Basepoint);if err!=nil{return "",fmt.Errorf("failed to derive Reality public key: %w",err)};return base64.RawStdEncoding.EncodeToString(public),nil}
-func firstString(v interface{})(string,bool){if s,ok:=v.(string);ok{return s,s!=""};if a,ok:=v.([]interface{});ok&&len(a)>0{s,_:=a[0].(string);return s,s!=""};return "",false}
+func vmessURIs(name, host, port string, cfg map[string]interface{}) ([]string, error) {
+	rows := userRows(cfg); if len(rows) == 0 { return nil, fmt.Errorf("vmess listener requires at least one user for URI export") }
+	result := make([]string, 0, len(rows))
+	for _, row := range rows {
+		uuid, _ := row["uuid"].(string); if uuid == "" { return nil, fmt.Errorf("vmess user uuid is required") }
+		aid := stringValue(cfg["alterId"], "0"); cipher := stringValue(cfg["cipher"], "auto")
+		obj := map[string]string{"v":"2", "ps":name, "add":host, "port":port, "id":uuid, "aid":aid, "scy":cipher, "net":"tcp", "type":"none"}
+		if tls, ok := tlsParams(cfg)["security"]; ok && tls == "tls" { obj["tls"] = "tls" }
+		if sni := tlsParams(cfg)["sni"]; sni != "" { obj["sni"] = sni }
+		if fp := tlsParams(cfg)["fp"]; fp != "" { obj["fp"] = fp }
+		if ws, ok := cfg["ws-path"].(string); ok && ws != "" { obj["net"] = "ws"; obj["path"] = ws }
+		if grpc, ok := cfg["grpc-service-name"].(string); ok && grpc != "" { obj["net"] = "grpc"; obj["path"] = grpc }
+		if reality, ok := cfg["reality-config"].(map[string]interface{}); ok { obj["tls"] = "tls"; publicKey, err := realityPublicKey(reality); if err != nil { return nil, err }; obj["pbk"] = publicKey; if sid, ok := reality["short-id"].(string); ok { obj["sid"] = sid } }
+		data, err := json.Marshal(obj); if err != nil { return nil, err }
+		result = append(result, "vmess://"+base64.RawStdEncoding.EncodeToString(data))
+	}
+	return result, nil
+}
+
+func trojanURIs(name, host, port string, cfg map[string]interface{}) ([]string, error) {
+	rows := userRows(cfg); if len(rows) == 0 { return nil, fmt.Errorf("trojan listener requires at least one user for URI export") }
+	result := make([]string, 0, len(rows))
+	for _, row := range rows {
+		password, _ := row["password"].(string); if password == "" { return nil, fmt.Errorf("trojan user password is required") }
+		params := tlsParams(cfg); for k, v := range transportParams(cfg) { params[k] = v }
+		if reality, ok := cfg["reality-config"].(map[string]interface{}); ok { params["security"] = "reality"; publicKey, err := realityPublicKey(reality); if err != nil { return nil, err }; params["pbk"] = publicKey; if sid, ok := reality["short-id"].(string); ok { params["sid"] = sid } }
+		result = append(result, addName(query("trojan://"+url.PathEscape(password)+"@"+net.JoinHostPort(host, port), params), name))
+	}
+	return result, nil
+}
+
+func hysteria2URIs(name, host, port string, cfg map[string]interface{}) ([]string, error) {
+	users := userMap(cfg); if len(users) == 0 { return nil, fmt.Errorf("hysteria2 listener requires at least one user for URI export") }
+	result := make([]string, 0, len(users))
+	for username, raw := range users {
+		password, ok := raw.(string); if !ok || password == "" { return nil, fmt.Errorf("hysteria2 user %q has empty password", username) }
+		params := map[string]string{}
+		if v, ok := cfg["sni"].(string); ok && v != "" { params["sni"] = v }
+		if b, ok := cfg["skip-cert-verify"].(bool); ok && b { params["insecure"] = "1" }
+		if v, ok := cfg["obfs"].(string); ok && v != "" { params["obfs"] = v }
+		if v, ok := cfg["obfs-password"].(string); ok && v != "" { params["obfs-password"] = v }
+		if v, ok := cfg["up"].(string); ok && v != "" { params["up"] = v }
+		if v, ok := cfg["down"].(string); ok && v != "" { params["down"] = v }
+		// Mihomo's Hysteria 2 client uses password authentication; the server
+		// listener username is not a separate client URI credential.
+		_ = username
+		result = append(result, addName(query("hysteria2://"+url.PathEscape(password)+"@"+net.JoinHostPort(host, port), params), name))
+	}
+	return result, nil
+}
+
+func tuicURIs(name, host, port string, cfg map[string]interface{}) ([]string, error) {
+	if token, ok := cfg["token"].(string); ok && strings.TrimSpace(token) != "" {
+		return []string{addName("tuic://"+url.PathEscape(token)+"@"+net.JoinHostPort(host, port), name)}, nil
+	}
+	users := userMap(cfg); if len(users) == 0 { return nil, fmt.Errorf("tuic V5 listener requires at least one user for URI export") }
+	result := make([]string, 0, len(users))
+	for uuid, raw := range users {
+		password, ok := raw.(string); if !ok || password == "" { return nil, fmt.Errorf("tuic user %q has empty password", uuid) }
+		params := map[string]string{}
+		for key, out := range map[string]string{"congestion-controller":"congestion_control", "bbr-profile":"bbr_profile", "udp-relay-mode":"udp_relay_mode", "max-udp-relay-packet-size":"max_udp_relay_packet_size"} { if v, ok := cfg[key].(string); ok && v != "" { params[out] = v } }
+		if v, ok := cfg["alpn"].(string); ok && v != "" { params["alpn"] = v }
+		if v, ok := cfg["sni"].(string); ok && v != "" { params["sni"] = v }
+		if b, ok := cfg["skip-cert-verify"].(bool); ok && b { params["allow_insecure"] = "1" }
+		result = append(result, addName(query("tuic://"+url.PathEscape(uuid)+":"+url.PathEscape(password)+"@"+net.JoinHostPort(host, port), params), name))
+	}
+	return result, nil
+}
+
+func anytlsURIs(name, host, port string, cfg map[string]interface{}) ([]string, error) {
+	users := userMap(cfg); if len(users) == 0 { return nil, fmt.Errorf("anytls listener requires at least one user for URI export") }
+	result := make([]string, 0, len(users))
+	for username, raw := range users {
+		password, ok := raw.(string); if !ok || password == "" { return nil, fmt.Errorf("anytls user %q has empty password", username) }
+		params := map[string]string{}
+		if v, ok := cfg["sni"].(string); ok && v != "" { params["sni"] = v }
+		if v, ok := cfg["client-fingerprint"].(string); ok && v != "" { params["fp"] = v }
+		if b, ok := cfg["skip-cert-verify"].(bool); ok && b { params["insecure"] = "1" }
+		if v, ok := cfg["idle-session-check-interval"].(string); ok && v != "" { params["idle_session_check_interval"] = v }
+		if v, ok := cfg["idle-session-timeout"].(string); ok && v != "" { params["idle_session_timeout"] = v }
+		if v, ok := cfg["min-idle-session"].(string); ok && v != "" { params["min_idle_session"] = v }
+		// AnyTLS URI authentication is password@host:port; username is the
+		// server-side map key and is not part of the Mihomo client URI.
+		_ = username
+		result = append(result, addName(query("anytls://"+url.PathEscape(password)+"@"+net.JoinHostPort(host, port), params), name))
+	}
+	return result, nil
+}
+
+func realityPublicKey(cfg map[string]interface{}) (string, error) {
+	if public, ok := cfg["public-key"].(string); ok && strings.TrimSpace(public) != "" { return public, nil }
+	private, ok := cfg["private-key"].(string); if !ok || strings.TrimSpace(private) == "" { return "", fmt.Errorf("reality listener URI export requires reality-config.public-key or private-key") }
+	var raw []byte; var err error
+	for _, decode := range []func(string)([]byte,error){base64.RawStdEncoding.DecodeString, base64.StdEncoding.DecodeString, base64.RawURLEncoding.DecodeString, base64.URLEncoding.DecodeString} { raw, err = decode(strings.TrimSpace(private)); if err == nil && len(raw) == 32 { break } }
+	if len(raw) != 32 { return "", fmt.Errorf("invalid Reality private key: expected 32 decoded bytes") }
+	public, err := curve25519.X25519(raw, curve25519.Basepoint); if err != nil { return "", fmt.Errorf("failed to derive Reality public key: %w", err) }
+	return base64.RawStdEncoding.EncodeToString(public), nil
+}
+
+func firstString(v interface{}) (string, bool) { if s, ok := v.(string); ok { return s, s != "" }; if a, ok := v.([]interface{}); ok && len(a) > 0 { s, _ := a[0].(string); return s, s != "" }; return "", false }
+func stringValue(v interface{}, fallback string) string { if s, ok := v.(string); ok && s != "" { return s }; return fallback }
