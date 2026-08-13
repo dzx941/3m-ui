@@ -8,7 +8,7 @@ import { useI18n } from '../i18n';
 
 const { Title, Paragraph, Text } = Typography;
 
-type NodeRecord = { ID: number; name: string; protocol: ListenerProtocol; port: number; bind_address: string; listen?: string; rule?: string; proxy?: string; enabled: boolean; config: string; status: string };
+type NodeRecord = { ID: number; name: string; protocol: ListenerProtocol; port: number; bind_address: string; listen?: string; enabled: boolean; config: string; status: string };
 type ClientAccess = { name: string; mihomo_link: string; clash_link: string; singbox_link: string; shadowrocket_link: string };
 const protocolLabels: Record<ListenerProtocol, string> = { shadowsocks: 'Shadowsocks', snell: 'Snell', vmess: 'VMess', vless: 'VLESS', trojan: 'Trojan', hysteria2: 'Hysteria 2', tuic: 'TUIC V4/V5', shadowquic: 'ShadowQUIC', anytls: 'AnyTLS', mieru: 'Mieru', sudoku: 'Sudoku', trusttunnel: 'TrustTunnel' };
 const mapUserProtocols = new Set<ListenerProtocol>(['anytls', 'hysteria2', 'mieru', 'tuic']);
@@ -64,7 +64,7 @@ const NodesPage: React.FC = () => {
     if (saving) return; setSaving(true);
     try {
       const values = await form.validateFields(); const selected = values.protocol as ListenerProtocol;
-      const payload = { name: String(values.name || '').trim(), protocol: selected, type: selected, port: Number(values.port), bind_address: String(values.bind_address || '0.0.0.0').trim(), listen: String(values.bind_address || '0.0.0.0').trim(), rule: values.rule || '', proxy: values.proxy || '', enabled: Boolean(values.enabled), status: values.enabled ? 'active' : 'inactive', config: JSON.stringify(serializeProtocolConfig(selected, values.protocolConfig || {})) };
+      const payload = { name: String(values.name || '').trim(), protocol: selected, type: selected, port: Number(values.port), bind_address: String(values.bind_address || '0.0.0.0').trim(), listen: String(values.bind_address || '0.0.0.0').trim(), enabled: Boolean(values.enabled), status: values.enabled ? 'active' : 'inactive', config: JSON.stringify(serializeProtocolConfig(selected, values.protocolConfig || {})) };
       const id = editing?.ID; const result = await apiRequest<NodeRecord>(id ? `/nodes/${id}` : '/nodes', { method: id ? 'PUT' : 'POST', body: JSON.stringify(payload) });
       setOpen(false); await load(); message.success(id ? t('nodes.updated') : t('nodes.created')); if (!id && result?.ID) await generateClientAccess(result.ID);
     } catch (error: unknown) {
@@ -96,7 +96,6 @@ const NodesPage: React.FC = () => {
     <Modal title={editing ? t('nodes.editTitle') : t('nodes.createTitle')} open={open} onOk={() => void save()} onCancel={() => setOpen(false)} confirmLoading={saving} destroyOnClose width={820}>
       <Form form={form} layout="vertical"><Form.Item name="name" label={t('nodes.name')} rules={[{ required: true, message: t('nodes.nameRequired') }]}><Input /></Form.Item>
         <Space style={{ display: 'flex' }} align="start"><Form.Item name="protocol" label={listenerLabel} rules={[{ required: true }]} style={{ width: 280 }}><Select options={LISTENER_PROTOCOLS.map((value) => ({ value, label: protocolLabels[value] }))} onChange={() => form.setFieldValue('protocolConfig', {})} /></Form.Item><Form.Item name="port" label={t('nodes.port')} rules={[{ required: true }]} style={{ width: 180 }}><InputNumber min={1} max={65535} style={{ width: '100%' }} /></Form.Item><Form.Item name="bind_address" label={t('nodes.listenAddress')} rules={[{ required: true }]} style={{ width: 220 }}><Input placeholder="0.0.0.0" /></Form.Item></Space>
-        <Space style={{ display: 'flex' }} align="start"><Form.Item name="rule" label={t('nodes.rule')}><Input placeholder={t('nodes.rulePlaceholder')} /></Form.Item><Form.Item name="proxy" label={t('nodes.proxy')}><Input placeholder={t('nodes.proxyPlaceholder')} /></Form.Item></Space>
         <ProtocolForm protocol={protocol} /><Form.Item name="enabled" label={t('nodes.enabled')} valuePropName="checked"><Switch /></Form.Item><Text type="secondary">{t('nodes.protocolHint')}</Text>
       </Form>
     </Modal>
