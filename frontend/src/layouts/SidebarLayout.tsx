@@ -1,7 +1,7 @@
-import React from 'react';
-import { Layout, Menu, Button } from 'antd';
+import React, { useState } from 'react';
+import { Layout, Menu, Button, Drawer } from 'antd';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { DashboardOutlined, CloudServerOutlined, CodeOutlined, FileTextOutlined, SettingOutlined, LogoutOutlined, GlobalOutlined } from '@ant-design/icons';
+import { DashboardOutlined, CloudServerOutlined, CodeOutlined, FileTextOutlined, SettingOutlined, LogoutOutlined, GlobalOutlined, MenuOutlined } from '@ant-design/icons';
 import { logout } from '../api/auth';
 import { useI18n } from '../i18n';
 
@@ -11,6 +11,7 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
   const location = useLocation();
   const navigate = useNavigate();
   const { t, locale, setLocale } = useI18n();
+  const [mobileOpen, setMobileOpen] = useState(false);
   const section = location.pathname.split('/')[1] || 'dashboard';
   const selected = section === 'listeners' || section === 'proxies' || section === 'users' || section === 'client-access' ? '/nodes' : `/${section}`;
 
@@ -23,25 +24,83 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
     { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">{t('nav.settings')}</Link> },
   ];
 
+  const go = (path: string) => {
+    setMobileOpen(false);
+    navigate(path);
+  };
+
+  const menu = (
+    <Menu
+      theme="dark"
+      mode="inline"
+      selectedKeys={[selected]}
+      items={items}
+      onClick={({ key }) => setMobileOpen(false)}
+      className="app-menu"
+    />
+  );
+
+  const switchLocale = () => setLocale(locale === 'zh-CN' ? 'en-US' : 'zh-CN');
+  const doLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
+
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={240} theme="dark" breakpoint="lg" collapsedWidth="0" style={{ position: 'relative' }}>
-        <div style={{ height: 44, margin: 16, display: 'flex', alignItems: 'center', padding: '0 12px', borderRadius: 8, background: 'rgba(255,255,255,.08)' }}>
-          <span style={{ color: '#fff', fontWeight: 700, fontSize: 17 }}>3m-ui</span>
-          <span style={{ color: 'rgba(255,255,255,.55)', marginLeft: 8, fontSize: 12 }}>Mihomo Console</span>
+    <Layout className="app-shell">
+      <Sider width={240} theme="dark" breakpoint="lg" collapsedWidth="0" className="app-sider">
+        <div className="app-brand">
+          <span className="app-brand-name">3m-ui</span>
+          <span className="app-brand-subtitle">Mihomo Console</span>
         </div>
-        <Menu theme="dark" mode="inline" selectedKeys={[selected]} items={items} style={{ marginBottom: 60 }} />
-        <div style={{ position: 'absolute', bottom: 24, left: 16, right: 16, display: 'flex', justifyContent: 'center' }}>
-          <Button type="text" icon={<GlobalOutlined />} style={{ color: 'rgba(255, 255, 255, 0.65)' }} onClick={() => setLocale(locale === 'zh-CN' ? 'en-US' : 'zh-CN')}>
+        {menu}
+        <div className="app-sidebar-footer">
+          <Button type="text" icon={<GlobalOutlined />} className="app-language" onClick={switchLocale}>
             {locale === 'zh-CN' ? 'English' : '中文'}
           </Button>
         </div>
       </Sider>
+
       <Layout>
-        <Header style={{ background: '#fff', padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', boxShadow: '0 1px 4px rgba(0,21,41,.08)' }}>
-          <a onClick={() => { logout(); navigate('/login', { replace: true }); }}><LogoutOutlined /> {t('auth.logout')}</a>
+        <Header className="app-header">
+          <Button
+            type="text"
+            icon={<MenuOutlined />}
+            className="mobile-menu-button"
+            aria-label="Open navigation"
+            onClick={() => setMobileOpen(true)}
+          />
+          <div className="mobile-brand">3m-ui</div>
+          <div className="header-actions">
+            <Button type="text" icon={<GlobalOutlined />} className="desktop-language" onClick={switchLocale}>
+              {locale === 'zh-CN' ? 'English' : '中文'}
+            </Button>
+            <Button type="text" icon={<LogoutOutlined />} onClick={doLogout}>
+              <span className="logout-label">{t('auth.logout')}</span>
+            </Button>
+          </div>
         </Header>
-        <Content style={{ margin: 24, padding: 24, background: '#fff', minHeight: 280, borderRadius: 10 }}>{children}</Content>
+
+        <Drawer
+          title={<span className="drawer-brand">3m-ui</span>}
+          placement="left"
+          width="min(82vw, 300px)"
+          open={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          className="mobile-nav-drawer"
+          styles={{ body: { padding: 0 } }}
+        >
+          {menu}
+          <div className="mobile-drawer-footer">
+            <Button type="text" icon={<GlobalOutlined />} onClick={switchLocale} block>
+              {locale === 'zh-CN' ? 'English' : '中文'}
+            </Button>
+          </div>
+        </Drawer>
+
+        <Content className="app-content">
+          <div className="app-content-inner">{children}</div>
+        </Content>
       </Layout>
     </Layout>
   );
