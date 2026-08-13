@@ -20,15 +20,24 @@ func ClientURIs(listener models.Listener, host string) ([]string, error) {
 	if host == "" { return nil, fmt.Errorf("cannot determine public host for listener") }
 	cfg, err := decodeURIConfig(listener.Config)
 	if err != nil { return nil, err }
+	// Listener-level flags are authoritative even when they are not duplicated
+	// in the JSON config. URI generation must match the actual listener.
+	cfg["_listener-tls"] = listener.TLS
+	cfg["_listener-udp"] = listener.UDP
 	port := strconv.Itoa(listener.Port)
 	switch strings.ToLower(listener.Protocol) {
 	case "shadowsocks": return shadowsocksURIs(listener.Name, host, port, cfg)
+	case "snell": return snellURIs(listener.Name, host, port, cfg)
 	case "vless": return vlessURIs(listener.Name, host, port, cfg)
 	case "vmess": return vmessURIs(listener.Name, host, port, cfg)
 	case "trojan": return trojanURIs(listener.Name, host, port, cfg)
 	case "hysteria2": return hysteria2URIs(listener.Name, host, port, cfg)
 	case "tuic": return tuicURIs(listener.Name, host, port, cfg)
+	case "shadowquic": return shadowQUICURIs(listener.Name, host, port, cfg)
 	case "anytls": return anytlsURIs(listener.Name, host, port, cfg)
+	case "mieru": return mieruURIs(listener.Name, host, port, cfg)
+	case "sudoku": return sudokuURIs(listener.Name, host, port, cfg)
+	case "trusttunnel": return trustTunnelURIs(listener.Name, host, port, cfg)
 	default: return nil, fmt.Errorf("URI export is not supported for listener protocol %q", listener.Protocol)
 	}
 }
@@ -78,6 +87,7 @@ func addName(uri, name string) string {
 
 func tlsParams(cfg map[string]interface{}) map[string]string {
 	params := map[string]string{}
+	if enabled, ok := cfg["_listener-tls"].(bool); ok && enabled { params["security"] = "tls" }
 	if certificate, ok := cfg["certificate"].(string); ok && strings.TrimSpace(certificate) != "" { params["security"] = "tls" }
 	if v, ok := cfg["servername"].(string); ok && v != "" { params["sni"] = v }
 	if v, ok := cfg["sni"].(string); ok && v != "" { params["sni"] = v }
@@ -167,8 +177,6 @@ func hysteria2URIs(name, host, port string, cfg map[string]interface{}) ([]strin
 		if v, ok := cfg["obfs-password"].(string); ok && v != "" { params["obfs-password"] = v }
 		if v, ok := cfg["up"].(string); ok && v != "" { params["up"] = v }
 		if v, ok := cfg["down"].(string); ok && v != "" { params["down"] = v }
-		// Mihomo's Hysteria 2 client uses password authentication; the server
-		// listener username is not a separate client URI credential.
 		_ = username
 		result = append(result, addName(query("hysteria2://"+url.PathEscape(password)+"@"+net.JoinHostPort(host, port), params), name))
 	}
@@ -205,8 +213,6 @@ func anytlsURIs(name, host, port string, cfg map[string]interface{}) ([]string, 
 		if v, ok := cfg["idle-session-check-interval"].(string); ok && v != "" { params["idle_session_check_interval"] = v }
 		if v, ok := cfg["idle-session-timeout"].(string); ok && v != "" { params["idle_session_timeout"] = v }
 		if v, ok := cfg["min-idle-session"].(string); ok && v != "" { params["min_idle_session"] = v }
-		// AnyTLS URI authentication is password@host:port; username is the
-		// server-side map key and is not part of the Mihomo client URI.
 		_ = username
 		result = append(result, addName(query("anytls://"+url.PathEscape(password)+"@"+net.JoinHostPort(host, port), params), name))
 	}
