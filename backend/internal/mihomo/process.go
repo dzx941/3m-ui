@@ -408,18 +408,22 @@ func (pm *ProcessManager) Start() error {
 
 	existing := pm.findExistingProcesses()
 
-	if len(existing) > 0 {
-		pid := pm.adoptExistingLocked(existing)
+if len(existing) > 0 {
+    pid := pm.adoptExistingLocked(existing)
 
-		pm.mu.Unlock()
+    pm.appendLogLocked(
+        fmt.Sprintf(
+            "adopted existing Mihomo process PID %d",
+            pid,
+        ),
+    )
 
-		return fmt.Errorf(
-			"mihomo is already running (PID: %d); existing process adopted",
-			pid,
-		)
-	}
+    pm.mu.Unlock()
 
-	pm.mu.Unlock()
+    return nil
+}
+
+pm.mu.Unlock()
 
 	/*
 		真正启动 Mihomo。
