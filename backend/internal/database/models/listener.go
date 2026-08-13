@@ -10,7 +10,6 @@ type Listener struct {
 	Port        int    `gorm:"not null" json:"port"`
 	BindAddress string `gorm:"type:varchar(100);not null;default:'0.0.0.0'" json:"bind_address"`
 	Listen      string `gorm:"type:varchar(100)" json:"listen"`
-	RoutingMark int    `gorm:"not null;default:0" json:"routing_mark,omitempty"`
 	TLS         bool   `gorm:"not null;default:false" json:"tls,omitempty"`
 	UDP         bool   `gorm:"not null;default:false" json:"udp,omitempty"`
 	Enabled     bool   `gorm:"not null;default:false" json:"enabled"`
