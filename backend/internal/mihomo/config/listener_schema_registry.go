@@ -18,12 +18,12 @@ func listenerFields(values ...string) map[string]struct{} {
 }
 
 // MihomoListenerSchemas is the single backend registry used by validation.
-// The registry is intentionally kept separate from the HTTP/API layer so the
-// same schema can be consumed by generators and tests without duplicating the
-// protocol switch in multiple packages.
+// Keep this registry limited to distributable proxy protocols. Local traffic
+// interception/listener types such as SOCKS, HTTP, Mixed, REDIR, TPROXY, TUN
+// and Tunnel are intentionally not represented here.
 var MihomoListenerSchemas = map[string]ListenerSchema{
 	"shadowsocks": {Protocol: "shadowsocks", Fields: listenerFields(
-		"cipher", "password", "udp", "shadow-tls", "res-tls", "jls-config", "kcp-tun", "mux-option",
+		"cipher", "password", "udp", "simple-obfs", "shadow-tls", "res-tls", "jls-config", "kcp-tun", "mux-option",
 	)},
 	"snell": {Protocol: "snell", Fields: listenerFields(
 		"psk", "version", "udp", "obfs-opts", "shadow-tls", "res-tls", "jls-config",
