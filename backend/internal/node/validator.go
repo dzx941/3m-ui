@@ -42,6 +42,10 @@ func validateObject(proto, prefix string, value map[string]interface{}, allowed 
 	for key, child := range value {
 		if _, ok := allowed[key]; !ok { return fmt.Errorf("%s listener: unsupported field %q", proto, joinField(prefix, key)) }
 		if childMap, ok := child.(map[string]interface{}); ok {
+			// AnyTLS, Hysteria2, Mieru and TUIC V5 define users as a
+			// username-to-credential map. It is a typed field, not a generic
+			// nested object, and is validated by validateProtocolSpecific.
+			if key == "users" && mapUserProtocols[proto] { continue }
 			childAllowed, hasNestedSchema := nested[key]
 			if !hasNestedSchema { return fmt.Errorf("%s listener: field %q does not accept an object", proto, joinField(prefix, key)) }
 			childNested := make(map[string]map[string]struct{})
@@ -51,6 +55,9 @@ func validateObject(proto, prefix string, value map[string]interface{}, allowed 
 	}
 	return nil
 }
+
+var mapUserProtocols = map[string]bool{"anytls": true, "hysteria2": true, "mieru": true, "tuic": true}
+
 func joinField(prefix, field string) string { if prefix == "" { return field }; return prefix + "." + field }
 
 func validateProtocolSpecific(proto string, cfg map[string]interface{}) error {
@@ -60,9 +67,11 @@ func validateProtocolSpecific(proto string, cfg map[string]interface{}) error {
 	case "hysteria2":
 		if obfs, ok := cfg["obfs"].(string); ok && obfs != "" && obfs != "salamander" { return fmt.Errorf("hysteria2 obfs must be salamander") }
 		if !hasCertificatePair(cfg) && !boolValue(cfg["allow-insecure"]) { return fmt.Errorf("hysteria2 listener requires certificate/private-key or allow-insecure") }
+		if users, ok := cfg["users"].(map[string]interface{}); !ok || len(users) == 0 { return fmt.Errorf("hysteria2 listener requires at least one user") }
 	case "trusttunnel": if !hasCertificatePair(cfg) { return fmt.Errorf("trusttunnel listener requires certificate and private-key") }
 	case "tuic":
 		users, token := hasNonEmpty(cfg["users"]), hasNonEmpty(cfg["token"]); if users == token { return fmt.Errorf("tuic listener must configure exactly one of users (TUIC V5) or token (TUIC V4)") }
+		if users { if values, ok := cfg["users"].(map[string]interface{}); !ok || len(values) == 0 { return fmt.Errorf("tuic V5 listener users must be a username-to-password map") } }
 	case "vless", "vmess":
 		users, ok := cfg["users"].([]interface{}); if !ok || len(users) == 0 { return fmt.Errorf("%s listener requires at least one user", proto) }; for i, user := range users { if err := validateUserRow(proto, i, user, true); err != nil { return err } }
 	case "trojan", "shadowquic":
