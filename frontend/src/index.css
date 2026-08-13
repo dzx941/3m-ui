@@ -84,6 +84,30 @@ code { font-size: 14px; line-height: 135%; padding: 4px 8px; background: var(--c
 .drawer-brand { font-weight: 750; }
 .mobile-drawer-footer { padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); }
 
+/* The mobile drawer reuses the dark navigation menu, so keep the drawer itself dark. */
+.mobile-nav-drawer .ant-drawer-content,
+.mobile-nav-drawer .ant-drawer-header,
+.mobile-nav-drawer .ant-drawer-body {
+  background: #001529 !important;
+}
+.mobile-nav-drawer .ant-drawer-header {
+  border-bottom-color: rgba(255,255,255,.12) !important;
+}
+.mobile-nav-drawer .ant-drawer-title,
+.mobile-nav-drawer .ant-drawer-close {
+  color: #fff !important;
+}
+.mobile-nav-drawer .mobile-drawer-footer {
+  border-top-color: rgba(255,255,255,.12);
+}
+.mobile-nav-drawer .mobile-drawer-footer .ant-btn {
+  color: rgba(255,255,255,.78) !important;
+}
+.mobile-nav-menu {
+  min-height: calc(100svh - 57px);
+  background: #001529;
+}
+
 @media (max-width: 991px) {
   .app-sider { display: none !important; }
   .mobile-menu-button { display: inline-flex; margin-right: auto; }
