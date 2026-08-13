@@ -835,10 +835,7 @@ func (w *processLogWriter) Write(
 	return len(p), nil
 }
 
-func formatDuration(
-	d time.Duration,
-) string {
-
+func formatDuration(d time.Duration) string {
 	d = d.Round(time.Second)
 
 	h := d / time.Hour
@@ -850,24 +847,12 @@ func formatDuration(
 	s := d / time.Second
 
 	if h > 0 {
-		return fmt.Sprintf(
-			\"%dh %dm %ds\",
-			h,
-			m,
-			s,
-		)
+		return fmt.Sprintf("%dh %dm %ds", h, m, s)
 	}
 
 	if m > 0 {
-		return fmt.Sprintf(
-			\"%dm %ds\",
-			m,
-			s,
-		)
+		return fmt.Sprintf("%dm %ds", m, s)
 	}
 
-	return fmt.Sprintf(
-		\"%ds\",
-		s,
-	)
+	return fmt.Sprintf("%ds", s)
 }
