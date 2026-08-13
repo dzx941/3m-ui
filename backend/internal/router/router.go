@@ -220,8 +220,18 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				mihomoStatus = &mihomo.StatusResponse{Running: false, Version: "unknown", PID: 0, Uptime: "0s"}
 			}
 			sysStatus := system.GlobalService.GetStatus()
-			visualCfg, _ := mihomoConfig.GetVisualConfig(database.GlobalDB)
-			proxyCount := int64(len(visualCfg.Proxies))
+
+			var listenerTotal int64
+			var listenerEnabled int64
+			if database.GlobalDB != nil {
+				database.GlobalDB.Model(&models.Listener{}).Count(&listenerTotal)
+				database.GlobalDB.Model(&models.Listener{}).Where("enabled = ?", true).Count(&listenerEnabled)
+			}
+			listenerDisabled := listenerTotal - listenerEnabled
+			if listenerDisabled < 0 {
+				listenerDisabled = 0
+			}
+
 			var trafficSnapshot traffic.Snapshot
 			if traffic.GlobalService != nil {
 				trafficSnapshot = traffic.GlobalService.Current()
@@ -237,7 +247,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			c.JSON(http.StatusOK, gin.H{
 				"mihomo": mihomoStatus,
 				"system": sysStatus,
-				"listeners": gin.H{"total": proxyCount, "enabled": proxyCount, "disabled": 0},
+				"listeners": gin.H{"total": listenerTotal, "enabled": listenerEnabled, "disabled": listenerDisabled},
 				"traffic": gin.H{
 					"uploadRate": trafficSnapshot.UploadRate,
 					"downloadRate": trafficSnapshot.DownloadRate,
