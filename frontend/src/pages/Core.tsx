@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Alert, Button, Card, Descriptions, Space, Spin, Tag, message } from 'antd';
 import { apiRequest } from '../api/request';
+import { useI18n } from '../i18n';
 
 type Status = { running: boolean; version: string; pid: number; uptime: string };
 
 export default function Core() {
+  const { t } = useI18n();
   const [status, setStatus] = useState<Status | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -13,7 +15,7 @@ export default function Core() {
     try {
       setStatus(await apiRequest<Status>('/mihomo/status'));
     } catch (e: any) {
-      message.error(e.message || '无法获取 Mihomo 状态');
+      message.error(e.message || t('core.unavailable'));
     } finally {
       setLoading(false);
     }
@@ -25,14 +27,14 @@ export default function Core() {
     return () => window.clearInterval(id);
   }, []);
 
-  const action = async (path: string, label: string) => {
+  const action = async (path: string, successKey: 'started' | 'stopped' | 'restarted') => {
     setBusy(true);
     try {
       await apiRequest(`/mihomo/${path}`, { method: 'POST' });
-      message.success(label + '成功');
+      message.success(t(`core.${successKey}`));
       await load();
     } catch (e: any) {
-      message.error(e.message || label + '失败');
+      message.error(e.message || t('core.operationFailed'));
     } finally {
       setBusy(false);
     }
@@ -41,17 +43,17 @@ export default function Core() {
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card
-        title="Mihomo 核心"
+        title={t('core.title')}
         extra={
           <Space>
-            <Button type="primary" disabled={busy || !!status?.running} onClick={() => action('start', '启动')}>
-              启动
+            <Button type="primary" disabled={busy || !!status?.running} onClick={() => action('start', 'started')}>
+              {t('core.start')}
             </Button>
-            <Button danger disabled={busy || !status?.running} onClick={() => action('stop', '停止')}>
-              停止
+            <Button danger disabled={busy || !status?.running} onClick={() => action('stop', 'stopped')}>
+              {t('core.stop')}
             </Button>
-            <Button disabled={busy} onClick={() => action('restart', '重启')}>
-              重启
+            <Button disabled={busy} onClick={() => action('restart', 'restarted')}>
+              {t('core.restart')}
             </Button>
           </Space>
         }
@@ -60,20 +62,20 @@ export default function Core() {
           <Spin />
         ) : (
           <Descriptions bordered column={2}>
-            <Descriptions.Item label="运行状态">
-              {status?.running ? <Tag color="success">运行中</Tag> : <Tag>已停止</Tag>}
+            <Descriptions.Item label={t('core.status')}>
+              {status?.running ? <Tag color="success">{t('core.running')}</Tag> : <Tag>{t('core.stoppedStatus')}</Tag>}
             </Descriptions.Item>
-            <Descriptions.Item label="版本">{status?.version || '未知'}</Descriptions.Item>
+            <Descriptions.Item label={t('core.version')}>{status?.version || '-'}</Descriptions.Item>
             <Descriptions.Item label="PID">{status?.pid || '-'}</Descriptions.Item>
-            <Descriptions.Item label="运行时间">{status?.uptime || '-'}</Descriptions.Item>
+            <Descriptions.Item label={t('core.uptime')}>{status?.uptime || '-'}</Descriptions.Item>
           </Descriptions>
         )}
       </Card>
       <Alert
         type="info"
         showIcon
-        message="核心管理"
-        description="这里管理服务器上的 Mihomo Core。修改配置后，请在配置管理中生成配置，再重载或重启核心。"
+        message={t('core.management')}
+        description={t('core.description')}
       />
     </Space>
   );
