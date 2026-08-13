@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Button, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message } from 'antd';
-import { CopyOutlined, DeleteOutlined, EditOutlined, ExportOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { CopyOutlined, DeleteOutlined, EditOutlined, ExportOutlined, LinkOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import { apiRequest } from '../api/request';
 import { ProtocolForm } from '../components/protocols';
 import { LISTENER_PROTOCOLS, type ListenerProtocol } from '../components/protocols/types';
@@ -31,6 +31,39 @@ const hydrateProtocolConfig = (protocol: ListenerProtocol, raw: Record<string, u
   return cfg;
 };
 
+const copyText = async (value: string): Promise<boolean> => {
+  if (!value) return false;
+  try {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // Fall through to the legacy clipboard implementation.
+  }
+
+  if (typeof document === 'undefined') return false;
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  textarea.style.pointerEvents = 'none';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, textarea.value.length);
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } catch {
+    copied = false;
+  } finally {
+    document.body.removeChild(textarea);
+  }
+  return copied;
+};
+
 const NodesPage: React.FC = () => {
   const { t, locale } = useI18n();
   const [rows, setRows] = useState<NodeRecord[]>([]); const [loading, setLoading] = useState(false); const [open, setOpen] = useState(false); const [editing, setEditing] = useState<NodeRecord | null>(null); const [access, setAccess] = useState<ClientAccess | null>(null); const [accessOpen, setAccessOpen] = useState(false); const [uriExport, setUriExport] = useState<URIExport | null>(null); const [uriOpen, setUriOpen] = useState(false); const [saving, setSaving] = useState(false); const [form] = Form.useForm();
@@ -52,7 +85,7 @@ const NodesPage: React.FC = () => {
   const remove = async (id: number) => { try { await apiRequest(`/nodes/${id}`, { method: 'DELETE' }); await load(); message.success(t('nodes.deleted')); } catch (error: unknown) { message.error(error instanceof Error ? error.message : t('nodes.deleteFailed')); } };
   const toggle = async (row: NodeRecord, enabled: boolean) => { try { await apiRequest(`/nodes/${row.ID}`, { method: 'PUT', body: JSON.stringify({ ...row, enabled, status: enabled ? 'active' : 'inactive' }) }); await load(); } catch (error: unknown) { message.error(error instanceof Error ? error.message : t('nodes.updatedFailed')); } };
   const reload = async (id: number) => { try { await apiRequest(`/nodes/${id}/reload`, { method: 'POST' }); message.success(t('nodes.reloaded')); } catch (error: unknown) { message.error(error instanceof Error ? error.message : t('nodes.reloadFailed')); } };
-  const copy = async (value: string) => { try { await navigator.clipboard.writeText(value); message.success(t('nodes.linkCopied')); } catch { message.error(t('nodes.copyFailed')); } };
+  const copy = async (value: string) => { const copied = await copyText(value); if (copied) message.success(t('nodes.linkCopied')); else message.error(t('nodes.copyFailed')); };
 
   const title = locale === 'zh-CN' ? '节点' : 'Nodes';
   const subtitle = locale === 'zh-CN' ? '一个节点就是一个 Mihomo 入站配置，并自动生成对应的客户端代理配置。' : 'Each node is a Mihomo inbound configuration that automatically generates the corresponding client proxy configuration.';
@@ -64,7 +97,7 @@ const NodesPage: React.FC = () => {
     { title: t('nodes.protocol'), dataIndex: 'protocol', key: 'protocol', render: (value: ListenerProtocol) => <Tag color="blue">{protocolLabels[value]}</Tag> },
     { title: t('nodes.listen'), key: 'listen', render: (_: unknown, row: NodeRecord) => `${row.bind_address || row.listen || '0.0.0.0'}:${row.port}` },
     { title: t('nodes.status'), dataIndex: 'enabled', key: 'status', render: (enabled: boolean, row: NodeRecord) => <Switch checked={enabled} onChange={(checked) => void toggle(row, checked)} /> },
-    { title: t('nodes.actions'), key: 'actions', render: (_: unknown, row: NodeRecord) => <Space><Button type="text" icon={<ExportOutlined />} title={t('nodes.exportURI')} onClick={() => void exportURI(row.ID)} /><Button type="text" icon={<CopyOutlined />} title={t('nodes.clientConfig')} onClick={() => void generateClientAccess(row.ID)} /><Button type="text" icon={<ReloadOutlined />} title={t('nodes.reload')} onClick={() => void reload(row.ID)} /><Button type="text" icon={<EditOutlined />} title={t('nodes.edit')} onClick={() => openEdit(row)} /><Popconfirm title={t('nodes.deleteConfirm')} onConfirm={() => void remove(row.ID)} okText={t('nodes.yes')} cancelText={t('nodes.no')}><Button type="text" danger icon={<DeleteOutlined />} /></Popconfirm></Space> },
+    { title: t('nodes.actions'), key: 'actions', render: (_: unknown, row: NodeRecord) => <Space><Button type="text" icon={<ExportOutlined />} title={t('nodes.exportURI')} aria-label={t('nodes.exportURI')} onClick={() => void exportURI(row.ID)} /><Button type="text" icon={<LinkOutlined />} title={t('nodes.clientConfig')} aria-label={t('nodes.clientConfig')} onClick={() => void generateClientAccess(row.ID)} /><Button type="text" icon={<ReloadOutlined />} title={t('nodes.reload')} aria-label={t('nodes.reload')} onClick={() => void reload(row.ID)} /><Button type="text" icon={<EditOutlined />} title={t('nodes.edit')} aria-label={t('nodes.edit')} onClick={() => openEdit(row)} /><Popconfirm title={t('nodes.deleteConfirm')} onConfirm={() => void remove(row.ID)} okText={t('nodes.yes')} cancelText={t('nodes.no')}><Button type="text" danger icon={<DeleteOutlined />} aria-label={t('nodes.delete')} /></Popconfirm></Space> },
   ];
 
   return <div>
