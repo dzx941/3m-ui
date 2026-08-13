@@ -43,9 +43,10 @@ export default function Core() {
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card
+        className="core-card"
         title={t('core.title')}
         extra={
-          <Space>
+          <Space className="core-actions" wrap size={[8, 8]}>
             <Button type="primary" disabled={busy || !!status?.running} onClick={() => action('start', 'started')}>
               {t('core.start')}
             </Button>
@@ -59,9 +60,9 @@ export default function Core() {
         }
       >
         {loading ? (
-          <Spin />
+          <div className="core-loading"><Spin /></div>
         ) : (
-          <Descriptions bordered column={2}>
+          <Descriptions bordered column={{ xs: 1, sm: 2 }}>
             <Descriptions.Item label={t('core.status')}>
               {status?.running ? <Tag color="success">{t('core.running')}</Tag> : <Tag>{t('core.stoppedStatus')}</Tag>}
             </Descriptions.Item>
