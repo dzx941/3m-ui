@@ -10,18 +10,19 @@ export default function Settings() {
   const navigate = useNavigate();
 
   return (
-    <>
+    <div className="settings-page">
       <Title level={2}>{t('settings.title')}</Title>
-      <Paragraph>{t('settings.subtitle')}</Paragraph>
+      <Paragraph className="page-subtitle">{t('settings.subtitle')}</Paragraph>
 
       <Alert
+        className="settings-alert"
         type="info"
         showIcon
         message={t('settings.serviceConfigTitle')}
         description={t('settings.serviceConfigDescription')}
       />
 
-      <Card style={{ marginTop: 24, maxWidth: 700 }} title={t('settings.pathsTitle')}>
+      <Card className="settings-card" title={t('settings.pathsTitle')}>
         <Form layout="vertical">
           <Form.Item label={t('settings.appConfig')}>
             <Input value="/etc/3m-ui/config.yaml" readOnly />
@@ -35,19 +36,25 @@ export default function Settings() {
         </Form>
       </Card>
 
-      <Card style={{ marginTop: 24, maxWidth: 700 }} title={t('settings.securityTitle')}>
-        <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+      <Card className="settings-card" title={t('settings.securityTitle')}>
+        <Space direction="vertical" size="middle" className="settings-security">
           <div>
             <Typography.Text strong>{t('settings.passwordTitle')}</Typography.Text>
-            <Paragraph type="secondary" style={{ marginTop: 4, marginBottom: 0 }}>
+            <Paragraph type="secondary" className="settings-description">
               {t('settings.passwordDescription')}
             </Paragraph>
           </div>
-          <Button type="primary" icon={<LockOutlined />} onClick={() => navigate('/change-password')}>
+          <Button
+            className="settings-action"
+            type="primary"
+            size="large"
+            icon={<LockOutlined />}
+            onClick={() => navigate('/change-password')}
+          >
             {t('settings.changePassword')}
           </Button>
         </Space>
       </Card>
-    </>
+    </div>
   );
 }
