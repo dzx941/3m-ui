@@ -84,29 +84,37 @@ code { font-size: 14px; line-height: 135%; padding: 4px 8px; background: var(--c
 .drawer-brand { font-weight: 750; }
 .mobile-drawer-footer { padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); }
 
-/* The mobile drawer reuses the dark navigation menu, so keep the drawer itself dark. */
 .mobile-nav-drawer .ant-drawer-content,
 .mobile-nav-drawer .ant-drawer-header,
 .mobile-nav-drawer .ant-drawer-body {
   background: #001529 !important;
 }
-.mobile-nav-drawer .ant-drawer-header {
-  border-bottom-color: rgba(255,255,255,.12) !important;
-}
+.mobile-nav-drawer .ant-drawer-header { border-bottom-color: rgba(255,255,255,.12) !important; }
 .mobile-nav-drawer .ant-drawer-title,
-.mobile-nav-drawer .ant-drawer-close {
-  color: #fff !important;
-}
-.mobile-nav-drawer .mobile-drawer-footer {
-  border-top-color: rgba(255,255,255,.12);
-}
-.mobile-nav-drawer .mobile-drawer-footer .ant-btn {
-  color: rgba(255,255,255,.78) !important;
-}
-.mobile-nav-menu {
-  min-height: calc(100svh - 57px);
-  background: #001529;
-}
+.mobile-nav-drawer .ant-drawer-close { color: #fff !important; }
+.mobile-nav-drawer .mobile-drawer-footer { border-top-color: rgba(255,255,255,.12); }
+.mobile-nav-drawer .mobile-drawer-footer .ant-btn { color: rgba(255,255,255,.78) !important; }
+.mobile-nav-menu { min-height: calc(100svh - 57px); background: #001529; }
+
+.nodes-heading { gap: 16px; }
+.nodes-heading > div:first-child { min-width: 0; }
+.nodes-heading .ant-typography { overflow-wrap: anywhere; }
+.nodes-mobile-list { display: none; }
+.node-mobile-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; box-shadow: var(--shadow); }
+.node-mobile-card + .node-mobile-card { margin-top: 10px; }
+.node-mobile-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.node-mobile-title { min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.node-mobile-title .ant-typography { overflow-wrap: anywhere; }
+.node-mobile-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.node-mobile-meta .ant-typography { max-width: 70%; overflow-x: auto; }
+.node-mobile-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.node-mobile-actions .ant-btn { width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.nodes-mobile-loading, .nodes-mobile-empty { padding: 40px 16px; text-align: center; color: var(--text); background: var(--surface); border: 1px dashed var(--border); border-radius: 12px; }
+.node-basic-fields { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(110px, .7fr) minmax(0, 1fr); gap: 12px; }
+.node-basic-fields .ant-form-item { min-width: 0; }
+.node-link-list { display: flex; flex-direction: column; gap: 10px; }
+.node-link-row { display: grid; grid-template-columns: 130px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; }
+.node-link-row .ant-input { min-width: 0; }
 
 @media (max-width: 991px) {
   .app-sider { display: none !important; }
@@ -121,6 +129,14 @@ code { font-size: 14px; line-height: 135%; padding: 4px 8px; background: var(--c
   .ant-modal { max-width: calc(100vw - 24px); margin: 12px auto; }
   .ant-modal-content { border-radius: 14px !important; }
   .ant-form-item { margin-bottom: 14px; }
+  .nodes-desktop-table { display: none; }
+  .nodes-mobile-list { display: block; }
+  .nodes-heading { align-items: flex-start !important; }
+  .nodes-heading > .ant-btn { flex: 0 0 auto; }
+  .node-basic-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 12px; }
+  .node-basic-fields .ant-form-item:first-child { grid-column: 1 / -1; }
+  .node-link-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .node-link-row > .ant-typography { grid-column: 1 / -1; }
 }
 
 @media (max-width: 575px) {
@@ -135,4 +151,12 @@ code { font-size: 14px; line-height: 135%; padding: 4px 8px; background: var(--c
   .ant-btn { min-height: 40px; }
   .dashboard-progress { min-height: 96px; }
   .ant-progress-circle { transform: scale(.9); }
+  .nodes-heading { flex-direction: column; }
+  .nodes-heading > .ant-btn { width: 100%; }
+  .node-mobile-actions { grid-template-columns: 1fr 1fr; }
+  .node-mobile-actions .ant-btn { padding-inline: 8px; font-size: 13px; }
+  .node-basic-fields { display: block; }
+  .node-link-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .node-link-row .ant-btn { padding-inline: 10px; }
+  .node-links-modal .ant-modal-body { padding: 14px !important; }
 }
