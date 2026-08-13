@@ -42,23 +42,18 @@ export default function Core() {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card
-        className="core-card"
-        title={t('core.title')}
-        extra={
-          <Space className="core-actions" wrap size={[8, 8]}>
-            <Button type="primary" disabled={busy || !!status?.running} onClick={() => action('start', 'started')}>
-              {t('core.start')}
-            </Button>
-            <Button danger disabled={busy || !status?.running} onClick={() => action('stop', 'stopped')}>
-              {t('core.stop')}
-            </Button>
-            <Button disabled={busy} onClick={() => action('restart', 'restarted')}>
-              {t('core.restart')}
-            </Button>
-          </Space>
-        }
-      >
+      <Card className="core-card" title={t('core.title')}>
+        <Space className="core-actions" wrap size={[8, 8]} style={{ width: '100%', marginBottom: 16 }}>
+          <Button type="primary" disabled={busy || !!status?.running} onClick={() => action('start', 'started')}>
+            {t('core.start')}
+          </Button>
+          <Button danger disabled={busy || !status?.running} onClick={() => action('stop', 'stopped')}>
+            {t('core.stop')}
+          </Button>
+          <Button disabled={busy} onClick={() => action('restart', 'restarted')}>
+            {t('core.restart')}
+          </Button>
+        </Space>
         {loading ? (
           <div className="core-loading"><Spin /></div>
         ) : (
