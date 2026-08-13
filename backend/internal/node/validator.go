@@ -10,32 +10,9 @@ import (
 	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 )
 
-// listenerFieldSchema is the backend source of truth for fields that may be
-// persisted in Listener.Config. The UI is not trusted: requests are validated
-// against this schema before they reach Mihomo.
-var listenerFieldSchema = map[string]map[string]struct{}{
-	"shadowsocks": fields("cipher", "password", "udp", "shadow-tls", "res-tls", "jls-config", "kcp-tun", "mux-option"),
-	"snell": fields("psk", "version", "udp", "obfs-opts", "shadow-tls", "res-tls", "jls-config"),
-	"vmess": fields("users", "ws-path", "grpc-service-name", "mekya-config", "mkcp-config", "jls-config", "shadow-tls", "res-tls", "reality-config", "tlsmirror-config", "certificate", "private-key", "client-auth-type", "client-auth-cert", "ech-key", "allow-insecure", "mux-option"),
-	"vless": fields("users", "ws-path", "grpc-service-name", "xhttp-config", "decryption", "reality-config", "shadow-tls", "res-tls", "jls-config", "certificate", "private-key", "client-auth-type", "client-auth-cert", "ech-key", "allow-insecure", "mux-option"),
-	"trojan": fields("users", "ws-path", "grpc-service-name", "reality-config", "shadow-tls", "res-tls", "jls-config", "ss-option", "certificate", "private-key", "client-auth-type", "client-auth-cert", "ech-key", "allow-insecure", "mux-option"),
-	"hysteria2": fields("users", "up", "down", "ignore-client-bandwidth", "obfs", "obfs-password", "masquerade", "bbr-profile", "alpn", "certificate", "private-key", "client-auth-type", "client-auth-cert", "ech-key", "allow-insecure", "mux-option"),
-	"tuic": fields("users", "token", "certificate", "private-key", "client-auth-type", "client-auth-cert", "ech-key", "allow-insecure", "congestion-controller", "bbr-profile", "max-idle-time", "authentication-timeout", "alpn", "max-udp-relay-packet-size", "mux-option"),
-	"shadowquic": fields("users", "jls-upstream", "alpn", "quic-versions", "zero-rtt", "congestion-controller", "up", "down", "ignore-client-bandwidth", "cwnd", "bbr-profile", "max-idle-time", "max-datagram-frame-size", "recv-window-conn", "recv-window", "disable-mtu-discovery"),
-	"anytls": fields("users", "certificate", "private-key", "client-auth-type", "client-auth-cert", "ech-key", "allow-insecure", "padding-scheme"),
-	"mieru": fields("transport", "users", "traffic-pattern", "user-hint-is-mandatory"),
-	"sudoku": fields("key", "aead-method", "padding-min", "padding-max", "table-type", "custom-table", "custom-tables", "handshake-timeout", "enable-pure-downlink", "httpmask", "fallback", "mux-option"),
-	"trusttunnel": fields("users", "certificate", "private-key", "client-auth-type", "client-auth-cert", "ech-key", "network", "congestion-controller", "bbr-profile"),
-}
-
-func fields(values ...string) map[string]struct{} {
-	out := make(map[string]struct{}, len(values))
-	for _, value := range values {
-		out[value] = struct{}{}
-	}
-	return out
-}
-
+// ValidateNode is the backend gate for all listener configuration. The
+// protocol registry lives in the Mihomo config package so generators and
+// validators cannot silently drift apart.
 func ValidateNode(l *models.Listener) error {
 	l.Name = strings.TrimSpace(l.Name)
 	if l.Name == "" {
@@ -84,7 +61,7 @@ func decodeConfig(raw string) (map[string]interface{}, error) {
 }
 
 func validateSchema(proto string, cfg map[string]interface{}) error {
-	allowed, ok := listenerFieldSchema[proto]
+	schema, ok := mihomoConfig.GetMihomoListenerSchema(proto)
 	if !ok {
 		return fmt.Errorf("no listener schema registered for protocol %s", proto)
 	}
@@ -92,7 +69,7 @@ func validateSchema(proto string, cfg map[string]interface{}) error {
 	flattenConfig("", cfg, flat)
 	for key := range flat {
 		top := strings.SplitN(key, ".", 2)[0]
-		if _, ok := allowed[top]; !ok {
+		if _, ok := schema.Fields[top]; !ok {
 			return fmt.Errorf("%s listener: unsupported field %q", proto, key)
 		}
 	}
@@ -188,31 +165,37 @@ func validateProtocolSpecific(proto string, cfg map[string]interface{}) error {
 	return nil
 }
 
+// validateCertificateMode enforces mutually exclusive TLS modes. A plain
+// certificate/private-key pair, Reality, ShadowTLS/ResTLS/JLS alternatives,
+// and allow-insecure are never silently combined.
 func validateCertificateMode(proto string, cfg map[string]interface{}) error {
 	cert := hasString(cfg["certificate"])
 	key := hasString(cfg["private-key"]) || hasString(cfg["private_key"])
 	if cert != key {
 		return fmt.Errorf("%s listener requires certificate and private-key together", proto)
 	}
-	alternatives := 0
+
+	modes := make([]string, 0, 5)
 	if cert && key {
-		alternatives++
+		modes = append(modes, "certificate")
 	}
 	for _, name := range []string{"reality-config", "shadow-tls", "res-tls", "jls-config"} {
 		if hasNonEmpty(cfg[name]) {
-			alternatives++
+			modes = append(modes, name)
 		}
 	}
-	if boolValue(cfg["allow-insecure"]) {
-		alternatives++
+	if len(modes) > 1 {
+		return fmt.Errorf("%s listener has mutually exclusive TLS modes configured: %s", proto, strings.Join(modes, ", "))
 	}
-	if alternatives > 1 {
-		return fmt.Errorf("%s listener has mutually exclusive TLS modes configured", proto)
+
+	// AnyTLS explicitly does not support Reality. Other protocols can expose
+	// Reality only when their schema includes reality-config.
+	if proto == "anytls" && hasNonEmpty(cfg["reality-config"]) {
+		return fmt.Errorf("anytls listener does not support reality-config")
 	}
-	if proto == "anytls" || proto == "hysteria2" || proto == "tuic" || proto == "trusttunnel" {
-		if hasNonEmpty(cfg["reality-config"]) || hasNonEmpty(cfg["shadow-tls"]) || hasNonEmpty(cfg["res-tls"]) || hasNonEmpty(cfg["jls-config"]) {
-			return fmt.Errorf("%s listener does not support the selected TLS alternative", proto)
-		}
+	if (proto == "anytls" || proto == "hysteria2" || proto == "tuic" || proto == "trusttunnel") &&
+		(hasNonEmpty(cfg["shadow-tls"]) || hasNonEmpty(cfg["res-tls"]) || hasNonEmpty(cfg["jls-config"])) {
+		return fmt.Errorf("%s listener does not support the selected TLS alternative", proto)
 	}
 	return nil
 }
