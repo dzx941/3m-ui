@@ -122,17 +122,17 @@ const Config: React.FC = () => {
   };
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
+    <div className="config-page">
+      <div className="config-heading">
+        <div className="config-heading-copy">
           <Title level={2} style={{ margin: 0 }}>Mihomo 配置引擎</Title>
           <Paragraph style={{ margin: 0 }}>
             可视化管理 Mihomo 配置。节点协议与入站认证在 节点管理 页面独立管理。
           </Paragraph>
         </div>
-        <Space>
+        <div className="config-heading-actions">
           <Button icon={<ReloadOutlined />} onClick={() => void loadConfig()} loading={initializing}>刷新</Button>
-        </Space>
+        </div>
       </div>
 
       <Alert
@@ -228,9 +228,11 @@ const Config: React.FC = () => {
               ]} />
 
               <Divider />
-              <Button type="primary" icon={<SaveOutlined />} loading={loading} onClick={() => void handleSave()}>
-                保存并生成 config.yaml
-              </Button>
+              <div className="config-save-bar">
+                <Button type="primary" icon={<SaveOutlined />} loading={loading} onClick={() => void handleSave()}>
+                  保存并生成 config.yaml
+                </Button>
+              </div>
             </Form>
           </Card>
         </Col>
@@ -238,10 +240,12 @@ const Config: React.FC = () => {
         <Col xs={24} lg={8}>
           <Card title="配置控制中心" bordered={false}>
             <Space direction="vertical" style={{ width: '100%' }} size="middle">
-              <Button icon={<DownloadOutlined />} block onClick={() => void handleDownload()}>下载 config.yaml</Button>
-              <Button icon={<ReloadOutlined />} danger block loading={loading} onClick={() => void handleHotReload()}>重新加载 Mihomo</Button>
+              <div className="config-control-actions">
+                <Button icon={<DownloadOutlined />} block onClick={() => void handleDownload()}>下载 config.yaml</Button>
+                <Button icon={<ReloadOutlined />} danger block loading={loading} onClick={() => void handleHotReload()}>重新加载 Mihomo</Button>
+              </div>
               <Text type="secondary">生成后的配置预览</Text>
-              <TextArea value={preview} readOnly rows={24} style={{ fontFamily: 'monospace' }} />
+              <TextArea className="config-preview" value={preview} readOnly rows={24} style={{ fontFamily: 'monospace' }} />
             </Space>
           </Card>
         </Col>
