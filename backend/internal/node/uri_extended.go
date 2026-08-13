@@ -1,12 +1,9 @@
 package node
 
 import (
-	"encoding/base64"
 	"fmt"
 	"net"
 	"net/url"
-	"strconv"
-	"strings"
 )
 
 // Extended Mihomo protocols use their documented/simple sharing forms where
@@ -55,8 +52,6 @@ func mieruURIs(name, host, port string, cfg map[string]interface{}) ([]string, e
 		for _, key := range []string{"transport", "multiplexing", "handshake-mode", "traffic-pattern"} {
 			if v := stringValue(cfg[key], ""); v != "" { params[key] = v }
 		}
-		// Mieru also supports a port range. Keep it as a query value instead
-		// of inventing a second authority syntax.
 		if v := stringValue(cfg["port-range"], ""); v != "" { params["portRange"] = v }
 		result = append(result, addName(query("mieru://"+url.PathEscape(username)+":"+url.PathEscape(password)+"@"+net.JoinHostPort(host, port), params), name))
 	}
@@ -66,12 +61,11 @@ func mieruURIs(name, host, port string, cfg map[string]interface{}) ([]string, e
 func sudokuURIs(name, host, port string, cfg map[string]interface{}) ([]string, error) {
 	key, _ := cfg["key"].(string)
 	if key == "" { return nil, fmt.Errorf("sudoku listener requires key for URI export") }
-	params := map[string]string{}
+	params := map[string]string{"key": key}
 	for _, keyName := range []string{"aead-method", "padding-min", "padding-max", "table-type", "custom-table", "handshake-timeout", "httpmask"} {
 		if v := stringValue(cfg[keyName], ""); v != "" { params[keyName] = v }
 	}
 	if b, ok := cfg["enable-pure-downlink"].(bool); ok && b { params["enable-pure-downlink"] = "1" }
-	params["key"] = key
 	return []string{addName(query("sudoku://"+net.JoinHostPort(host, port), params), name)}, nil
 }
 
@@ -93,19 +87,3 @@ func trustTunnelURIs(name, host, port string, cfg map[string]interface{}) ([]str
 	}
 	return result, nil
 }
-
-// Keep these helpers local to this file so extended URI generation stays
-// independent from the listener API implementation.
-func _intString(v interface{}) string {
-	switch n := v.(type) {
-	case float64:
-		return strconv.Itoa(int(n))
-	case int:
-		return strconv.Itoa(n)
-	default:
-		return ""
-	}
-}
-
-var _ = base64.RawStdEncoding
-var _ = strings.TrimSpace
