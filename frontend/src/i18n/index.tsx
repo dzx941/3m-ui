@@ -22,6 +22,8 @@ const fallbackMessages: Record<Locale, Record<string, string>> = {
     'nodes.mihomoClash': 'Mihomo / Clash',
     'nodes.singbox': 'sing-box',
     'nodes.shadowrocket': 'Shadowrocket',
+    'nodes.exportURI': '导出 URI',
+    'nodes.uriExportFailed': 'URI 导出失败',
   },
   'en-US': {
     'nodes.protocol': 'Protocol',
@@ -37,6 +39,8 @@ const fallbackMessages: Record<Locale, Record<string, string>> = {
     'nodes.mihomoClash': 'Mihomo / Clash',
     'nodes.singbox': 'sing-box',
     'nodes.shadowrocket': 'Shadowrocket',
+    'nodes.exportURI': 'Export URI',
+    'nodes.uriExportFailed': 'URI export failed',
   },
 };
 
