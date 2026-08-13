@@ -14,8 +14,8 @@ func GenerateMihomoListeners(dbNodes []models.Listener) ([]map[string]interface{
 	list := make([]map[string]interface{}, 0, len(dbNodes))
 	for _, node := range dbNodes {
 		if !node.Enabled { continue }
+		if err := ValidateNode(&node); err != nil { return nil, fmt.Errorf("invalid listener %q: %w", node.Name, err) }
 		protocol := strings.ToLower(strings.TrimSpace(node.Protocol))
-		if protocol == "" { protocol = strings.ToLower(strings.TrimSpace(node.Type)) }
 		if !mihomoConfig.IsMihomoListenerProtocol(protocol) { return nil, fmt.Errorf("unsupported Mihomo listener protocol: %s", protocol) }
 
 		entry := map[string]interface{}{
@@ -24,7 +24,6 @@ func GenerateMihomoListeners(dbNodes []models.Listener) ([]map[string]interface{
 			"port": node.Port,
 			"listen": firstNonEmpty(node.BindAddress, node.Listen, "0.0.0.0"),
 		}
-		if node.RoutingMark != 0 { entry["routing-mark"] = node.RoutingMark }
 		if node.Rule != "" { entry["rule"] = node.Rule }
 		if node.Proxy != "" { entry["proxy"] = node.Proxy }
 
@@ -81,7 +80,6 @@ func expandValue(value interface{}) interface{} {
 func normalizeListenerUsers(protocol string, options map[string]interface{}) {
 	users, ok := options["users"].([]interface{})
 	if !ok || len(users) == 0 { return }
-
 	if protocol == "anytls" || protocol == "hysteria2" || protocol == "mieru" || protocol == "tuic" {
 		m := map[string]interface{}{}
 		for _, raw := range users {
@@ -94,21 +92,12 @@ func normalizeListenerUsers(protocol string, options map[string]interface{}) {
 		if len(m) > 0 { options["users"] = m }
 		return
 	}
-
-	// The frontend uses one reusable credential editor for UUID-based
-	// protocols. Strip fields that are not part of the selected listener's
-	// native Mihomo schema so an accidental UI field can never leak into YAML.
 	for _, raw := range users {
 		row, ok := raw.(map[string]interface{}); if !ok { continue }
 		switch protocol {
-		case "vmess":
-			delete(row, "flow")
-		case "vless":
-			delete(row, "alterId")
-		case "trojan", "shadowquic", "trusttunnel":
-			delete(row, "uuid")
-			delete(row, "flow")
-			delete(row, "alterId")
+		case "vmess": delete(row, "flow")
+		case "vless": delete(row, "alterId")
+		case "trojan", "shadowquic", "trusttunnel": delete(row, "uuid"); delete(row, "flow"); delete(row, "alterId")
 		}
 	}
 }
