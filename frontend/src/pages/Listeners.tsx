@@ -31,20 +31,50 @@ const hydrateProtocolConfig = (protocol: ListenerProtocol, raw: Record<string, u
   return cfg;
 };
 
-const copyText = async (value: string): Promise<boolean> => {
-  if (!value) return false;
-  try {
-    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) { await navigator.clipboard.writeText(value); return true; }
-  } catch {
-    // Fall through to the legacy clipboard implementation.
-  }
-  if (typeof document === 'undefined' || !document.body) return false;
-  const textarea = document.createElement('textarea');
-  textarea.value = value; textarea.setAttribute('readonly', ''); textarea.setAttribute('aria-hidden', 'true');
-  textarea.style.position = 'fixed'; textarea.style.left = '-9999px'; textarea.style.top = '0'; textarea.style.width = '1px'; textarea.style.height = '1px'; textarea.style.opacity = '0'; textarea.style.pointerEvents = 'none';
-  document.body.appendChild(textarea); textarea.focus(); textarea.select(); textarea.setSelectionRange(0, textarea.value.length);
-  let copied = false; try { copied = document.execCommand('copy'); } catch { copied = false; } finally { document.body.removeChild(textarea); }
-  return copied;
+/**
+ * Copy text with a mobile-safe synchronous fallback.
+ * iOS Safari may reject Clipboard API calls unless they happen directly in
+ * the user gesture. The textarea fallback therefore runs synchronously when
+ * Clipboard API is unavailable, and is attempted again when the API rejects.
+ */
+const copyText = (value: string): Promise<boolean> => {
+  if (!value) return Promise.resolve(false);
+  const legacyCopy = (): boolean => {
+    if (typeof document === 'undefined' || !document.body) return false;
+    const textarea = document.createElement('textarea');
+    textarea.value = value;
+    textarea.setAttribute('readonly', '');
+    textarea.setAttribute('aria-hidden', 'true');
+    textarea.style.position = 'fixed';
+    textarea.style.left = '0';
+    textarea.style.top = '0';
+    textarea.style.width = '1px';
+    textarea.style.height = '1px';
+    textarea.style.padding = '0';
+    textarea.style.border = '0';
+    textarea.style.outline = '0';
+    textarea.style.boxShadow = 'none';
+    textarea.style.background = 'transparent';
+    textarea.style.opacity = '0';
+    textarea.style.pointerEvents = 'none';
+    document.body.appendChild(textarea);
+    textarea.focus({ preventScroll: true });
+    textarea.select();
+    textarea.setSelectionRange(0, value.length);
+    let copied = false;
+    try { copied = document.execCommand('copy'); } catch { copied = false; }
+    textarea.blur();
+    document.body.removeChild(textarea);
+    return copied;
+  };
+
+  // Prefer the synchronous legacy path on iOS/WebViews, where async clipboard
+  // permission checks commonly break after the click handler has yielded.
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+  const isIOS = /iPad|iPhone|iPod/.test(userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS || typeof navigator === 'undefined' || !navigator.clipboard?.writeText) return Promise.resolve(legacyCopy());
+
+  return navigator.clipboard.writeText(value).then(() => true).catch(() => legacyCopy());
 };
 
 const NodesPage: React.FC = () => {
