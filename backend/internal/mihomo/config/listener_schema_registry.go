@@ -1,9 +1,8 @@
 package config
 
-// ListenerSchema describes the fields accepted in Listener.Config for one
-// Mihomo listener protocol. It deliberately models only the protocol payload;
-// listener-level fields (name, type, port, listen, rule and proxy) are emitted
-// by the generator itself.
+// ListenerSchema describes only the protocol-specific fields accepted inside
+// a Mihomo listener. Common listener fields (name, type, port, listen, rule,
+// proxy) are generated separately and are never part of this registry.
 type ListenerSchema struct {
 	Protocol string
 	Fields   map[string]struct{}
@@ -17,61 +16,64 @@ func listenerFields(values ...string) map[string]struct{} {
 	return fields
 }
 
-// MihomoListenerSchemas is the single backend registry used by validation.
-// Keep this registry limited to distributable proxy protocols. Local traffic
-// interception/listener types such as SOCKS, HTTP, Mixed, REDIR, TPROXY, TUN
-// and Tunnel are intentionally not represented here.
+// MihomoListenerSchemas follows the current MetaCubeX listener documentation.
+// Local traffic listeners (SOCKS/HTTP/Mixed/REDIR/TPROXY/TUN/Tunnel) are
+// intentionally excluded because this registry is used for distributable
+// proxy nodes and client-profile generation.
 var MihomoListenerSchemas = map[string]ListenerSchema{
 	"shadowsocks": {Protocol: "shadowsocks", Fields: listenerFields(
-		"cipher", "password", "udp", "simple-obfs", "shadow-tls", "res-tls", "jls-config", "kcp-tun", "mux-option",
+		"cipher", "password", "udp", "shadow-tls", "kcp-tun",
 	)},
 	"snell": {Protocol: "snell", Fields: listenerFields(
-		"psk", "version", "udp", "obfs-opts", "shadow-tls", "res-tls", "jls-config",
+		"psk", "version", "udp", "obfs-opts",
 	)},
 	"vmess": {Protocol: "vmess", Fields: listenerFields(
-		"users", "ws-path", "grpc-service-name", "mekya-config", "mkcp-config", "jls-config",
-		"shadow-tls", "res-tls", "reality-config", "tlsmirror-config", "certificate", "private-key",
-		"client-auth-type", "client-auth-cert", "ech-key", "allow-insecure", "mux-option",
+		"users", "ws-path", "grpc-service-name", "mekya-config", "mkcp-config",
+		"shadow-tls", "res-tls", "jls-config", "reality-config", "tlsmirror-config",
+		"certificate", "private-key", "client-auth-type", "client-auth-cert", "ech-key",
+		"allow-insecure",
 	)},
 	"vless": {Protocol: "vless", Fields: listenerFields(
-		"users", "ws-path", "grpc-service-name", "xhttp-config", "decryption", "reality-config",
-		"shadow-tls", "res-tls", "jls-config", "certificate", "private-key", "client-auth-type",
-		"client-auth-cert", "ech-key", "allow-insecure", "mux-option",
+		"users", "ws-path", "grpc-service-name", "xhttp-config", "decryption",
+		"reality-config", "certificate", "private-key", "client-auth-type",
+		"client-auth-cert", "ech-key", "allow-insecure",
 	)},
 	"trojan": {Protocol: "trojan", Fields: listenerFields(
-		"users", "ws-path", "grpc-service-name", "reality-config", "shadow-tls", "res-tls", "jls-config",
-		"ss-option", "certificate", "private-key", "client-auth-type", "client-auth-cert", "ech-key",
-		"allow-insecure", "mux-option",
+		"users", "ws-path", "grpc-service-name", "reality-config", "ss-option",
+		"certificate", "private-key", "client-auth-type", "client-auth-cert",
+		"ech-key", "allow-insecure",
 	)},
 	"hysteria2": {Protocol: "hysteria2", Fields: listenerFields(
-		"users", "up", "down", "ignore-client-bandwidth", "obfs", "obfs-password", "masquerade",
-		"bbr-profile", "alpn", "certificate", "private-key", "client-auth-type", "client-auth-cert",
-		"ech-key", "allow-insecure", "mux-option",
+		"users", "up", "down", "ignore-client-bandwidth", "obfs", "obfs-password",
+		"masquerade", "realm-opts", "bbr-profile", "alpn", "certificate", "private-key",
+		"client-auth-type", "client-auth-cert", "ech-key",
 	)},
 	"tuic": {Protocol: "tuic", Fields: listenerFields(
-		"users", "token", "certificate", "private-key", "client-auth-type", "client-auth-cert", "ech-key",
-		"allow-insecure", "congestion-controller", "bbr-profile", "max-idle-time", "authentication-timeout",
-		"alpn", "max-udp-relay-packet-size", "mux-option",
+		"users", "token", "certificate", "private-key", "client-auth-type",
+		"client-auth-cert", "ech-key", "congestion-controller", "bbr-profile",
+		"max-idle-time", "authentication-timeout", "alpn", "max-udp-relay-packet-size",
 	)},
 	"shadowquic": {Protocol: "shadowquic", Fields: listenerFields(
-		"users", "jls-upstream", "alpn", "quic-versions", "zero-rtt", "congestion-controller", "up", "down",
-		"ignore-client-bandwidth", "cwnd", "bbr-profile", "max-idle-time", "max-datagram-frame-size",
-		"recv-window-conn", "recv-window", "disable-mtu-discovery",
+		"users", "jls-upstream", "alpn", "quic-versions", "zero-rtt",
+		"congestion-controller", "up", "down", "ignore-client-bandwidth", "cwnd",
+		"bbr-profile", "max-idle-time", "max-datagram-frame-size", "recv-window-conn",
+		"recv-window", "disable-mtu-discovery",
 	)},
 	"anytls": {Protocol: "anytls", Fields: listenerFields(
-		"users", "certificate", "private-key", "client-auth-type", "client-auth-cert", "ech-key",
-		"allow-insecure", "padding-scheme",
+		"users", "certificate", "private-key", "client-auth-type", "client-auth-cert",
+		"ech-key", "allow-insecure", "padding-scheme",
 	)},
 	"mieru": {Protocol: "mieru", Fields: listenerFields(
 		"transport", "users", "traffic-pattern", "user-hint-is-mandatory",
 	)},
 	"sudoku": {Protocol: "sudoku", Fields: listenerFields(
-		"key", "aead-method", "padding-min", "padding-max", "table-type", "custom-table", "custom-tables",
-		"handshake-timeout", "enable-pure-downlink", "httpmask", "fallback", "mux-option",
+		"key", "aead-method", "padding-min", "padding-max", "table-type", "custom-table",
+		"custom-tables", "handshake-timeout", "enable-pure-downlink", "httpmask",
+		"fallback", "disable-http-mask",
 	)},
 	"trusttunnel": {Protocol: "trusttunnel", Fields: listenerFields(
-		"users", "certificate", "private-key", "client-auth-type", "client-auth-cert", "ech-key", "network",
-		"congestion-controller", "bbr-profile",
+		"users", "certificate", "private-key", "client-auth-type", "client-auth-cert",
+		"ech-key", "network", "congestion-controller", "bbr-profile",
 	)},
 }
 
