@@ -35,46 +35,37 @@ const Logs: React.FC = () => {
   }, []);
 
   return (
-    <div>
-      <Title level={2}>{t('logs.title')}</Title>
-      <Paragraph>{t('logs.subtitle')}</Paragraph>
-      <Space style={{ marginBottom: 16 }}>
-        <Button onClick={() => setLogs([])}>{t('logs.clear')}</Button>
-        <Button type="primary" onClick={() => void fetchLogs()} loading={loading}>{t('logs.refresh')}</Button>
-      </Space>
-      <Card
-        style={{
-          backgroundColor: '#001529',
-          color: '#ffffff',
-          fontFamily: 'monospace',
-          minHeight: '300px',
-          borderRadius: '4px',
-        }}
-        styles={{
-          body: {
-            backgroundColor: '#001529',
-            color: '#ffffff',
-            padding: '16px',
-            overflowY: 'auto',
-            maxHeight: '500px',
-          }
-        }}
-      >
-        {logs.length === 0 ? (
-          <div style={{ color: '#888' }}>{t('logs.empty')}</div>
-        ) : (
-          logs.map((log, i) => (
-            <div key={i} style={{ marginBottom: 4 }}>
-              <span style={{ color: '#00ff00', marginRight: 8 }}>
-                [{dayjs(log.timestamp).format('YYYY-MM-DD HH:mm:ss')}]
-              </span>
-              <span style={{ color: log.level === 'error' ? '#ff4d4f' : '#1890ff', marginRight: 8, textTransform: 'uppercase' }}>
-                [{log.level}]
-              </span>
-              <span>{log.payload}</span>
-            </div>
-          ))
-        )}
+    <div className="logs-page">
+      <div className="page-heading logs-heading">
+        <Title level={2}>{t('logs.title')}</Title>
+        <Paragraph className="logs-subtitle">{t('logs.subtitle')}</Paragraph>
+      </div>
+
+      <div className="logs-toolbar">
+        <Space wrap size={8}>
+          <Button onClick={() => setLogs([])}>{t('logs.clear')}</Button>
+          <Button type="primary" onClick={() => void fetchLogs()} loading={loading}>{t('logs.refresh')}</Button>
+        </Space>
+      </div>
+
+      <Card className="logs-card">
+        <div className="logs-viewer" role="log" aria-live="polite" aria-busy={loading}>
+          {logs.length === 0 ? (
+            <div className="logs-empty">{t('logs.empty')}</div>
+          ) : (
+            logs.map((log, i) => (
+              <div className="logs-line" key={`${log.timestamp}-${i}`}>
+                <span className="logs-time">
+                  [{dayjs(log.timestamp).format('YYYY-MM-DD HH:mm:ss')}]
+                </span>
+                <span className={`logs-level logs-level-${log.level.toLowerCase()}`}>
+                  [{log.level}]
+                </span>
+                <span className="logs-payload">{log.payload}</span>
+              </div>
+            ))
+          )}
+        </div>
       </Card>
     </div>
   );
