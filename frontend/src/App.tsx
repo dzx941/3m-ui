@@ -10,6 +10,7 @@ import Settings from './pages/Settings';
 import Core from './pages/Core';
 import ListenersPage from './pages/Listeners';
 import { isAuthenticated, mustChangePassword } from './api/auth';
+import './mobile.css';
 
 const ProtectedLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
   const location = useLocation();
