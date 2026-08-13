@@ -5,7 +5,6 @@ export type ListenerProtocol =
   | 'vless'
   | 'trojan'
   | 'hysteria2'
-  | 'hysteria2-realm'
   | 'tuic'
   | 'shadowquic'
   | 'anytls'
@@ -22,7 +21,6 @@ export const LISTENER_PROTOCOLS: ListenerProtocol[] = [
   'vless',
   'trojan',
   'hysteria2',
-  'hysteria2-realm',
   'tuic',
   'shadowquic',
   'anytls',

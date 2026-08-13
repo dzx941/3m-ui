@@ -1,9 +1,9 @@
 package config
 
-// MihomoListenerProtocols is the set of real listener protocols exposed by
-// the 3m-ui listener UI. Local proxy endpoints (socks/http/tproxy/redir/mixed),
-// tunnel and TUN are intentionally not part of the node/client distribution
-// model.
+// MihomoListenerProtocols is the set of listener protocols exposed by the
+// unified 3m-ui Node page. Local proxy endpoints (socks/http/tproxy/redir/
+// mixed), Tunnel, TUN and Hysteria2 Realm are intentionally excluded because
+// they do not represent a directly distributable client proxy node.
 var MihomoListenerProtocols = []string{
 	"shadowsocks",
 	"snell",
@@ -11,7 +11,6 @@ var MihomoListenerProtocols = []string{
 	"vless",
 	"trojan",
 	"hysteria2",
-	"hysteria2-realm",
 	"tuic",
 	"shadowquic",
 	"anytls",
@@ -22,9 +21,7 @@ var MihomoListenerProtocols = []string{
 
 func IsMihomoListenerProtocol(protocol string) bool {
 	for _, p := range MihomoListenerProtocols {
-		if p == protocol {
-			return true
-		}
+		if p == protocol { return true }
 	}
 	return false
 }

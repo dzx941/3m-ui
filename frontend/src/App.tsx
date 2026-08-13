@@ -8,18 +8,13 @@ import Config from './pages/Config';
 import Logs from './pages/Logs';
 import Settings from './pages/Settings';
 import Core from './pages/Core';
-import ProxyNodes from './pages/ProxyNodes';
 import ListenersPage from './pages/Listeners';
-import UsersPage from './pages/Users';
-import ClientAccessPage from './pages/ClientAccess';
 import { isAuthenticated, mustChangePassword } from './api/auth';
 
 const ProtectedLayout: React.FC<React.PropsWithChildren> = ({ children }) => {
   const location = useLocation();
   if (!isAuthenticated()) return <Navigate to="/login" replace state={{ from: location }} />;
-  if (mustChangePassword() && location.pathname !== '/change-password') {
-    return <Navigate to="/change-password" replace />;
-  }
+  if (mustChangePassword() && location.pathname !== '/change-password') return <Navigate to="/change-password" replace />;
   return <SidebarLayout>{children}</SidebarLayout>;
 };
 
@@ -29,15 +24,16 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/change-password" element={<ChangePassword />} />
-        <Route path="/*" element = {
+        <Route path="/*" element={
           <ProtectedLayout>
             <Routes>
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="core" element={<Core />} />
-              <Route path="proxies" element={<ProxyNodes />} />
-              <Route path="listeners" element={<ListenersPage />} />
-              <Route path="users" element={<UsersPage />} />
-              <Route path="client-access" element={<ClientAccessPage />} />
+              <Route path="nodes" element={<ListenersPage />} />
+              <Route path="listeners" element={<Navigate to="/nodes" replace />} />
+              <Route path="proxies" element={<Navigate to="/nodes" replace />} />
+              <Route path="users" element={<Navigate to="/nodes" replace />} />
+              <Route path="client-access" element={<Navigate to="/nodes" replace />} />
               <Route path="config" element={<Config />} />
               <Route path="logs" element={<Logs />} />
               <Route path="settings" element={<Settings />} />
