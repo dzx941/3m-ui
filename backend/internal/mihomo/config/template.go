@@ -1,24 +1,21 @@
 package config
 
-// GetDefaultTemplate returns a default base config block
+// GetDefaultTemplate returns a deliberately minimal, localhost-safe base
+// configuration. Listener definitions are appended from the database.
 func GetDefaultTemplate() *MihomoConfig {
 	return &MihomoConfig{
-		Mode:               "rule",
-		LogLevel:           "info",
-		AllowLan:           true,
-		IPv6:               false,
+		Mode: "rule",
+		LogLevel: "info",
+		AllowLan: false,
+		IPv6: false,
 		ExternalController: "127.0.0.1:9090",
-		Secret:             "3m-ui-default-secret-key",
+		// The controller is bound to loopback, so an authentication secret is
+		// not required by default. Never ship a hard-coded reusable secret.
+		Secret: "",
 		DNS: map[string]interface{}{
-			"enable":        true,
-			"listen":        "0.0.0.0:1053",
-			"enhanced-mode": "fake-ip",
-			"nameserver": []string{
-				"119.29.29.29",
-				"223.5.5.5",
-			},
+			"enable": false,
 		},
-		Proxies:     []map[string]interface{}{},
+		Proxies: []map[string]interface{}{},
 		ProxyGroups: []map[string]interface{}{},
 		Rules: []string{
 			"GEOIP,CN,DIRECT",
