@@ -24,18 +24,13 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
     { key: '/settings', icon: <SettingOutlined />, label: <Link to="/settings">{t('nav.settings')}</Link> },
   ];
 
-  const go = (path: string) => {
-    setMobileOpen(false);
-    navigate(path);
-  };
-
   const menu = (
     <Menu
       theme="dark"
       mode="inline"
       selectedKeys={[selected]}
       items={items}
-      onClick={({ key }) => setMobileOpen(false)}
+      onClick={() => setMobileOpen(false)}
       className="app-menu"
     />
   );
