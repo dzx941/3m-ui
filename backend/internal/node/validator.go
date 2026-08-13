@@ -101,7 +101,7 @@ func validateProtocolSpecific(proto string, cfg map[string]interface{}) error {
 		if users == token { return fmt.Errorf("tuic listener must configure exactly one of users (TUIC V5) or token (TUIC V4)") }
 	case "vless", "vmess":
 		if users, ok := cfg["users"].([]interface{}); ok { for i, user := range users { if err := validateUserRow(proto, i, user, true); err != nil { return err } } }
-	case "trojan", "shadowquic", "trusttunnel":
+	case "trojan", "shadowquic":
 		if users, ok := cfg["users"].([]interface{}); ok { for i, user := range users { if err := validateUserRow(proto, i, user, false); err != nil { return err } } }
 	case "hysteria2", "anytls", "mieru":
 		if users, ok := cfg["users"].(map[string]interface{}); ok && len(users) == 0 { return fmt.Errorf("%s users cannot be empty", proto) }
