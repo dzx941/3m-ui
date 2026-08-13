@@ -6,10 +6,17 @@ import { useI18n } from '../i18n';
 
 const { Title, Paragraph } = Typography;
 
+type Node = {
+  id: number;
+  name: string;
+  protocol: string;
+  enabled: boolean;
+};
+
 type Data = {
   mihomo: { running: boolean; version: string; pid: number; uptime: string };
   system: { cpu: { percent: number }; memory: { percent: number; used: number; total: number }; disk: { percent: number } };
-  listeners: { total: number; enabled: number };
+  listeners: { total: number; enabled: number; disabled?: number };
   traffic: { activeConnections: number; uploadRate: number; downloadRate: number };
 };
 
@@ -27,7 +34,25 @@ export default function Dashboard() {
 
   const load = async () => {
     try {
-      setData(await apiRequest<Data>('/dashboard'));
+      const [dashboard, nodes] = await Promise.all([
+        apiRequest<Data>('/dashboard'),
+        apiRequest<Node[]>('/nodes'),
+      ]);
+
+      // The dashboard endpoint historically reported the number of Mihomo
+      // outbound proxies as "listeners". Nodes/listeners are managed in the
+      // listeners table, so use the authoritative /nodes response here.
+      const total = Array.isArray(nodes) ? nodes.length : 0;
+      const enabled = Array.isArray(nodes) ? nodes.filter((node) => node.enabled).length : 0;
+
+      setData({
+        ...dashboard,
+        listeners: {
+          total,
+          enabled,
+          disabled: total - enabled,
+        },
+      });
     } catch (e: any) {
       message.error(e.message || t('dashboard.unavailable'));
     }
