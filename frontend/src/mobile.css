@@ -28,7 +28,6 @@
   min-width: 180px;
 }
 
-/* Never let a page-level wrapper create horizontal scrolling on small screens. */
 .app-shell,
 .app-content,
 .app-content-inner,
@@ -116,7 +115,6 @@
     overflow-wrap: anywhere;
   }
 
-  /* Ant Design horizontal controls should wrap instead of forcing page width. */
   .ant-space:not(.ant-space-vertical) {
     flex-wrap: wrap;
   }
@@ -204,7 +202,6 @@
     font-size: 16px;
   }
 
-  /* 16px prevents iOS Safari from zooming when focusing text inputs. */
   input,
   textarea,
   select,
@@ -221,6 +218,33 @@
 
   .ant-btn {
     touch-action: manipulation;
+  }
+
+  /* Config visual editor tabs: allow real horizontal touch scrolling. */
+  .config-page .ant-tabs-nav {
+    margin-bottom: 16px;
+  }
+
+  .config-page .ant-tabs-nav-wrap {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+  }
+
+  .config-page .ant-tabs-nav-wrap::-webkit-scrollbar {
+    display: none;
+  }
+
+  .config-page .ant-tabs-nav-list {
+    flex: none !important;
+    width: max-content;
+  }
+
+  .config-page .ant-tabs-tab {
+    flex: none;
+    white-space: nowrap;
   }
 
   .ant-tabs-nav-wrap {
