@@ -21,9 +21,7 @@ var MihomoListenerProtocols = []string{
 
 func IsMihomoListenerProtocol(protocol string) bool {
 	for _, p := range MihomoListenerProtocols {
-		if p == protocol {
-			return true
-		}
+		if p == protocol { return true }
 	}
 	return false
 }
