@@ -1,4 +1,3 @@
-import React from 'react';
 import { Button, Form, Input, InputNumber, Select, Space, Switch } from 'antd';
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 
