@@ -22,7 +22,7 @@ type LoginInput struct {
 
 type LoginResult struct {
 	Token              string    `json:"token"`
-	ExpiresAt          time.Time `json:"expires_at"`
+	ExpiresAt           time.Time `json:"expires_at"`
 	Username           string    `json:"username"`
 	Role               string    `json:"role"`
 	MustChangePassword bool      `json:"must_change_password"`
@@ -39,7 +39,13 @@ func Login(db *gorm.DB, jwtSecret string, input LoginInput) (*LoginResult, error
 	if !CheckPasswordHash(input.Password, user.PasswordHash) {
 		return nil, errors.New("invalid username or password")
 	}
-	token, exp, err := GenerateToken(jwtSecret, user.ID, user.Username, user.Role, DefaultTokenTTL)
+	if user.SessionVersion == 0 {
+		user.SessionVersion = 1
+		if err := db.Model(&user).Update("session_version", user.SessionVersion).Error; err != nil {
+			return nil, err
+		}
+	}
+	token, exp, err := GenerateToken(jwtSecret, user.ID, user.Username, user.Role, user.SessionVersion, DefaultTokenTTL)
 	if err != nil {
 		return nil, err
 	}
@@ -65,8 +71,6 @@ func EnsureAdmin(db *gorm.DB, dbPath string) (created bool, username, password s
 	}
 	password = os.Getenv("THREE_M_UI_ADMIN_PASSWORD")
 	if password == "" {
-		// Fresh installations use the simple default credentials requested by
-		// the UI. The first successful login is forced to change the password.
 		password = "admin"
 	}
 
@@ -74,7 +78,7 @@ func EnsureAdmin(db *gorm.DB, dbPath string) (created bool, username, password s
 	if err != nil {
 		return false, "", "", err
 	}
-	if err := db.Create(&models.User{Username: username, PasswordHash: hash, Role: "admin", MustChangePassword: true}).Error; err != nil {
+	if err := db.Create(&models.User{Username: username, PasswordHash: hash, Role: "admin", MustChangePassword: true, SessionVersion: 1}).Error; err != nil {
 		return false, "", "", fmt.Errorf("create initial admin: %w", err)
 	}
 
