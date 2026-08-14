@@ -14,7 +14,6 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/database"
 	"github.com/dzx941/3m-ui/backend/internal/router"
 	"github.com/dzx941/3m-ui/backend/internal/security"
-	"github.com/dzx941/3m-ui/backend/internal/traffic"
 	"github.com/gin-gonic/gin"
 )
 
@@ -53,10 +52,15 @@ func Run(frontendFS fs.FS) error {
 	if err := container.Mihomo.StartMihomo(); err != nil { return fmt.Errorf("start Mihomo core: %w", err) }
 	log.Printf("Mihomo core started successfully")
 
+	if container.Scheduler != nil {
+		container.Scheduler.Start()
+		defer container.Scheduler.Stop()
+	}
+
 	routerDeps := router.Dependencies{
 		DB: container.DB, Config: container.Config, Mihomo: container.Mihomo, Listener: container.Listener,
 		Node: container.Node, User: container.User, System: container.System, Traffic: container.Traffic,
-		Collector: traffic.GlobalCollector, ConfigEngine: container.ConfigEngine,
+		Collector: container.Collector, ConfigEngine: container.ConfigEngine,
 	}
 	router.ConfigureDependencies(routerDeps)
 	r := router.SetupRouter(cfg, routerDeps)
