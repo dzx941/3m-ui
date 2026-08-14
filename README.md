@@ -282,6 +282,15 @@ curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/install.sh |
 
 The installer detects CPU architecture and init system, installs required download/TLS utilities where possible, installs Mihomo and the 3m-ui application, creates the application configuration, installs the service definition, and starts 3m-ui.
 
+### Default Administrator Credentials
+
+The default administrator account is:
+
+- Username: `admin`
+- Password: `admin`
+
+**Important:** Change the default password immediately after the first login. Do not keep the default credentials on a public-facing server.
+
 After installation, the `3m-ui` command is the unified management entrypoint. Run it without arguments to open the interactive management menu:
 
 ```bash
@@ -684,6 +693,15 @@ curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/install.sh |
 ```
 
 安装脚本会自动检测 CPU 架构和 init 系统，在可能的情况下安装下载/TLS 所需工具，然后安装 Mihomo 和 3m-ui，生成应用配置，创建服务并启动 3m-ui。
+
+### 默认管理员账号
+
+默认管理员账号为：
+
+- 用户名：`admin`
+- 密码：`admin`
+
+**重要：** 首次登录后必须立即修改默认密码。不要在公网服务器上长期使用默认账号密码。
 
 安装完成后，系统中的 `3m-ui` 就是统一管理入口。直接输入：
 
