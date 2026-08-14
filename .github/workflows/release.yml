@@ -82,10 +82,18 @@ jobs:
           set -eu
           ls -lh dist
           file dist/3m-ui-linux-*
-          for binary in dist/3m-ui-linux-*; do
-            chmod 0755 "$binary"
-            "$binary" --version >/dev/null
-          done
+
+          # The GitHub-hosted runner is amd64. Only execute amd64 binaries here;
+          # ARM binaries are cross-compiled and verified by their ELF metadata.
+          chmod 0755 dist/3m-ui-linux-amd64 dist/3m-ui-linux-amd64-static
+          dist/3m-ui-linux-amd64 --version >/dev/null
+          dist/3m-ui-linux-amd64-static --version >/dev/null
+
+          # Verify the expected target architecture without trying to execute it.
+          file dist/3m-ui-linux-arm64 | grep -E 'ARM aarch64|ARM64|AArch64'
+          file dist/3m-ui-linux-arm64-static | grep -E 'ARM aarch64|ARM64|AArch64'
+          file dist/3m-ui-linux-armv7 | grep -E 'ARM|EABI5'
+          file dist/3m-ui-linux-armv7-static | grep -E 'ARM|EABI5'
 
       - name: Validate deployment scripts
         run: |
