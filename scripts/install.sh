@@ -6,6 +6,7 @@ REPO="dzx941/3m-ui"
 BASE="/usr/local/lib/3m-ui"
 APP_BIN="$BASE/3m-ui-bin"
 VERSION_FILE="$BASE/VERSION"
+MODE_FILE="$BASE/BUILD_MODE"
 ENTRY="/usr/local/bin/3m-ui"
 CONFIG_DIR="/etc/3m-ui"
 DATA_DIR="/var/lib/3m-ui"
@@ -118,21 +119,27 @@ install_mihomo(){
   rm -f "$tmp" "$tmp.gz"; trap - EXIT INT TERM
 }
 
+install_release_asset(){
+  tag="$1"; file="$2"; destination="$3"
+  tmp="$(mktemp)"
+  download "https://github.com/$REPO/releases/download/${tag}/${file}" "$tmp"
+  install -m 0755 "$tmp" "$destination"
+  rm -f "$tmp"
+}
+
 install_helpers(){
+  tag="$1"
   mkdir -p "$BASE"
-  for file in 3m-ui.sh install.sh update.sh uninstall.sh 3m-ui; do
-    tmp="$(mktemp)"
-    download "https://raw.githubusercontent.com/$REPO/main/scripts/$file" "$tmp"
-    install -m 0755 "$tmp" "$BASE/$file"
-    rm -f "$tmp"
-  done
-  install -m 0755 "$BASE/3m-ui" "$ENTRY"
+  install_release_asset "$tag" 3m-ui.sh "$BASE/3m-ui.sh"
+  install_release_asset "$tag" install.sh "$BASE/install.sh"
+  install_release_asset "$tag" update.sh "$BASE/update.sh"
+  install_release_asset "$tag" uninstall.sh "$BASE/uninstall.sh"
+  install_release_asset "$tag" 3m-ui "$ENTRY"
 }
 
 install_panel(){
   tag="${REQUESTED_VERSION:-$(latest_tag https://github.com/$REPO)}"; [ -n "$tag" ] || err "Unable to determine latest 3m-ui release."
-  suffix=""
-  [ "$STATIC" = "1" ] && suffix="-static"
+  suffix=""; [ "$STATIC" = "1" ] && suffix="-static"
   asset="3m-ui-linux-$(arch)${suffix}"
   tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT INT TERM
   url="https://github.com/$REPO/releases/download/${tag}/${asset}"
@@ -140,8 +147,10 @@ install_panel(){
   "$tmp" --version >/dev/null 2>&1 || err "Downloaded 3m-ui failed executable validation."
   install -m 0755 "$tmp" "$APP_BIN"
   printf '%s\n' "$tag" > "$VERSION_FILE"
-  chmod 0600 "$VERSION_FILE"
+  printf '%s\n' "$([ "$STATIC" = "1" ] && echo static || echo dynamic)" > "$MODE_FILE"
+  chmod 0600 "$VERSION_FILE" "$MODE_FILE"
   rm -f "$tmp"; trap - EXIT INT TERM
+  printf '%s' "$tag"
 }
 
 write_systemd(){ cat > /etc/systemd/system/$SERVICE_NAME.service <<EOF
@@ -195,9 +204,9 @@ main(){
   if [ -x "$APP_BIN" ]; then
     case "$(init_system)" in systemd) systemctl stop "$SERVICE_NAME" 2>/dev/null || true;; openrc) rc-service "$SERVICE_NAME" stop 2>/dev/null || true;; esac
   fi
-  install_panel
+  tag="$(install_panel)"
   install_mihomo
-  install_helpers
+  install_helpers "$tag"
   install_service
   say ""
   say "3m-ui installed successfully."
