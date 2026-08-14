@@ -2,9 +2,9 @@ package config
 
 // ListenerSchema is the protocol-specific allowlist used at the backend trust boundary.
 type ListenerSchema struct {
-	Protocol       string
-	Fields         map[string]struct{}
-	NestedFields   map[string]map[string]struct{}
+	Protocol     string
+	Fields       map[string]struct{}
+	NestedFields map[string]map[string]struct{}
 }
 
 func listenerFields(values ...string) map[string]struct{} {
@@ -92,7 +92,7 @@ var MihomoListenerSchemas = map[string]ListenerSchema{
 			"res-tls.enable", "res-tls.dest", "res-tls.password", "res-tls.restls-script", "res-tls.min-record-len", "res-tls.proxy", "res-tls.rate-limit",
 			"jls-config.enable", "jls-config.users", "jls-config.dest", "jls-config.sni", "jls-config.alpn", "jls-config.proxy", "jls-config.rate-limit",
 			"reality-config.dest", "reality-config.private-key", "reality-config.short-id", "reality-config.server-names", "reality-config.limit-fallback-upload.after-bytes", "reality-config.limit-fallback-upload.bytes-per-sec", "reality-config.limit-fallback-upload.burst-bytes-per-sec", "reality-config.limit-fallback-download.after-bytes", "reality-config.limit-fallback-download.bytes-per-sec", "reality-config.limit-fallback-download.burst-bytes-per-sec",
-			"tlsmirror-config.dest", "tlsmirror-config.primary-key",
+			"tlsmirror-config.dest", "tlsmirror-config.primary-key", "tlsmirror-config.proxy", "tlsmirror-config.explicit-nonce-ciphersuites", "tlsmirror-config.defer-instance-derived-write-time.base-nanoseconds", "tlsmirror-config.defer-instance-derived-write-time.uniform-random-multiplier-nanoseconds", "tlsmirror-config.transport-layer-padding.enabled", "tlsmirror-config.connection-enrolment.primary-ingress-outbound", "tlsmirror-config.sequence-watermarking-enabled",
 		),
 	},
 	"vless": {
@@ -119,8 +119,8 @@ var MihomoListenerSchemas = map[string]ListenerSchema{
 	},
 	"hysteria2": {
 		Protocol: "hysteria2",
-		Fields: listenerFields("users", "up", "down", "ignore-client-bandwidth", "obfs", "obfs-password", "obfs-min-packet-size", "obfs-max-packet-size", "masquerade", "realm-opts", "bbr-profile", "max-idle-time", "alpn", "certificate", "private-key", "client-auth-type", "client-auth-cert", "ech-key"),
-		NestedFields: listenerNested("realm-opts.enable", "realm-opts.server-url", "realm-opts.token", "realm-opts.realm-id", "realm-opts.stun-servers", "realm-opts.proxy", "realm-opts.skip-cert-verify", "realm-opts.fingerprint", "realm-opts.certificate", "realm-opts.private-key", "realm-opts.alpn"),
+		Fields: listenerFields("users", "up", "down", "ignore-client-bandwidth", "obfs", "obfs-password", "obfs-min-packet-size", "obfs-max-packet-size", "masquerade", "realm-opts", "bbr-profile", "max-idle-time", "handshake-timeout", "alpn", "certificate", "private-key", "client-auth-type", "client-auth-cert", "ech-key"),
+		NestedFields: listenerNested("realm-opts.enable", "realm-opts.server-url", "realm-opts.token", "realm-opts.realm-id", "realm-opts.stun-servers", "realm-opts.proxy", "realm-opts.skip-cert-verify", "realm-opts.fingerprint", "realm-opts.certificate", "realm-opts.private-key", "realm-opts.alpn", "realm-opts.name-cert-verify"),
 	},
 	"tuic": {
 		Protocol: "tuic",
