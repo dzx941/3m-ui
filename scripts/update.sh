@@ -53,7 +53,12 @@ cleanup(){ rm -f "$panel_tmp" "$manager_tmp" "$installer_tmp" "$updater_tmp" "$u
 trap cleanup EXIT INT TERM
 
 current_mode="dynamic"
-if [ -s "$MODE_FILE" ]; then current_mode="$(cat "$MODE_FILE")"; fi
+if [ -s "$MODE_FILE" ]; then
+  current_mode="$(cat "$MODE_FILE")"
+elif command_exists file; then
+  description="$(file "$APP_BIN" 2>/dev/null || true)"
+  case "$description" in *"statically linked"*) current_mode="static";; esac
+fi
 case "$current_mode" in static) suffix="-static";; dynamic) suffix="";; *) echo "Warning: unknown build mode '$current_mode'; defaulting to dynamic." >&2; suffix="";; esac
 
 tag="$(latest_tag https://github.com/$REPO)"; [ -n "$tag" ] || { echo "Error: unable to determine latest 3m-ui release." >&2; exit 1; }
@@ -62,17 +67,34 @@ download "https://github.com/$REPO/releases/download/${tag}/3m-ui-linux-$(arch)$
 chmod 0755 "$panel_tmp"
 "$panel_tmp" --version >/dev/null 2>&1 || { echo "Error: downloaded 3m-ui failed validation." >&2; exit 1; }
 
+download_release_script(){
+  file="$1"; out="$2"
+  if download "https://github.com/$REPO/releases/download/${tag}/${file}" "$out" 2>/dev/null; then
+    :
+  else
+    echo "Release $tag does not contain $file; using the current main-branch script." >&2
+    rm -f "$out"
+    download "https://raw.githubusercontent.com/$REPO/main/scripts/$file" "$out"
+  fi
+  chmod 0755 "$out"
+}
+
 for spec in "3m-ui.sh:$manager_tmp" "install.sh:$installer_tmp" "update.sh:$updater_tmp" "uninstall.sh:$uninstall_tmp" "3m-ui:$entry_tmp"; do
   file="${spec%%:*}"; out="${spec#*:}"
-  download "https://github.com/$REPO/releases/download/${tag}/${file}" "$out"
-  chmod 0755 "$out"
+  download_release_script "$file" "$out"
 done
 
 if [ "$UPDATE_MIHOMO" -eq 1 ] && [ -x "$MIHOMO_BIN" ]; then
   mtag="$(latest_tag https://github.com/MetaCubeX/mihomo)" || true
   if [ -n "$mtag" ]; then
     mihomo_tmp="$(mktemp)"
-    if download "https://github.com/MetaCubeX/mihomo/releases/download/${mtag}/$(case "$(uname -m)" in x86_64|amd64) echo mihomo-linux-amd64-compatible;; aarch64|arm64) echo mihomo-linux-arm64;; armv7l|armv7*) echo mihomo-linux-armv7;; *) echo unsupported;; esac)-${mtag}.gz" "$mihomo_tmp.gz" && gzip -dc "$mihomo_tmp.gz" > "$mihomo_tmp"; then
+    case "$(uname -m)" in
+      x86_64|amd64) mihomo_asset="mihomo-linux-amd64-compatible";;
+      aarch64|arm64) mihomo_asset="mihomo-linux-arm64";;
+      armv7l|armv7*) mihomo_asset="mihomo-linux-armv7";;
+      *) mihomo_asset="";;
+    esac
+    if [ -n "$mihomo_asset" ] && download "https://github.com/MetaCubeX/mihomo/releases/download/${mtag}/${mihomo_asset}-${mtag}.gz" "$mihomo_tmp.gz" && gzip -dc "$mihomo_tmp.gz" > "$mihomo_tmp"; then
       chmod 0755 "$mihomo_tmp"
       "$mihomo_tmp" -v >/dev/null 2>&1 || mihomo_tmp=""
     else mihomo_tmp=""; fi
