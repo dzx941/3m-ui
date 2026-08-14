@@ -5,6 +5,7 @@ umask 077
 REPO="dzx941/3m-ui"
 BASE="/usr/local/lib/3m-ui"
 APP_BIN="$BASE/3m-ui-bin"
+VERSION_FILE="$BASE/VERSION"
 ENTRY="/usr/local/bin/3m-ui"
 CONFIG_DIR="/etc/3m-ui"
 DATA_DIR="/var/lib/3m-ui"
@@ -70,9 +71,7 @@ install_deps(){
   esac
 }
 
-download(){
-  if command_exists curl; then curl -fL --retry 3 --retry-delay 1 --connect-timeout 10 --max-time 300 "$1" -o "$2"; else wget -qO "$2" "$1"; fi
-}
+download(){ if command_exists curl; then curl -fL --retry 3 --retry-delay 1 --connect-timeout 10 --max-time 300 "$1" -o "$2"; else wget -qO "$2" "$1"; fi; }
 latest_tag(){
   tag="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "${1}/releases/latest" 2>/dev/null | sed 's#.*/##; s/[[:space:][:cntrl:]]*$//')" || true
   case "$tag" in
@@ -140,6 +139,8 @@ install_panel(){
   say "Downloading 3m-ui $tag ($asset)..."; download "$url" "$tmp"; chmod 0755 "$tmp"
   "$tmp" --version >/dev/null 2>&1 || err "Downloaded 3m-ui failed executable validation."
   install -m 0755 "$tmp" "$APP_BIN"
+  printf '%s\n' "$tag" > "$VERSION_FILE"
+  chmod 0600 "$VERSION_FILE"
   rm -f "$tmp"; trap - EXIT INT TERM
 }
 
