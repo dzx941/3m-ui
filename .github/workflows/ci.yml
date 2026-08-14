@@ -50,6 +50,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate POSIX shell scripts
         run: |
-          sh -n scripts/install.sh
-          sh -n scripts/update.sh
-          sh -n scripts/uninstall.sh
+          set -eu
+          for script in scripts/install.sh scripts/update.sh scripts/uninstall.sh scripts/3m-ui.sh scripts/3m-ui; do
+            sh -n "$script"
+          done
