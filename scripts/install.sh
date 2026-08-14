@@ -123,7 +123,13 @@ install_mihomo(){
 install_release_asset(){
   tag="$1"; file="$2"; destination="$3"
   tmp="$(mktemp)"
-  download "https://github.com/$REPO/releases/download/${tag}/${file}" "$tmp"
+  if download "https://github.com/$REPO/releases/download/${tag}/${file}" "$tmp" 2>/dev/null; then
+    :
+  else
+    say "Release $tag does not contain $file; using the matching main-branch management script."
+    rm -f "$tmp"
+    download "https://raw.githubusercontent.com/$REPO/main/scripts/$file" "$tmp"
+  fi
   install -m 0755 "$tmp" "$destination"
   rm -f "$tmp"
 }
