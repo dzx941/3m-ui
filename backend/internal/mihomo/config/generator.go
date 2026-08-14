@@ -60,13 +60,47 @@ func generateListeners(listeners []models.Listener, creds map[uint][]Credential)
 		case "tuic":
 			if value, ok := configMap["token"]; ok { m["token"] = value } else { users := make(map[string]string); for _, cred := range listenerCreds { if cred.UUID != "" && cred.Password != "" { users[cred.UUID] = cred.Password } }; if len(users) > 0 { m["users"] = users } else if value, ok := configMap["users"]; ok { m["users"] = value } }
 		case "shadowquic", "trusttunnel":
-			users := make([]map[string]interface{}, 0, len(listenerCreds)); for _, cred := range listenerCreds { if cred.Username != "" && cred.Password != "" { users = append(users, map[string]interface{}{"username": cred.Username, "password": cred.Password}) } }; if len(users) > 0 { m["users"] = users } else if value, ok := configMap["users"]; ok { m["users"] = value }
+			users := make([]map[string]interface{}, 0, len(listenerCreds)); for _, cred := range listenerCreds { if cred.Username != "" && cred.Password != "" { users = append(users, map[string]interface{}{"username": cred.Username, "password": cred.Password}) } }; if len(users) > 0 { m["users"] = users } else if value, ok := configMap["users"]; ok { normalized, err := normalizeListenerUserList(value); if err != nil { return nil, fmt.Errorf("listener %q: %w", l.Name, err) }; if normalized != nil { m["users"] = normalized } }
 		case "sudoku", "hysteria2-realm":
 		}
 		result = append(result, m)
 	}
 	return result, nil
 }
+
+// normalizeListenerUserList keeps list-shaped listener user fields compatible
+// with Mihomo's native listener schema. In particular, ShadowQUIC and
+// TrustTunnel require users to be a sequence of username/password objects;
+// accepting a map here prevents the visual editor from emitting an object
+// that Mihomo rejects with "field \"users\" does not accept an object".
+func normalizeListenerUserList(value interface{}) ([]map[string]interface{}, error) {
+	switch users := value.(type) {
+	case []interface{}:
+		result := make([]map[string]interface{}, 0, len(users))
+		for i, item := range users {
+			user, ok := item.(map[string]interface{})
+			if !ok { return nil, fmt.Errorf("users[%d] must be an object", i) }
+			result = append(result, user)
+		}
+		return result, nil
+	case map[string]interface{}:
+		result := make([]map[string]interface{}, 0, len(users))
+		for username, password := range users {
+			result = append(result, map[string]interface{}{"username": username, "password": fmt.Sprint(password)})
+		}
+		return result, nil
+	case map[interface{}]interface{}:
+		result := make([]map[string]interface{}, 0, len(users))
+		for rawUsername, rawPassword := range users {
+			username := fmt.Sprint(rawUsername)
+			result = append(result, map[string]interface{}{"username": username, "password": fmt.Sprint(rawPassword)})
+		}
+		return result, nil
+	default:
+		return nil, fmt.Errorf("users must be a list of username/password objects")
+	}
+}
+
 func decodeListenerConfig(raw string) (map[string]interface{}, error) { if strings.TrimSpace(raw) == "" { return map[string]interface{}{}, nil }; var configMap map[string]interface{}; if err := json.Unmarshal([]byte(raw), &configMap); err != nil { return nil, fmt.Errorf("invalid listener configuration (must be valid JSON): %w", err) }; if configMap == nil { configMap = map[string]interface{}{} }; return configMap, nil }
 func listenerFieldIsManaged(key string) bool { switch key { case "users", "username", "password", "uuid", "flow", "alterId", "tls", "servername", "sni", "skip-cert-verify", "name-cert-verify", "fingerprint", "client-fingerprint", "reality-opts", "shadow-tls-opts", "restls-opts", "jls-opts", "ws-opts", "grpc-opts", "h2-opts", "http-opts", "mkcp-opts", "certificate", "private-key", "private_key": return true; default: return false } }
 func copyServerTLSFields(dst, src map[string]interface{}) { if value, ok := src["certificate"]; ok { dst["certificate"] = value }; if value, ok := src["private-key"]; ok { dst["private-key"] = value } else if value, ok := src["private_key"]; ok { dst["private-key"] = value } }
