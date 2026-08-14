@@ -14,13 +14,14 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/database"
 	"github.com/dzx941/3m-ui/backend/internal/router"
 	"github.com/dzx941/3m-ui/backend/internal/security"
+	"github.com/dzx941/3m-ui/backend/internal/traffic"
 	"github.com/gin-gonic/gin"
 )
 
 // Run boots the application and serves the embedded frontend.
-// Runtime dependencies are assembled once by NewContainer; cmd/server remains
-// a thin entrypoint and handlers can be migrated away from package globals
-// incrementally.
+// Runtime dependencies are assembled once by NewContainer and passed into
+// the router explicitly. Legacy package globals remain only inside the
+// service packages that have not yet completed migration.
 func Run(frontendFS fs.FS) error {
 	configPath := defaultConfigPath()
 	cfg, err := config.LoadConfig(configPath)
@@ -89,10 +90,7 @@ func Run(frontendFS fs.FS) error {
 	}
 	log.Printf("Mihomo core started successfully")
 
-	// Configure the router through an explicit dependency boundary. The router
-	// still contains legacy global references during the migration, but all new
-	// handlers can now consume the application-owned services from this boundary.
-	router.ConfigureDependencies(router.Dependencies{
+	routerDeps := router.Dependencies{
 		DB:           container.DB,
 		Config:       container.Config,
 		Mihomo:       container.Mihomo,
@@ -100,10 +98,11 @@ func Run(frontendFS fs.FS) error {
 		Node:         container.Node,
 		User:         container.User,
 		Traffic:      container.Traffic,
+		Collector:    traffic.GlobalCollector,
 		ConfigEngine: container.ConfigEngine,
-	})
-
-	r := router.SetupRouter(cfg)
+	}
+	router.ConfigureDependencies(routerDeps)
+	r := router.SetupRouter(cfg, routerDeps)
 	mountFrontend(r, frontendFS)
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
 	log.Printf("3m-ui listening on %s", addr)
