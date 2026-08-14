@@ -692,6 +692,7 @@ Release 使用 `v*` 标签触发，发布资源包含 Linux 主程序以及安�
 - [Ant Design](https://github.com/ant-design/ant-design) — UI 组件库。
 - [Vite](https://github.com/vitejs/vite) — 前端构建工具。
 - [Go](https://go.dev/) — 后端开发语言及标准库生态。
+- [Tychristine/clashmeta-inbound](https://github.com/Tychristine/clashmeta-inbound) — Mihomo入站节点配置参考
 - 感谢所有为 Mihomo 及相关开源代理生态贡献代码、文档、问题反馈和测试的开发者与社区成员。
 
 如果 3m-ui 对你有帮助，欢迎 Star、提交 Issue 或 Pull Request。
@@ -704,4 +705,4 @@ Release 使用 `v*` 标签触发，发布资源包含 Linux 主程序以及安�
 
 ## Documentation / 文档
 
-- Mihomo Core: https://github.com/MetaCubeX/mihomo
+- Mihomo Core: https://wiki.metacubex.one
