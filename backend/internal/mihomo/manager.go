@@ -9,6 +9,17 @@ import (
 type ConfigManager struct { configPath string }
 func NewConfigManager(path string) *ConfigManager { return &ConfigManager{configPath:path} }
 
+// NewProcessManager creates an independent Mihomo process manager.
+// Process ownership is instance-scoped so separate application instances and
+// tests cannot accidentally share PID, command, or log state.
+func NewProcessManager(binary, config string) *ProcessManager {
+	return &ProcessManager{
+		binaryPath: binary,
+		configPath: config,
+		logs:       make([]string, 0, 200),
+	}
+}
+
 // SaveConfig atomically replaces the Mihomo YAML configuration. The old
 // configuration is kept until the new file has been fully written and synced.
 func (cm *ConfigManager) SaveConfig(content string) error {
