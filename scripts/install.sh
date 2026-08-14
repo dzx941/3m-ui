@@ -9,8 +9,6 @@ CONFIG_DIR="/etc/3m-ui"
 DATA_DIR="/var/lib/3m-ui"
 LOG_DIR="/var/log/3m-ui"
 MIHOMO_BIN="/usr/local/bin/mihomo"
-SUBCONVERTER_DIR="/usr/local/subconverter"
-SUBCONVERTER_BIN="/usr/local/bin/subconverter"
 SERVICE_NAME="3m-ui"
 
 need_root() {
@@ -58,19 +56,6 @@ install_mihomo() {
     chmod 0755 "$stage"; if ! "$stage" -v >/dev/null 2>&1; then echo "Downloaded Mihomo binary failed executable validation." >&2; rm -f "$tmp" "$stage"; return 1; fi
     install -m 0755 "$stage" "$MIHOMO_BIN"; rm -f "$tmp" "$stage"
 }
-install_subconverter() {
-    if [ -x "$SUBCONVERTER_BIN" ]; then echo "Subconverter already installed."; return 0; fi
-    case "$(uname -m)" in x86_64|amd64) sub_arch=linux64 ;; aarch64|arm64) sub_arch=aarch64 ;; armv7l|armv7*) sub_arch=armv7 ;; *) echo "Unsupported subconverter architecture; skipping." >&2; return 0 ;; esac
-    tmp="$(mktemp)"; stage="$(mktemp -d)"; url="https://github.com/asdlokj1qpi233/subconverter/releases/download/v0.9.9/subconverter_${sub_arch}.tar.gz"; echo "Installing subconverter..."
-    if ! download "$url" "$tmp" || [ ! -s "$tmp" ]; then rm -f "$tmp"; rm -rf "$stage"; echo "Warning: subconverter unavailable; continuing." >&2; return 0; fi
-    if ! tar -xzf "$tmp" -C "$stage" || [ ! -x "$stage/subconverter/subconverter" ]; then rm -f "$tmp"; rm -rf "$stage"; echo "Warning: invalid subconverter archive; continuing." >&2; return 0; fi
-    mkdir -p "$stage/subconverter/base"; cat > "$stage/subconverter/base/pref.ini" <<'EOF'
-[server]
-listen=127.0.0.1
-port=25500
-EOF
-    rm -rf "$SUBCONVERTER_DIR"; mkdir -p /usr/local; mv "$stage/subconverter" "$SUBCONVERTER_DIR"; ln -sfn "$SUBCONVERTER_DIR/subconverter" "$SUBCONVERTER_BIN"; rm -f "$tmp"; rm -rf "$stage"
-}
 random_hex() { dd if=/dev/urandom bs=1 count="${1:-32}" 2>/dev/null | od -An -tx1 | tr -d ' \n'; }
 write_config() {
     mkdir -p "$CONFIG_DIR"; if [ -f "$CONFIG_DIR/config.yaml" ]; then chmod 0600 "$CONFIG_DIR/config.yaml"; return; fi
@@ -109,27 +94,6 @@ KillMode=control-group
 WantedBy=multi-user.target
 EOF
     systemctl daemon-reload; systemctl enable --now "$SERVICE_NAME"
-    if [ -x "$SUBCONVERTER_BIN" ]; then
-        cat > /etc/systemd/system/subconverter.service <<EOF
-[Unit]
-Description=Subconverter subscription conversion utility
-After=network.target
-[Service]
-Type=simple
-ExecStart=$SUBCONVERTER_BIN
-WorkingDirectory=$SUBCONVERTER_DIR
-Restart=always
-RestartSec=5
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectHome=true
-ProtectSystem=full
-ReadWritePaths=$SUBCONVERTER_DIR
-[Install]
-WantedBy=multi-user.target
-EOF
-        systemctl daemon-reload; systemctl enable --now subconverter
-    fi
 }
 install_openrc() {
     cat > "/etc/init.d/$SERVICE_NAME" <<EOF
@@ -144,19 +108,6 @@ export THREE_M_UI_CONFIG="$CONFIG_DIR/config.yaml"
 depend() { need net; }
 EOF
     chmod +x "/etc/init.d/$SERVICE_NAME"; rc-update add "$SERVICE_NAME" default; rc-service "$SERVICE_NAME" restart
-    if [ -x "$SUBCONVERTER_BIN" ]; then
-        cat > /etc/init.d/subconverter <<EOF
-#!/sbin/openrc-run
-name="subconverter"
-description="Subconverter subscription conversion utility"
-command="$SUBCONVERTER_BIN"
-command_background="yes"
-pidfile="/run/subconverter.pid"
-directory="$SUBCONVERTER_DIR"
-depend() { need net; }
-EOF
-        chmod +x /etc/init.d/subconverter; rc-update add subconverter default; rc-service subconverter restart
-    fi
 }
 
 need_root
@@ -166,7 +117,7 @@ arch="$(arch_name)"; tmp="$(mktemp)"; panel_url="https://github.com/$REPO/releas
 if ! download "$panel_url" "$tmp" || [ ! -s "$tmp" ]; then echo "Failed to download 3m-ui: $panel_url" >&2; rm -f "$tmp"; exit 1; fi
 chmod 0755 "$tmp"; if ! "$tmp" --version >/dev/null 2>&1; then echo "Downloaded 3m-ui binary failed executable validation." >&2; rm -f "$tmp"; exit 1; fi
 install -m 0755 "$tmp" "$BIN_PATH"; rm -f "$tmp"
-write_config; install_mihomo; install_subconverter
+write_config; install_mihomo
 if command_exists systemctl && [ -d /run/systemd/system ]; then install_systemd
 elif command_exists rc-service; then install_openrc
 else echo "No supported init system." >&2; exit 1; fi

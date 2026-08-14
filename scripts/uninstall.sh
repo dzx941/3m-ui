@@ -7,8 +7,6 @@ CONFIG_DIR="/etc/3m-ui"
 DATA_DIR="/var/lib/3m-ui"
 LOG_DIR="/var/log/3m-ui"
 SERVICE_NAME="3m-ui"
-SUBCONVERTER_BIN="/usr/local/bin/subconverter"
-SUBCONVERTER_DIR="/usr/local/subconverter"
 PURGE=0
 YES=0
 
@@ -36,7 +34,6 @@ if [ "$YES" -ne 1 ]; then
     esac
 fi
 
-# Stop and remove panel service.
 if command -v systemctl >/dev/null 2>&1 && [ -f "/etc/systemd/system/$SERVICE_NAME.service" ]; then
     systemctl disable --now "$SERVICE_NAME" || true
     rm -f "/etc/systemd/system/$SERVICE_NAME.service"
@@ -48,29 +45,12 @@ if command -v rc-service >/dev/null 2>&1 && [ -f "/etc/init.d/$SERVICE_NAME" ]; 
     rm -f "/etc/init.d/$SERVICE_NAME"
 fi
 
-# Subconverter is a 3m-ui dependency. Remove its service and files when the
-# service exists; leave an unrelated manually-installed binary untouched.
-if command -v systemctl >/dev/null 2>&1 && [ -f /etc/systemd/system/subconverter.service ]; then
-    systemctl disable --now subconverter || true
-    rm -f /etc/systemd/system/subconverter.service
-    systemctl daemon-reload || true
-fi
-if command -v rc-service >/dev/null 2>&1 && [ -f /etc/init.d/subconverter ]; then
-    rc-service subconverter stop || true
-    rc-update del subconverter default || true
-    rm -f /etc/init.d/subconverter
-fi
-
 rm -f "$BIN_PATH"
 rm -rf "$CONFIG_DIR" "$LOG_DIR"
 
 # Do not blindly delete /usr/local/bin/mihomo. Mihomo can be shared with other
 # services and the installer intentionally reuses an existing installation.
 # Keeping it avoids destructive uninstall side effects.
-if [ -L "$SUBCONVERTER_BIN" ] && [ "$(readlink "$SUBCONVERTER_BIN" 2>/dev/null || true)" = "$SUBCONVERTER_DIR/subconverter" ]; then
-    rm -f "$SUBCONVERTER_BIN"
-    rm -rf "$SUBCONVERTER_DIR"
-fi
 
 if [ "$PURGE" -eq 1 ]; then
     rm -rf "$DATA_DIR"

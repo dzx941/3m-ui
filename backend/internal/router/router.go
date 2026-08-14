@@ -3,7 +3,6 @@ package router
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -83,28 +82,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				return
 			}
 
-			target := c.Query("target")
-			rawOnly := c.Query("raw") == "true"
-			if rawOnly || target == "" || target == "clash" || target == "mihomo" {
-				c.Header("Content-Disposition", "attachment; filename=config.yaml")
-				c.Data(http.StatusOK, "application/yaml; charset=utf-8", rawYAML)
-				return
-			}
-
-			converted, err := converter.CallSubconverter(cfg, token.Token, target, rawYAML)
-			if err != nil {
-				c.JSON(http.StatusServiceUnavailable, gin.H{"error": "subconverter 不可用: " + err.Error()})
-				return
-			}
-
-			contentType := "text/plain; charset=utf-8"
-			filename := "config.txt"
-			if target == "singbox" {
-				contentType = "application/json; charset=utf-8"
-				filename = "config.json"
-			}
-			c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
-			c.Data(http.StatusOK, contentType, converted)
+			c.Header("Content-Disposition", "attachment; filename=config.yaml")
+			c.Data(http.StatusOK, "application/yaml; charset=utf-8", rawYAML)
 		})
 
 		apiV1.Use(auth.RequireAuth(cfg.JWT.Secret))
@@ -120,12 +99,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 				type TokenResponse struct {
 					models.AccessToken
-					ListenerName      string `json:"listener_name"`
-					ListenerProtocol  string `json:"listener_protocol"`
-					MihomoLink        string `json:"mihomo_link"`
-					ClashLink         string `json:"clash_link"`
-					SingboxLink       string `json:"singbox_link"`
-					ShadowrocketLink  string `json:"shadowrocket_link"`
+					ListenerName     string `json:"listener_name"`
+					ListenerProtocol string `json:"listener_protocol"`
+					MihomoLink       string `json:"mihomo_link"`
+					ClashLink        string `json:"clash_link"`
+					SingboxLink      string `json:"singbox_link"`
+					ShadowrocketLink string `json:"shadowrocket_link"`
 				}
 
 				resp := make([]TokenResponse, 0, len(tokens))
@@ -136,10 +115,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 						item.ListenerName = listener.Name
 						item.ListenerProtocol = listener.Protocol
 					}
-					item.MihomoLink = converter.GetSubscriptionURL(cfg, c.Request, token.Token, "")
-					item.ClashLink = converter.GetSubscriptionURL(cfg, c.Request, token.Token, "clash")
-					item.SingboxLink = converter.GetSubscriptionURL(cfg, c.Request, token.Token, "singbox")
-					item.ShadowrocketLink = converter.GetSubscriptionURL(cfg, c.Request, token.Token, "shadowrocket")
+					link := converter.GetSubscriptionURL(cfg, c.Request, token.Token, "")
+					item.MihomoLink = link
+					item.ClashLink = link
+					item.SingboxLink = link
+					item.ShadowrocketLink = link
 					resp = append(resp, item)
 				}
 				c.JSON(http.StatusOK, resp)
