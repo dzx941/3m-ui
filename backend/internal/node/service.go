@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
+	"github.com/dzx941/3m-ui/backend/internal/mihomo"
 	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"gorm.io/gorm"
 )
@@ -68,7 +69,7 @@ func (s *Service) RegenerateConfig() error {
 	if err := os.WriteFile(s.configPath, []byte(yamlContent), 0644); err != nil { return fmt.Errorf("failed to write config file: %w", err) }
 	tmpl := mihomoConfig.GetDefaultTemplate()
 	controllerURL := "http://" + tmpl.ExternalController
-	if err := NewExternalControllerAPI(controllerURL, tmpl.Secret).ReloadConfig(map[string]interface{}{"path": s.configPath}); err != nil { log.Printf("node: mihomo hot reload skipped (core unreachable): %v", err) }
+	if err := mihomo.NewExternalControllerAPI(controllerURL, tmpl.Secret).ReloadConfig(map[string]interface{}{"path": s.configPath}); err != nil { log.Printf("node: mihomo hot reload skipped (core unreachable): %v", err) }
 	return nil
 }
 
