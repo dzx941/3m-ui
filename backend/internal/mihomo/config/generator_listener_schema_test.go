@@ -38,6 +38,54 @@ func TestGenerateListenersUsesNativeSchema(t *testing.T) {
 	}
 }
 
+func TestGenerateShadowQUICNormalizesObjectUsers(t *testing.T) {
+	listeners := []models.Listener{{
+		Name:        "shadowquic",
+		Protocol:    "shadowquic",
+		Port:        8443,
+		BindAddress: "0.0.0.0",
+		Enabled:     true,
+		Config:      `{"users":{"alice":"secret","bob":"secret2"}}`,
+	}}
+
+	result, err := generateListeners(listeners, nil)
+	if err != nil {
+		t.Fatalf("generateListeners failed: %v", err)
+	}
+	users, ok := result[0]["users"].([]map[string]interface{})
+	if !ok || len(users) != 2 {
+		t.Fatalf("ShadowQUIC users must be a list, got %T", result[0]["users"])
+	}
+	for _, user := range users {
+		if user["username"] == "" || user["password"] == "" {
+			t.Fatalf("invalid normalized ShadowQUIC user: %#v", user)
+		}
+	}
+}
+
+func TestGenerateShadowQUICUsesCredentialsAsList(t *testing.T) {
+	listeners := []models.Listener{{
+		ID:          1,
+		Name:        "shadowquic",
+		Protocol:    "shadowquic",
+		Port:        8443,
+		BindAddress: "0.0.0.0",
+		Enabled:     true,
+	}}
+	creds := map[uint][]user.Credential{
+		1: {{Username: "alice", Password: "secret"}},
+	}
+
+	result, err := generateListeners(listeners, creds)
+	if err != nil {
+		t.Fatalf("generateListeners failed: %v", err)
+	}
+	users, ok := result[0]["users"].([]map[string]interface{})
+	if !ok || len(users) != 1 || users[0]["username"] != "alice" || users[0]["password"] != "secret" {
+		t.Fatalf("unexpected ShadowQUIC users: %#v", result[0]["users"])
+	}
+}
+
 func TestGenerateListenersRejectsExcludedProtocols(t *testing.T) {
 	for _, protocol := range []string{"socks", "http", "tproxy", "redir", "mixed", "tunnel", "tun", "wireguard"} {
 		_, err := generateListeners([]models.Listener{{Name: "bad", Protocol: protocol, Port: 1080, Enabled: true}}, nil)
