@@ -6,6 +6,7 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/mihomo"
 	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"github.com/dzx941/3m-ui/backend/internal/node"
+	"github.com/dzx941/3m-ui/backend/internal/system"
 	"github.com/dzx941/3m-ui/backend/internal/traffic"
 	"github.com/dzx941/3m-ui/backend/internal/user"
 	"gorm.io/gorm"
@@ -24,6 +25,7 @@ type Dependencies struct {
 	Listener     *listener.Service
 	Node         *node.Service
 	User         *user.Service
+	System       *system.Service
 	Traffic      *traffic.Service
 	Collector    *traffic.Collector
 	ConfigEngine *mihomoConfig.ConfigEngine
