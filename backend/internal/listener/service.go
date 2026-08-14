@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
-	dbconfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"github.com/dzx941/3m-ui/backend/internal/mihomo"
+	dbconfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"gorm.io/gorm"
 )
 
@@ -62,7 +62,6 @@ func (s *Service) Update(l *models.Listener) error {
 		if rollbackErr := s.db.Save(&previous).Error; rollbackErr != nil {
 			return fmt.Errorf("%v; rollback listener failed: %w", err, rollbackErr)
 		}
-		// Restore the last known-good Mihomo configuration as well.
 		_ = s.RegenerateConfig()
 		return err
 	}
@@ -79,7 +78,7 @@ func (s *Service) Delete(id uint) error {
 		return fmt.Errorf("failed to delete listener: %w", err)
 	}
 	if err := s.RegenerateConfig(); err != nil {
-		if rollbackErr := s.db.Create(&previous).Error; rollbackErr != nil {
+		if rollbackErr := s.db.Unscoped().Save(&previous).Error; rollbackErr != nil {
 			return fmt.Errorf("%v; rollback deleted listener failed: %w", err, rollbackErr)
 		}
 		_ = s.RegenerateConfig()
