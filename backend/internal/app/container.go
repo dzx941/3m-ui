@@ -22,6 +22,10 @@ type Container struct {
 	User         *user.Service
 	System       *system.Service
 	Traffic      *traffic.Service
+	TrafficUser  *traffic.UserService
+	Collector    *traffic.Collector
+	Enforcer     *traffic.Enforcer
+	Scheduler    *traffic.Scheduler
 	ConfigEngine *dbconfig.ConfigEngine
 }
 
@@ -29,15 +33,25 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	mihomoService := mihomo.NewService(cfg)
 	userService := user.NewService(db)
 	trafficService := traffic.NewService()
+	trafficUserService := traffic.NewUserService(db)
+	collector := traffic.NewCollectorFromDefaults(db, trafficService, trafficUserService)
+	enforcer := traffic.NewEnforcer(db, node.NewService(db, cfg.Mihomo.Config))
+	nodeService := node.NewService(db, cfg.Mihomo.Config)
+	enforcer = traffic.NewEnforcer(db, nodeService)
+	scheduler := traffic.NewScheduler(collector, enforcer, traffic.DefaultInterval)
 	return &Container{
 		DB:           db,
 		Config:       cfg,
 		Mihomo:       mihomoService,
 		Listener:     listener.NewService(db, cfg.Mihomo.Config, mihomoService),
-		Node:         node.NewService(db, cfg.Mihomo.Config),
+		Node:         nodeService,
 		User:         userService,
 		System:       system.NewService(),
 		Traffic:      trafficService,
+		TrafficUser:  trafficUserService,
+		Collector:    collector,
+		Enforcer:     enforcer,
+		Scheduler:    scheduler,
 		ConfigEngine: dbconfig.NewConfigEngine(db),
 	}
 }
