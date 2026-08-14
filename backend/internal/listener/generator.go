@@ -61,6 +61,9 @@ func GenerateConfigYAML(dbListeners []models.Listener) (string, error) {
 			if err := json.Unmarshal([]byte(dl.Config), &extra); err != nil {
 				return "", fmt.Errorf("listener %q has invalid protocol config: %w", dl.Name, err)
 			}
+
+			normalizeListenerUsers(protocol, extra)
+
 			for k, v := range extra {
 				if k != "tls" && k != "udp" {
 					lm[k] = v
@@ -76,6 +79,37 @@ func GenerateConfigYAML(dbListeners []models.Listener) (string, error) {
 		return "", fmt.Errorf("failed to marshal mihomo config to yaml: %w", err)
 	}
 	return string(yamlBytes), nil
+}
+
+// normalizeListenerUsers fixes old stored listener configs where ShadowQUIC
+// users were stored as an object. Mihomo requires a list for these listeners.
+func normalizeListenerUsers(protocol string, cfg map[string]interface{}) {
+	if protocol != "shadowquic" && protocol != "trusttunnel" {
+		return
+	}
+
+	users, ok := cfg["users"]
+	if !ok || users == nil {
+		return
+	}
+
+	if _, ok := users.([]interface{}); ok {
+		return
+	}
+
+	object, ok := users.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	list := make([]interface{}, 0, len(object))
+	for username, password := range object {
+		list = append(list, map[string]interface{}{
+			"username": username,
+			"password": password,
+		})
+	}
+	cfg["users"] = list
 }
 
 func listenerHasUDP(protocol string) bool {
