@@ -4,9 +4,10 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/database"
 	"github.com/dzx941/3m-ui/backend/internal/listener"
-	dbconfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"github.com/dzx941/3m-ui/backend/internal/mihomo"
+	dbconfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"github.com/dzx941/3m-ui/backend/internal/node"
+	"github.com/dzx941/3m-ui/backend/internal/system"
 	"github.com/dzx941/3m-ui/backend/internal/traffic"
 	"github.com/dzx941/3m-ui/backend/internal/user"
 	"gorm.io/gorm"
@@ -17,13 +18,14 @@ import (
 // populated for handlers that have not yet been migrated to dependency
 // injection.
 type Container struct {
-	DB         *gorm.DB
-	Config     *config.Config
-	Mihomo     *mihomo.Service
-	Listener   *listener.Service
-	Node       *node.Service
-	User       *user.Service
-	Traffic    *traffic.Service
+	DB           *gorm.DB
+	Config       *config.Config
+	Mihomo       *mihomo.Service
+	Listener     *listener.Service
+	Node         *node.Service
+	User         *user.Service
+	System       *system.Service
+	Traffic      *traffic.Service
 	ConfigEngine *dbconfig.ConfigEngine
 }
 
@@ -35,6 +37,7 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	listener.InitService(db, cfg.Mihomo.Config)
 	node.InitService(db, cfg.Mihomo.Config)
 	user.InitService(db)
+	system.InitService()
 	trafficService := traffic.InitGlobalService()
 
 	return &Container{
@@ -44,6 +47,7 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 		Listener:     listener.GlobalService,
 		Node:         node.GlobalService,
 		User:         user.GlobalService,
+		System:       system.GlobalService,
 		Traffic:      trafficService,
 		ConfigEngine: dbconfig.NewConfigEngine(db),
 	}
