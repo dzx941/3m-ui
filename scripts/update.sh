@@ -59,7 +59,7 @@ latest_mihomo_tag(){
 mihomo_asset(){
     case "$(uname -m)" in
         x86_64|amd64) echo "mihomo-linux-amd64-compatible" ;;
-        aarch64|arm64) echo "mihomo-linux-arm64" ;
+        aarch64|arm64) echo "mihomo-linux-arm64" ;;
         armv7l|armv7*) echo "mihomo-linux-armv7" ;;
         *) return 1 ;;
     esac
