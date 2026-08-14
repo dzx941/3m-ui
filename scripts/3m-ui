@@ -1,0 +1,20 @@
+#!/bin/sh
+# 3m-ui command entrypoint.
+# Installed as /usr/local/bin/3m-ui.
+# The application binary remains /usr/local/bin/3m-ui-bin.
+
+set -eu
+
+MANAGER="/usr/local/lib/3m-ui/3m-ui.sh"
+
+if [ -x "$MANAGER" ]; then
+    exec "$MANAGER" "$@"
+fi
+
+if [ -x /usr/local/bin/3m-ui-bin ]; then
+    exec /usr/local/bin/3m-ui-bin "$@"
+fi
+
+printf '%s\n' "3m-ui is not installed."
+printf '%s\n' "Run the 3m-ui installer first."
+exit 1
