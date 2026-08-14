@@ -13,11 +13,12 @@ import (
 
 // JWTClaims represents the authenticated administrator identity.
 type JWTClaims struct {
-	UserID    uint   `json:"user_id"`
-	Username  string `json:"username"`
-	Role      string `json:"role"`
-	ExpiresAt int64  `json:"exp"`
-	IssuedAt  int64  `json:"iat"`
+	UserID        uint   `json:"user_id"`
+	Username      string `json:"username"`
+	Role          string `json:"role"`
+	SessionVersion uint  `json:"session_version"`
+	ExpiresAt     int64  `json:"exp"`
+	IssuedAt      int64  `json:"iat"`
 }
 
 // TokenPair represents an access token returned by the login API.
@@ -32,14 +33,14 @@ type tokenHeader struct {
 	Typ string `json:"typ"`
 }
 
-func GenerateToken(secret string, userID uint, username, role string, ttl time.Duration) (string, time.Time, error) {
+func GenerateToken(secret string, userID uint, username, role string, sessionVersion uint, ttl time.Duration) (string, time.Time, error) {
 	if strings.TrimSpace(secret) == "" {
 		return "", time.Time{}, errors.New("JWT secret is not configured")
 	}
 	now := time.Now()
 	exp := now.Add(ttl)
 	header, _ := json.Marshal(tokenHeader{Alg: "HS256", Typ: "JWT"})
-	claims, err := json.Marshal(JWTClaims{UserID: userID, Username: username, Role: role, ExpiresAt: exp.Unix(), IssuedAt: now.Unix()})
+	claims, err := json.Marshal(JWTClaims{UserID: userID, Username: username, Role: role, SessionVersion: sessionVersion, ExpiresAt: exp.Unix(), IssuedAt: now.Unix()})
 	if err != nil {
 		return "", time.Time{}, err
 	}
