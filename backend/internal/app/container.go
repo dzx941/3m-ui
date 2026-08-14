@@ -13,10 +13,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// Container is the application composition root. It makes the core runtime
-// dependencies explicit while legacy package globals remain temporarily
-// populated for handlers that have not yet been migrated to dependency
-// injection.
 type Container struct {
 	DB           *gorm.DB
 	Config       *config.Config
@@ -29,25 +25,18 @@ type Container struct {
 	ConfigEngine *dbconfig.ConfigEngine
 }
 
-// NewContainer constructs the application services from one database and one
-// configuration. Package globals are registered here, in one place, so the
-// rest of the application no longer needs to know how services are bootstrapped.
 func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
-	mihomo.InitService(cfg)
-	listener.InitService(db, cfg.Mihomo.Config)
-	node.InitService(db, cfg.Mihomo.Config)
-	user.InitService(db)
-	system.InitService()
-	trafficService := traffic.InitGlobalService()
-
+	mihomoService := mihomo.NewService(cfg)
+	userService := user.NewService(db)
+	trafficService := traffic.NewService()
 	return &Container{
 		DB:           db,
 		Config:       cfg,
-		Mihomo:       mihomo.GlobalService,
-		Listener:     listener.GlobalService,
-		Node:         node.GlobalService,
-		User:         user.GlobalService,
-		System:       system.GlobalService,
+		Mihomo:       mihomoService,
+		Listener:     listener.NewService(db, cfg.Mihomo.Config, mihomoService),
+		Node:         node.NewService(db, cfg.Mihomo.Config),
+		User:         userService,
+		System:       system.NewService(),
 		Traffic:      trafficService,
 		ConfigEngine: dbconfig.NewConfigEngine(db),
 	}
