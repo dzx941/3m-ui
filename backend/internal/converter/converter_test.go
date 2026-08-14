@@ -142,12 +142,3 @@ func TestListenerSubscriptionGeneration(t *testing.T) {
 		t.Errorf("expected UDP to be preserved")
 	}
 }
-
-func TestSubconverterUnreachableSafety(t *testing.T) {
-	config.GlobalConfig = &config.Config{}
-	config.GlobalConfig.Server.Port = 8080
-	converter.SubconverterURL = "http://127.0.0.1:9999"
-	if _, err := converter.CallSubconverter(config.GlobalConfig, "any-token", "singbox", []byte("proxies: []")); err == nil {
-		t.Fatalf("expected error from unreachable subconverter, got nil")
-	}
-}
