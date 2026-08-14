@@ -237,6 +237,35 @@ The release workflow produces Linux binaries for:
 
 Static builds use the pure-Go SQLite implementation where configured by the build tags, making them suitable for musl/Alpine environments.
 
+## Release Assets
+
+Each GitHub Release contains prebuilt Linux binaries and deployment scripts. Choose the binary that matches your CPU architecture and operating-system environment.
+
+| Asset | Description | Recommended environment |
+| --- | --- | --- |
+| `3m-ui-linux-amd64` | Normal amd64 Linux build | Debian/Ubuntu x86_64 and other glibc-based Linux systems |
+| `3m-ui-linux-arm64` | Normal ARM64 Linux build | Debian/Ubuntu ARM64 and other glibc-based Linux systems |
+| `3m-ui-linux-armv7` | Normal ARMv7 Linux build | ARMv7 Linux systems |
+| `3m-ui-linux-amd64-static` | Static amd64 Linux build | Alpine Linux / minimal Linux |
+| `3m-ui-linux-arm64-static` | Static ARM64 Linux build | Alpine ARM64 / minimal Linux (recommended for Alpine) |
+| `3m-ui-linux-armv7-static` | Static ARMv7 Linux build | Alpine ARMv7 / minimal Linux |
+
+### Deployment Scripts
+
+| Asset | Description |
+| --- | --- |
+| `install.sh` | One-click installer. Detects OS, architecture, init system, and selects the appropriate 3m-ui and Mihomo assets. |
+| `update.sh` | Updates the installed 3m-ui binary while preserving application data and configuration backups. |
+| `uninstall.sh` | Removes the service and application files; persistent data can be purged explicitly. |
+| `3m-ui.sh` | Unified management logic used by the `3m-ui` command. |
+| `3m-ui` | System command entrypoint for interactive management and scripted subcommands. |
+
+### Normal vs Static Builds
+
+Normal builds are intended for conventional Linux distributions with compatible dynamic libraries. Static builds reduce runtime library dependencies and are intended for musl-based or minimal environments such as Alpine Linux.
+
+For Alpine Linux, prefer the static asset matching your architecture. For example, Alpine ARM64 users should use `3m-ui-linux-arm64-static`.
+
 ## Installation
 
 Run the release installer as root:
@@ -610,6 +639,35 @@ Release 支持：
 | armv7 | `3m-ui-linux-armv7` | `3m-ui-linux-armv7-static` |
 
 静态版本使用纯 Go SQLite 实现的构建方式，因此更适合 Alpine/musl 环境。
+
+## Release 产物说明
+
+每个 GitHub Release 都包含预编译的 Linux 程序以及部署管理脚本。请根据 CPU 架构和操作系统环境选择对应产物。
+
+| 产物 | 说明 | 推荐环境 |
+| --- | --- | --- |
+| `3m-ui-linux-amd64` | 普通 amd64 Linux 构建 | Debian/Ubuntu x86_64 等基于 glibc 的 Linux |
+| `3m-ui-linux-arm64` | 普通 ARM64 Linux 构建 | Debian/Ubuntu ARM64 等基于 glibc 的 Linux |
+| `3m-ui-linux-armv7` | 普通 ARMv7 Linux 构建 | ARMv7 Linux 系统 |
+| `3m-ui-linux-amd64-static` | 静态 amd64 Linux 构建 | Alpine Linux / 极简 Linux |
+| `3m-ui-linux-arm64-static` | 静态 ARM64 Linux 构建 | Alpine ARM64 / 极简 Linux（Alpine 推荐） |
+| `3m-ui-linux-armv7-static` | 静态 ARMv7 Linux 构建 | Alpine ARMv7 / 极简 Linux |
+
+### 部署脚本
+
+| 产物 | 说明 |
+| --- | --- |
+| `install.sh` | 一键安装脚本，自动检测系统、架构和 init，并选择对应的 3m-ui 与 Mihomo 产物。 |
+| `update.sh` | 更新脚本，在保留应用数据和配置备份的情况下更新 3m-ui。 |
+| `uninstall.sh` | 卸载脚本，移除服务和程序；持久化数据可通过显式参数清理。 |
+| `3m-ui.sh` | `3m-ui` 管理命令使用的统一管理逻辑。 |
+| `3m-ui` | 系统命令入口，用于交互式管理和脚本化子命令。 |
+
+### 普通版与静态版
+
+普通版适用于动态库兼容的常规 Linux 发行版。静态版减少运行时动态库依赖，主要面向 musl 或极简 Linux 环境，例如 Alpine Linux。
+
+Alpine Linux 用户建议选择与架构对应的静态版本。例如 Alpine ARM64 用户应选择 `3m-ui-linux-arm64-static`。
 
 ## 安装
 
