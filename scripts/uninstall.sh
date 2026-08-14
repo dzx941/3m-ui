@@ -6,6 +6,7 @@ BIN_PATH="/usr/local/bin/3m-ui"
 CONFIG_DIR="/etc/3m-ui"
 DATA_DIR="/var/lib/3m-ui"
 LOG_DIR="/var/log/3m-ui"
+MIHOMO_BIN="/usr/local/bin/mihomo"
 SERVICE_NAME="3m-ui"
 PURGE=0
 YES=0
