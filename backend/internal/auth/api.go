@@ -129,20 +129,21 @@ func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
 			return
 		}
+		nextSessionVersion := user.SessionVersion + 1
+		if nextSessionVersion == 0 {
+			nextSessionVersion = 1
+		}
 		if err := database.GlobalDB.Model(&user).Updates(map[string]any{
 			"password_hash":        hash,
 			"must_change_password": false,
+			"session_version":      nextSessionVersion,
 		}).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save password"})
 			return
 		}
 
-		// The default credential is no longer useful after a successful change.
-		// Remove the one-time credential file so it cannot remain as a secret at rest.
 		passwordFile := filepath.Join(filepath.Dir(cfg.Database.Path), ".initial_admin_password")
 		if err := os.Remove(passwordFile); err != nil && !os.IsNotExist(err) {
-			// Do not fail an otherwise successful password change because cleanup
-			// is best-effort; the file is mode 0600 from initial creation.
 			_ = err
 		}
 
@@ -190,6 +191,10 @@ func RequireAuth(secret string) gin.HandlerFunc {
 		}
 		if !strings.EqualFold(user.Role, "admin") {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "administrator access required"})
+			return
+		}
+		if user.SessionVersion == 0 || claims.SessionVersion == 0 || user.SessionVersion != claims.SessionVersion {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "session has been invalidated; please log in again"})
 			return
 		}
 
