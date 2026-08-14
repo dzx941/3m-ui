@@ -1,8 +1,13 @@
 # 3m-ui
 
-> **Mihomo Core Management Console & Client Configuration Distribution Platform**
->
-> **Mihomo Core 管理控制台与客户端配置分发平台**
+<p align="center">
+  <img src="https://raw.githubusercontent.com/dzx941/3m-ui/main/frontend/public/3m-ui-logo.svg" alt="3m-ui Logo" width="180" />
+</p>
+
+<p align="center">
+  <strong>Mihomo Core Management Console & Client Configuration Distribution Platform</strong><br />
+  <strong>Mihomo Core 管理控制台与客户端配置分发平台</strong>
+</p>
 
 [English](#english) · [中文](#中文)
 
