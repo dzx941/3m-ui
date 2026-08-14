@@ -34,11 +34,11 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	userService := user.NewService(db)
 	trafficService := traffic.NewService()
 	trafficUserService := traffic.NewUserService(db)
-	collector := traffic.NewCollectorFromDefaults(db, trafficService, trafficUserService)
-	enforcer := traffic.NewEnforcer(db, node.NewService(db, cfg.Mihomo.Config))
 	nodeService := node.NewService(db, cfg.Mihomo.Config)
-	enforcer = traffic.NewEnforcer(db, nodeService)
+	collector := traffic.NewCollectorFromDefaults(db, trafficService, trafficUserService)
+	enforcer := traffic.NewEnforcer(db, nodeService)
 	scheduler := traffic.NewScheduler(collector, enforcer, traffic.DefaultInterval)
+
 	return &Container{
 		DB:           db,
 		Config:       cfg,
