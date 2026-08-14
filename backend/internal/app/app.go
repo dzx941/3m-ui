@@ -74,9 +74,6 @@ func Run(frontendFS fs.FS) error {
 		return result, nil
 	}
 
-	// Build and validate the actual Mihomo configuration before serving HTTP.
-	// The running core is therefore always backed by the same database-driven
-	// Listener configuration exposed by the panel.
 	generatedConfig, err := container.ConfigEngine.GenerateFinalConfig()
 	if err != nil {
 		return fmt.Errorf("generate Mihomo configuration: %w", err)
@@ -91,6 +88,20 @@ func Run(frontendFS fs.FS) error {
 		return fmt.Errorf("start Mihomo core: %w", err)
 	}
 	log.Printf("Mihomo core started successfully")
+
+	// Configure the router through an explicit dependency boundary. The router
+	// still contains legacy global references during the migration, but all new
+	// handlers can now consume the application-owned services from this boundary.
+	router.ConfigureDependencies(router.Dependencies{
+		DB:           container.DB,
+		Config:       container.Config,
+		Mihomo:       container.Mihomo,
+		Listener:     container.Listener,
+		Node:         container.Node,
+		User:         container.User,
+		Traffic:      container.Traffic,
+		ConfigEngine: container.ConfigEngine,
+	})
 
 	r := router.SetupRouter(cfg)
 	mountFrontend(r, frontendFS)
