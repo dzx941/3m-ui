@@ -12,18 +12,15 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	dbconfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"github.com/dzx941/3m-ui/backend/internal/database"
-	"github.com/dzx941/3m-ui/backend/internal/listener"
-	"github.com/dzx941/3m-ui/backend/internal/mihomo"
-	"github.com/dzx941/3m-ui/backend/internal/node"
 	"github.com/dzx941/3m-ui/backend/internal/router"
 	"github.com/dzx941/3m-ui/backend/internal/security"
-	"github.com/dzx941/3m-ui/backend/internal/traffic"
-	"github.com/dzx941/3m-ui/backend/internal/user"
 	"github.com/gin-gonic/gin"
 )
 
 // Run boots the application and serves the embedded frontend.
-// The bootstrap sequence is kept here so cmd/server/main.go remains a thin entrypoint.
+// Runtime dependencies are assembled once by NewContainer; cmd/server remains
+// a thin entrypoint and handlers can be migrated away from package globals
+// incrementally.
 func Run(frontendFS fs.FS) error {
 	configPath := defaultConfigPath()
 	cfg, err := config.LoadConfig(configPath)
@@ -31,11 +28,12 @@ func Run(frontendFS fs.FS) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	if _, err := database.InitDB(cfg.Database.Path); err != nil {
+	db, err := database.InitDB(cfg.Database.Path)
+	if err != nil {
 		return fmt.Errorf("initialize database: %w", err)
 	}
 
-	if created, username, password, err := auth.EnsureAdmin(database.GlobalDB, cfg.Database.Path); err != nil {
+	if created, username, password, err := auth.EnsureAdmin(db, cfg.Database.Path); err != nil {
 		return fmt.Errorf("initialize administrator: %w", err)
 	} else if created {
 		log.Printf("initial administrator created: username=%s", username)
@@ -48,16 +46,16 @@ func Run(frontendFS fs.FS) error {
 	}
 
 	security.InitCredentialKey(cfg.Security.CredentialKey)
-	mihomo.InitService(cfg)
-	listener.InitService(database.GlobalDB, cfg.Mihomo.Config)
-	node.InitService(database.GlobalDB, cfg.Mihomo.Config)
-	user.InitService(database.GlobalDB)
+	container := NewContainer(db, cfg)
 
+	// The config package receives its credential provider from the composition
+	// root. This avoids importing the user service from the Mihomo compiler and
+	// keeps credential loading behind the application boundary.
 	dbconfig.CredentialProvider = func() (map[uint][]dbconfig.Credential, error) {
-		if user.GlobalService == nil {
+		if container.User == nil {
 			return map[uint][]dbconfig.Credential{}, nil
 		}
-		provided, err := user.GlobalService.ActiveCredentialsByListener()
+		provided, err := container.User.ActiveCredentialsByListener()
 		if err != nil {
 			return nil, err
 		}
@@ -79,23 +77,21 @@ func Run(frontendFS fs.FS) error {
 	// Build and validate the actual Mihomo configuration before serving HTTP.
 	// The running core is therefore always backed by the same database-driven
 	// Listener configuration exposed by the panel.
-	engine := dbconfig.NewConfigEngine(database.GlobalDB)
-	generatedConfig, err := engine.GenerateFinalConfig()
+	generatedConfig, err := container.ConfigEngine.GenerateFinalConfig()
 	if err != nil {
 		return fmt.Errorf("generate Mihomo configuration: %w", err)
 	}
-	if mihomo.GlobalService == nil {
+	if container.Mihomo == nil {
 		return fmt.Errorf("initialize Mihomo service: service is nil")
 	}
-	if err := mihomo.GlobalService.SaveConfig(generatedConfig); err != nil {
+	if err := container.Mihomo.SaveConfig(generatedConfig); err != nil {
 		return fmt.Errorf("validate Mihomo configuration: %w", err)
 	}
-	if err := mihomo.GlobalService.StartMihomo(); err != nil {
+	if err := container.Mihomo.StartMihomo(); err != nil {
 		return fmt.Errorf("start Mihomo core: %w", err)
 	}
 	log.Printf("Mihomo core started successfully")
 
-	traffic.InitGlobalService()
 	r := router.SetupRouter(cfg)
 	mountFrontend(r, frontendFS)
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)
