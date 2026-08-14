@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Layout, Menu, Button, Drawer } from 'antd';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { DashboardOutlined, CloudServerOutlined, CodeOutlined, FileTextOutlined, SettingOutlined, LogoutOutlined, GlobalOutlined, MenuOutlined } from '@ant-design/icons';
+import { DashboardOutlined, CloudServerOutlined, CodeOutlined, FileTextOutlined, SettingOutlined, LogoutOutlined, GlobalOutlined, MenuOutlined, MoonOutlined, SunOutlined } from '@ant-design/icons';
 import { logout } from '../api/auth';
 import { useI18n } from '../i18n';
+import { useTheme } from '../theme';
 
 const { Header, Content, Sider } = Layout;
 
@@ -11,6 +12,7 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
   const location = useLocation();
   const navigate = useNavigate();
   const { t, locale, setLocale } = useI18n();
+  const { theme, toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const section = location.pathname.split('/')[1] || 'dashboard';
   const selected = section === 'listeners' || section === 'proxies' || section === 'users' || section === 'client-access' ? '/nodes' : `/${section}`;
@@ -51,11 +53,6 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
           <span className="app-brand-subtitle">Mihomo Console</span>
         </div>
         {menu}
-        <div className="app-sidebar-footer">
-          <Button type="text" icon={<GlobalOutlined />} className="app-language" onClick={switchLocale}>
-            {locale === 'zh-CN' ? 'English' : '中文'}
-          </Button>
-        </div>
       </Sider>
 
       <Layout>
@@ -69,6 +66,12 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
           />
           <div className="mobile-brand">3m-ui</div>
           <div className="header-actions">
+            <Button
+              type="text"
+              icon={theme === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+              aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+              onClick={toggleTheme}
+            />
             <Button type="text" icon={<GlobalOutlined />} className="desktop-language" onClick={switchLocale}>
               {locale === 'zh-CN' ? 'English' : '中文'}
             </Button>
@@ -89,6 +92,9 @@ export default function SidebarLayout({ children }: { children: React.ReactNode 
         >
           <div className="mobile-nav-menu">{menu}</div>
           <div className="mobile-drawer-footer">
+            <Button type="text" icon={theme === 'dark' ? <SunOutlined /> : <MoonOutlined />} onClick={toggleTheme} block>
+              {theme === 'dark' ? (locale === 'zh-CN' ? '浅色主题' : 'Light theme') : (locale === 'zh-CN' ? '深色主题' : 'Dark theme')}
+            </Button>
             <Button type="text" icon={<GlobalOutlined />} onClick={switchLocale} block>
               {locale === 'zh-CN' ? 'English' : '中文'}
             </Button>
