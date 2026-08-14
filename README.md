@@ -1,9 +1,8 @@
 # 3m-ui
 
-<p align="center">
-  <strong>Mihomo Core Management Console & Client Configuration Distribution Platform</strong><br />
-  <strong>Mihomo Core 管理控制台与客户端配置分发平台</strong>
-</p>
+> **Mihomo Core Management Console & Client Configuration Distribution Platform**
+>
+> **Mihomo Core 管理控制台与客户端配置分发平台**
 
 [English](#english) · [中文](#中文)
 
