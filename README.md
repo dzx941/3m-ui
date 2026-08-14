@@ -28,6 +28,7 @@ The project focuses on **Mihomo-native configuration management and client confi
 - **Responsive web console** — React + Ant Design frontend backed by a Go API.
 - **SQLite storage** — application data is stored locally and does not require an external database service.
 - **systemd / OpenRC** — deployment scripts support common Linux service managers.
+- **Unified management command** — use `3m-ui` directly for an interactive management menu or use subcommands for automation.
 - **amd64 / arm64 / armv7** — release packaging provides production and static Linux binaries.
 
 ## Supported Listener Protocols
@@ -153,9 +154,11 @@ Do not expose the administrative API directly to an untrusted network without ap
 │   │   └── pages/                # Console pages
 │   └── ...
 ├── scripts/
-│   ├── install.sh
-│   ├── update.sh
-│   └── uninstall.sh
+│   ├── 3m-ui                    # System command entrypoint
+│   ├── 3m-ui.sh                 # Unified management logic
+│   ├── install.sh               # Installation script
+│   ├── update.sh                # Update script
+│   └── uninstall.sh             # Uninstall script
 ├── .github/workflows/            # CI and release workflows
 ├── Makefile
 └── README.md
@@ -250,7 +253,28 @@ curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/install.sh |
 
 The installer detects CPU architecture and init system, installs required download/TLS utilities where possible, installs Mihomo and the 3m-ui application, creates the application configuration, installs the service definition, and starts 3m-ui.
 
-After installation, open:
+After installation, the `3m-ui` command is the unified management entrypoint. Run it without arguments to open the interactive management menu:
+
+```bash
+3m-ui
+```
+
+For scripted operation, the same entrypoint supports subcommands:
+
+```bash
+3m-ui status
+3m-ui start
+3m-ui restart
+3m-ui stop
+3m-ui logs
+3m-ui version
+3m-ui update
+3m-ui uninstall
+```
+
+The management command is kept separate from the actual Go application binary, so updating 3m-ui does not overwrite the `3m-ui` command entrypoint.
+
+After installation, open the web console at:
 
 ```text
 http://SERVER_IP:8080/
@@ -261,6 +285,14 @@ If the server is behind a reverse proxy or domain, configure `PUBLIC_URL` or `se
 ## Upgrade
 
 The updater downloads and validates new release assets before replacing the running binary. It keeps persistent application data and creates a configuration backup before the replacement step.
+
+Recommended:
+
+```bash
+3m-ui update
+```
+
+The updater can also be run directly:
 
 ```bash
 curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/update.sh | sh
@@ -276,33 +308,44 @@ If a release asset cannot be downloaded or verified, the update should abort wit
 
 ## Uninstall
 
-Remove the service, binary, configuration, and deployment files while keeping persistent data:
+The recommended way to uninstall is through the unified command:
+
+```bash
+3m-ui uninstall
+```
+
+This removes the service and application files while keeping persistent data by default. To remove persistent application data as well, use the underlying script with `--purge`.
 
 ```bash
 curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/uninstall.sh -o /tmp/uninstall.sh
-sh /tmp/uninstall.sh
-```
-
-To remove persistent application data as well:
-
-```bash
 sh /tmp/uninstall.sh --purge
 ```
 
 ## Production Paths
 
 ```text
-/usr/local/bin/3m-ui          # 3m-ui executable
-/usr/local/bin/mihomo         # Mihomo Core executable
-/etc/3m-ui/config.yaml        # Application configuration
-/var/lib/3m-ui/               # Persistent application data
-/var/lib/3m-ui/3m-ui.db       # SQLite database
-/var/lib/3m-ui/mihomo/        # Mihomo configuration data
-/var/lib/3m-ui/backups/       # Upgrade backups
-/var/log/3m-ui/               # Reserved log directory
+/usr/local/bin/3m-ui              # unified management command
+/usr/local/lib/3m-ui/             # management scripts and application binary
+/usr/local/bin/mihomo             # Mihomo Core executable
+/etc/3m-ui/config.yaml            # Application configuration
+/var/lib/3m-ui/                   # Persistent application data
+/var/lib/3m-ui/3m-ui.db           # SQLite database
+/var/lib/3m-ui/mihomo/            # Mihomo configuration data
+/var/lib/3m-ui/backups/           # Upgrade backups
+/var/log/3m-ui/                   # Reserved log directory
 ```
 
 ## Service Management
+
+The recommended entrypoint is the unified `3m-ui` command:
+
+```bash
+3m-ui status
+3m-ui restart
+3m-ui logs
+```
+
+Direct service commands remain available when needed.
 
 ### systemd
 
@@ -362,6 +405,7 @@ Please keep Mihomo protocol behavior aligned with the official Mihomo documentat
 - **现代 Web 控制台**：React + Ant Design 前端，Go 后端 API。
 - **SQLite 数据库**：无需额外部署 MySQL/PostgreSQL 等数据库服务。
 - **systemd / OpenRC**：支持常见 Linux 服务管理系统。
+- **统一管理命令**：安装完成后直接输入 `3m-ui` 进入交互式管理菜单，也可以使用子命令进行自动化管理。
 - **amd64 / arm64 / armv7**：提供普通版和静态 Linux 构建版本。
 
 ## Listener 支持协议
@@ -488,6 +532,8 @@ Access Token 可以绑定特定目标，并支持设置过期时间。公共客�
 │   │   └── pages/                # 管理页面
 │   └── ...
 ├── scripts/
+│   ├── 3m-ui                    # 系统命令入口
+│   ├── 3m-ui.sh                 # 统一管理逻辑
 │   ├── install.sh               # 安装脚本
 │   ├── update.sh                # 更新脚本
 │   └── uninstall.sh             # 卸载脚本
@@ -581,6 +627,29 @@ curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/install.sh |
 
 安装脚本会自动检测 CPU 架构和 init 系统，在可能的情况下安装下载/TLS 所需工具，然后安装 Mihomo 和 3m-ui，生成应用配置，创建服务并启动 3m-ui。
 
+安装完成后，系统中的 `3m-ui` 就是统一管理入口。直接输入：
+
+```bash
+3m-ui
+```
+
+即可进入交互式管理菜单。
+
+也可以直接使用命令模式：
+
+```bash
+3m-ui status
+3m-ui start
+3m-ui restart
+3m-ui stop
+3m-ui logs
+3m-ui version
+3m-ui update
+3m-ui uninstall
+```
+
+管理命令与实际运行的 Go 程序分离，因此更新 3m-ui 时不会覆盖 `3m-ui` 管理入口。
+
 安装完成后访问：
 
 ```text
@@ -592,6 +661,14 @@ http://SERVER_IP:8080/
 ## 更新
 
 更新脚本会在替换运行中的程序之前下载并验证 Release 资源，同时保留数据库和持久化数据，并创建配置备份。
+
+推荐直接使用统一管理命令：
+
+```bash
+3m-ui update
+```
+
+也可以直接执行 Release 更新脚本：
 
 ```bash
 curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/update.sh | sh
@@ -607,33 +684,44 @@ curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/update.sh | 
 
 ## 卸载
 
-卸载程序、服务、配置和部署文件，但保留持久化数据：
+推荐使用统一管理命令：
+
+```bash
+3m-ui uninstall
+```
+
+默认卸载程序和服务，但保留持久化数据。若需要同时删除持久化数据，可以直接运行底层卸载脚本的 `--purge`：
 
 ```bash
 curl -fsSL https://github.com/dzx941/3m-ui/releases/latest/download/uninstall.sh -o /tmp/uninstall.sh
-sh /tmp/uninstall.sh
-```
-
-同时删除持久化数据：
-
-```bash
 sh /tmp/uninstall.sh --purge
 ```
 
 ## 生产环境目录
 
 ```text
-/usr/local/bin/3m-ui          # 3m-ui 主程序
-/usr/local/bin/mihomo         # Mihomo Core
-/etc/3m-ui/config.yaml        # 应用配置
-/var/lib/3m-ui/               # 持久化数据
-/var/lib/3m-ui/3m-ui.db       # SQLite 数据库
-/var/lib/3m-ui/mihomo/        # Mihomo 配置
-/var/lib/3m-ui/backups/       # 更新备份
-/var/log/3m-ui/               # 预留日志目录
+/usr/local/bin/3m-ui              # 统一管理命令
+/usr/local/lib/3m-ui/             # 管理脚本与实际程序
+/usr/local/bin/mihomo             # Mihomo Core
+/etc/3m-ui/config.yaml            # 应用配置
+/var/lib/3m-ui/                   # 持久化数据
+/var/lib/3m-ui/3m-ui.db           # SQLite 数据库
+/var/lib/3m-ui/mihomo/            # Mihomo 配置
+/var/lib/3m-ui/backups/           # 更新备份
+/var/log/3m-ui/                   # 预留日志目录
 ```
 
 ## 服务管理
+
+推荐使用统一入口：
+
+```bash
+3m-ui status
+3m-ui restart
+3m-ui logs
+```
+
+也可以直接使用 systemd / OpenRC：
 
 ### systemd
 
