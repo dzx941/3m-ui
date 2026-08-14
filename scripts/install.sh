@@ -13,6 +13,7 @@ MIHOMO_BIN="/usr/local/bin/mihomo"
 SERVICE_NAME="3m-ui"
 YES=0
 INSTALL_MIHOMO=1
+STATIC="${THREE_M_UI_STATIC:-0}"
 REQUESTED_VERSION=""
 
 say(){ printf '%s\n' "$*"; }
@@ -28,7 +29,12 @@ Usage: $0 [VERSION] [options]
 Options:
   -y, --yes          Non-interactive installation
       --no-mihomo    Do not install Mihomo when it is missing
+      --static       Install the static 3m-ui build
+      --dynamic      Install the CGO/dynamic 3m-ui build
   -h, --help         Show this help
+
+Environment:
+  THREE_M_UI_STATIC=1  Install the static build
 EOF
 }
 
@@ -36,8 +42,10 @@ for arg in "$@"; do
   case "$arg" in
     -y|--yes) YES=1;;
     --no-mihomo) INSTALL_MIHOMO=0;;
+    --static) STATIC=1;;
+    --dynamic) STATIC=0;;
     -h|--help) usage; exit 0;;
-    v[0-9]*) [ -z "$REQUESTED_VERSION" ] || err "Only one version may be specified."; REQUESTED_VERSION="$arg";;
+    v[0-9]*|manual-[0-9]*) [ -z "$REQUESTED_VERSION" ] || err "Only one version may be specified."; REQUESTED_VERSION="$arg";;
     *) err "Unknown option: $arg";;
   esac
 done
@@ -66,8 +74,14 @@ download(){
   if command_exists curl; then curl -fL --retry 3 --retry-delay 1 --connect-timeout 10 --max-time 300 "$1" -o "$2"; else wget -qO "$2" "$1"; fi
 }
 latest_tag(){
-  tag="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "${1}/releases/latest" 2>/dev/null | sed 's#.*/##')" || true
-  case "$tag" in v[0-9]*) printf '%s' "$tag";; *) printf '%s' "";; esac
+  tag="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "${1}/releases/latest" 2>/dev/null | sed 's#.*/##; s/[[:space:][:cntrl:]]*$//')" || true
+  case "$tag" in
+    v[0-9]*|manual-[0-9]*) printf '%s' "$tag";;
+    *)
+      tag="$(curl -fsSL "${1}/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)" || true
+      printf '%s' "$tag"
+      ;;
+  esac
 }
 random_hex(){ dd if=/dev/urandom bs=1 count="${1:-32}" 2>/dev/null | od -An -tx1 | tr -d ' \n'; }
 
@@ -118,9 +132,12 @@ install_helpers(){
 
 install_panel(){
   tag="${REQUESTED_VERSION:-$(latest_tag https://github.com/$REPO)}"; [ -n "$tag" ] || err "Unable to determine latest 3m-ui release."
+  suffix=""
+  [ "$STATIC" = "1" ] && suffix="-static"
+  asset="3m-ui-linux-$(arch)${suffix}"
   tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT INT TERM
-  url="https://github.com/$REPO/releases/download/${tag}/3m-ui-linux-$(arch)"
-  say "Downloading 3m-ui $tag..."; download "$url" "$tmp"; chmod 0755 "$tmp"
+  url="https://github.com/$REPO/releases/download/${tag}/${asset}"
+  say "Downloading 3m-ui $tag ($asset)..."; download "$url" "$tmp"; chmod 0755 "$tmp"
   "$tmp" --version >/dev/null 2>&1 || err "Downloaded 3m-ui failed executable validation."
   install -m 0755 "$tmp" "$APP_BIN"
   rm -f "$tmp"; trap - EXIT INT TERM
