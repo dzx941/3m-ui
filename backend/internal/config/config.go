@@ -38,11 +38,6 @@ var GlobalConfig *Config
 
 // IsMihomoListenerProtocol reports whether protocol is part of the listener
 // protocol surface supported by 3m-ui's listener editor/export pipeline.
-//
-// SOCKS, HTTP, TProxy, Redir, Mixed, Tunnel and TUN are deliberately excluded:
-// they are local traffic-capture/inbound mechanisms rather than the remote
-// proxy protocols that 3m-ui exports as client nodes. WireGuard is also
-// excluded because it is an outbound proxy type, not a Mihomo listener.
 func IsMihomoListenerProtocol(protocol string) bool {
 	switch protocol {
 	case "shadowsocks",
@@ -82,5 +77,6 @@ func LoadConfig(path string) (*Config, error) {
 }
 
 type SecurityConfig struct {
-	CredentialKey string `yaml:"credential_key"`
+	CredentialKey string   `yaml:"credential_key"`
+	CORSOrigins   []string `yaml:"cors_origins"`
 }
