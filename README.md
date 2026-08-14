@@ -1,10 +1,6 @@
 # 3m-ui
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/dzx941/3m-ui/main/frontend/public/3m-ui-logo.svg" alt="3m-ui Logo" width="180" />
-</p>
-
-<p align="center">
   <strong>Mihomo Core Management Console & Client Configuration Distribution Platform</strong><br />
   <strong>Mihomo Core 管理控制台与客户端配置分发平台</strong>
 </p>
@@ -86,7 +82,7 @@ Client Configuration Resolver
       └── native node URI
 ```
 
-Access tokens can be scoped to a configured target and may have an expiration time. Public client endpoints reject missing, disabled, or expired tokens instead of silently returning configuration data.
+Access tokens can be scoped to a configured target and may have an expiration time. Public client endpoints reject missing, disabled, and expired tokens instead of silently returning configuration data.
 
 ### Public URL Resolution
 
@@ -154,8 +150,8 @@ Do not expose the administrative API directly to an untrusted network without ap
 │   │   ├── api/                 # API clients
 │   │   ├── components/           # Shared React components
 │   │   ├── i18n/                 # Chinese/English translations
-│   │   ├── layouts/             # Application layouts
-│   │   └── pages/               # Console pages
+│   │   ├── layouts/              # Application layouts
+│   │   └── pages/                # Console pages
 │   └── ...
 ├── scripts/
 │   ├── install.sh
@@ -349,15 +345,7 @@ Bug reports, documentation improvements, and code contributions are welcome. For
 
 Please keep Mihomo protocol behavior aligned with the official Mihomo documentation and avoid treating traffic-capture mechanisms such as TUN as proxy protocols.
 
-## License
-
-See the repository license file for the applicable license and redistribution terms.
-
----
-
-<a id="中文"></a>
-
-# 中文
+## 中文
 
 3m-ui 是一个围绕 [Mihomo Core](https://github.com/MetaCubeX/mihomo) 构建的轻量级 Web 管理控制台，主要用于 VPS 场景下的 Mihomo 核心管理、Listener/节点配置管理以及客户端配置分发。
 
@@ -486,11 +474,11 @@ Access Token 可以绑定特定目标，并支持设置过期时间。公共客�
 │   ├── internal/
 │   │   ├── auth/                # 登录、密码和认证
 │   │   ├── config/              # 应用配置
-│   │   ├── database/             # SQLite/GORM 数据层
-│   │   ├── listener/              # Listener/节点管理
-│   │   ├── mihomo/                # Mihomo Core 集成
-│   │   ├── router/                # HTTP API 和公共接口
-│   │   └── system/                # Linux 系统操作
+│   │   ├── database/            # SQLite/GORM 数据层
+│   │   ├── listener/             # Listener/节点管理
+│   │   ├── mihomo/               # Mihomo Core 集成
+│   │   ├── router/               # HTTP API 和公共接口
+│   │   └── system/               # Linux 系统操作
 │   └── ...
 ├── frontend/
 │   ├── src/
