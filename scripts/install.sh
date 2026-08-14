@@ -17,6 +17,7 @@ YES=0
 INSTALL_MIHOMO=1
 STATIC="${THREE_M_UI_STATIC:-0}"
 REQUESTED_VERSION=""
+RELEASE_TAG=""
 
 say(){ printf '%s\n' "$*"; }
 err(){ say "Error: $*" >&2; exit 1; }
@@ -138,19 +139,19 @@ install_helpers(){
 }
 
 install_panel(){
-  tag="${REQUESTED_VERSION:-$(latest_tag https://github.com/$REPO)}"; [ -n "$tag" ] || err "Unable to determine latest 3m-ui release."
+  RELEASE_TAG="${REQUESTED_VERSION:-$(latest_tag https://github.com/$REPO)}"
+  [ -n "$RELEASE_TAG" ] || err "Unable to determine latest 3m-ui release."
   suffix=""; [ "$STATIC" = "1" ] && suffix="-static"
   asset="3m-ui-linux-$(arch)${suffix}"
   tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT INT TERM
-  url="https://github.com/$REPO/releases/download/${tag}/${asset}"
-  say "Downloading 3m-ui $tag ($asset)..."; download "$url" "$tmp"; chmod 0755 "$tmp"
+  url="https://github.com/$REPO/releases/download/${RELEASE_TAG}/${asset}"
+  say "Downloading 3m-ui $RELEASE_TAG ($asset)..."; download "$url" "$tmp"; chmod 0755 "$tmp"
   "$tmp" --version >/dev/null 2>&1 || err "Downloaded 3m-ui failed executable validation."
   install -m 0755 "$tmp" "$APP_BIN"
-  printf '%s\n' "$tag" > "$VERSION_FILE"
+  printf '%s\n' "$RELEASE_TAG" > "$VERSION_FILE"
   printf '%s\n' "$([ "$STATIC" = "1" ] && echo static || echo dynamic)" > "$MODE_FILE"
   chmod 0600 "$VERSION_FILE" "$MODE_FILE"
   rm -f "$tmp"; trap - EXIT INT TERM
-  printf '%s' "$tag"
 }
 
 write_systemd(){ cat > /etc/systemd/system/$SERVICE_NAME.service <<EOF
@@ -204,9 +205,9 @@ main(){
   if [ -x "$APP_BIN" ]; then
     case "$(init_system)" in systemd) systemctl stop "$SERVICE_NAME" 2>/dev/null || true;; openrc) rc-service "$SERVICE_NAME" stop 2>/dev/null || true;; esac
   fi
-  tag="$(install_panel)"
+  install_panel
   install_mihomo
-  install_helpers "$tag"
+  install_helpers "$RELEASE_TAG"
   install_service
   say ""
   say "3m-ui installed successfully."
