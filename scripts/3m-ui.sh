@@ -1,16 +1,17 @@
 #!/bin/sh
-# 3m-ui standalone management script
-# Install / Update / Uninstall / Status / Restart / Logs
-# Compatible with systemd and OpenRC.
+# 3m-ui unified management logic
+# The command entrypoint is /usr/local/bin/3m-ui.
+# The actual Go application is /usr/local/lib/3m-ui/3m-ui-bin.
 
 set -eu
 
 APP_NAME="3m-ui"
-BIN="/usr/local/bin/3m-ui"
+BASE="/usr/local/lib/3m-ui"
+APP_BIN="$BASE/3m-ui-bin"
+VERSION_FILE="$BASE/VERSION"
 DATA_DIR="/var/lib/3m-ui"
 CONFIG_DIR="/etc/3m-ui"
 SERVICE="3m-ui"
-REPO="dzx941/3m-ui"
 
 say() { printf '%s\n' "$*"; }
 err() { say "Error: $*" >&2; exit 1; }
@@ -21,73 +22,80 @@ need_root() {
 
 init_system() {
   if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
-    INIT=systemd
+    printf '%s' systemd
   elif command -v rc-service >/dev/null 2>&1; then
-    INIT=openrc
+    printf '%s' openrc
   else
-    INIT=none
+    printf '%s' unsupported
   fi
 }
 
-service_exists() {
-  [ "$INIT" = systemd ] && systemctl list-unit-files "${SERVICE}.service" >/dev/null 2>&1 && return 0
-  [ "$INIT" = openrc ] && [ -f "/etc/init.d/$SERVICE" ] && return 0
-  return 1
-}
-
-service_stop() {
-  case "$INIT" in
-    systemd) systemctl stop "$SERVICE" 2>/dev/null || true ;;
-    openrc) rc-service "$SERVICE" stop 2>/dev/null || true ;;
-  esac
-}
-
-service_start() {
-  case "$INIT" in
-    systemd) systemctl daemon-reload; systemctl enable --now "$SERVICE" ;;
-    openrc) rc-update add "$SERVICE" default >/dev/null 2>&1 || true; rc-service "$SERVICE" restart ;;
-    *) err "No supported init system found." ;;
-  esac
-}
-
-service_restart() {
-  case "$INIT" in
-    systemd) systemctl restart "$SERVICE" ;;
-    openrc) rc-service "$SERVICE" restart ;;
+service_action() {
+  action="$1"
+  case "$(init_system)" in
+    systemd) systemctl "$action" "$SERVICE" ;;
+    openrc) rc-service "$SERVICE" "$action" ;;
     *) err "No supported init system found." ;;
   esac
 }
 
 status() {
-  case "$INIT" in
-    systemd) systemctl status "$SERVICE" --no-pager || true ;;
+  case "$(init_system)" in
+    systemd) systemctl --no-pager --full status "$SERVICE" || true ;;
     openrc) rc-service "$SERVICE" status || true ;;
     *) say "init: unsupported" ;;
   esac
-  if [ -x "$BIN" ]; then
-    say "binary: $BIN"
-    "$BIN" --version 2>/dev/null || true
+  say ""
+  if [ -x "$APP_BIN" ]; then
+    say "Application: $APP_BIN"
+    if ! "$APP_BIN" --version 2>/dev/null; then
+      if [ -s "$VERSION_FILE" ]; then
+        say "Version: $(cat "$VERSION_FILE")"
+      else
+        say "Version: unavailable (installed binary does not expose --version)"
+      fi
+    fi
+  else
+    say "Application binary not found: $APP_BIN"
   fi
 }
 
 logs() {
-  case "$INIT" in
+  case "$(init_system)" in
     systemd) journalctl -u "$SERVICE" -n 100 --no-pager ;;
-    openrc) tail -n 100 "/var/log/$SERVICE.log" 2>/dev/null || say "No log file found." ;;
+    openrc) tail -n 100 "$DATA_DIR/logs/3m-ui.log" 2>/dev/null || tail -n 100 "/var/log/3m-ui/3m-ui.log" 2>/dev/null || say "No log file found." ;;
     *) say "No supported log backend found." ;;
   esac
 }
 
+version() {
+  [ -x "$APP_BIN" ] || err "3m-ui application is not installed."
+  if "$APP_BIN" --version 2>/dev/null; then
+    return 0
+  fi
+  if [ -s "$VERSION_FILE" ]; then
+    say "3m-ui $(cat "$VERSION_FILE")"
+    return 0
+  fi
+  err "Unable to determine installed version."
+}
+
 uninstall() {
-  need_root
-  init_system
-  service_stop
-  case "$INIT" in
-    systemd) systemctl disable "$SERVICE" 2>/dev/null || true; rm -f "/etc/systemd/system/$SERVICE.service"; systemctl daemon-reload ;;
-    openrc) rc-update del "$SERVICE" default 2>/dev/null || true; rm -f "/etc/init.d/$SERVICE" ;;
+  service_action stop 2>/dev/null || true
+  case "$(init_system)" in
+    systemd)
+      systemctl disable "$SERVICE" 2>/dev/null || true
+      rm -f "/etc/systemd/system/$SERVICE.service"
+      systemctl daemon-reload
+      ;;
+    openrc)
+      rc-update del "$SERVICE" default 2>/dev/null || true
+      rm -f "/etc/init.d/$SERVICE"
+      ;;
   esac
-  rm -f "$BIN"
-  say "3m-ui binary and service removed."
+  rm -f /usr/local/bin/3m-ui
+  rm -rf "$BASE"
+  say "3m-ui application and management command removed."
   say "Data preserved at: $DATA_DIR"
   say "Configuration preserved at: $CONFIG_DIR"
   say "Mihomo was not removed."
@@ -95,56 +103,41 @@ uninstall() {
 
 usage() {
   cat <<EOF
-Usage: $0 <command>
+Usage: 3m-ui <command>
 
 Commands:
-  install      Install or repair 3m-ui using scripts/install.sh
-  update       Update 3m-ui using scripts/update.sh
-  uninstall    Remove 3m-ui but preserve data/config
-  status       Show service and binary status
+  status       Show service and application status
+  start        Start 3m-ui
   restart      Restart 3m-ui
   stop         Stop 3m-ui
-  start        Start 3m-ui
   logs         Show recent service logs
-  version      Show installed version
+  version      Show installed 3m-ui version
+  uninstall    Remove 3m-ui but preserve data/config
   help         Show this help
 
-Examples:
-  $0 install
-  $0 update
-  $0 status
-  $0 logs
-  $0 uninstall
+Run '3m-ui' without arguments to open the interactive management menu.
 EOF
 }
 
 main() {
   need_root
-  init_system
-  cmd=${1:-help}
+  cmd=${1:-}
   case "$cmd" in
-    install)
-      SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-      [ -x "$SCRIPT_DIR/install.sh" ] || err "scripts/install.sh not found or not executable."
-      exec "$SCRIPT_DIR/install.sh" "${2:-}"
-      ;;
-    update)
-      SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
-      [ -x "$SCRIPT_DIR/update.sh" ] || err "scripts/update.sh not found or not executable."
-      exec "$SCRIPT_DIR/update.sh" "${2:-}"
-      ;;
-    uninstall) uninstall ;;
     status) status ;;
-    restart) service_restart ;;
-    stop) service_stop ;;
-    start) service_start ;;
+    start) service_action start ;;
+    restart) service_action restart ;;
+    stop) service_action stop ;;
     logs) logs ;;
-    version)
-      [ -x "$BIN" ] || err "3m-ui is not installed."
-      "$BIN" --version
-      ;;
+    version) version ;;
+    uninstall) uninstall ;;
     help|-h|--help) usage ;;
-    *) usage; exit 2 ;;
+    '')
+      if [ -x /usr/local/bin/3m-ui ] && [ "$(readlink -f /usr/local/bin/3m-ui 2>/dev/null || true)" = "$APP_BIN" ]; then
+        err "Invalid installation: management entrypoint points to the application binary. Re-run the latest installer to migrate it."
+      fi
+      exec /usr/local/bin/3m-ui
+      ;;
+    *) err "Unknown command: $cmd" ;;
   esac
 }
 
