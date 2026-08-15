@@ -18,7 +18,7 @@ type MihomoTLSConfig struct {
 type MihomoListener struct {
 	Name   string                 `yaml:"name"`
 	Type   string                 `yaml:"type"` // shadowsocks, vmess, vless, trojan, hysteria2, tuic
-	Port   int                    `yaml:"port"`
+	Port   string                 `yaml:"port"`
 	Listen string                 `yaml:"listen"`
 	UDP    bool                   `yaml:"udp,omitempty"`
 	TLS    *MihomoTLSConfig       `yaml:"tls,omitempty"`

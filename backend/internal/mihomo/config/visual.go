@@ -34,7 +34,7 @@ type ProxyEntry struct {
 	Name    string                 `json:"name" yaml:"name"`
 	Type    string                 `json:"type" yaml:"type"`
 	Server  string                 `json:"server" yaml:"server"`
-	Port    int                    `json:"port" yaml:"port"`
+	Port    string                 `json:"port" yaml:"port"`
 	Options map[string]interface{} `json:"options,omitempty" yaml:",inline"`
 }
 
