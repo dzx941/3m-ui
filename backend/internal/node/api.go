@@ -3,6 +3,7 @@ package node
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -14,20 +15,18 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
 	"github.com/dzx941/3m-ui/backend/internal/user"
 	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 // Handler serves node/listener HTTP endpoints with injected dependencies.
 type Handler struct {
-	svc  *Service
-	user *user.Service
-	db   *gorm.DB
-	cfg  *config.Config
+	svc   *Service
+	user  *user.Service
+	db    *gorm.DB
 }
 
 // NewHandler constructs a node HTTP handler.
-func NewHandler(svc *Service, userSvc *user.Service, db *gorm.DB, cfg *config.Config) *Handler {
-	return &Handler{svc: svc, user: userSvc, db: db, cfg: cfg}
+func NewHandler(svc *Service, userSvc *user.Service, db *gorm.DB) *Handler {
+	return &Handler{svc: svc, user: userSvc, db: db}
 }
 
 // RegisterRoutes registers node routes on the provided group.
@@ -82,6 +81,38 @@ func (h *Handler) GetNode(c *gin.Context) {
 	c.JSON(http.StatusOK, l)
 }
 
+// isTrustedHost validates that the provided host is acceptable for URI export.
+// It rejects path traversal, illegal characters, and hosts that do not match
+// the configured public_url (if set).
+func (h *Handler) isTrustedHost(host string) bool {
+	host = strings.TrimSpace(host)
+	if host == "" {
+		return false
+	}
+	// Strip port for comparison
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	// Reject anything that looks like a path or contains suspicious characters
+	if strings.ContainsAny(host, "/\\?#@") || strings.Contains(host, "..") {
+		return false
+	}
+	// If public_url is configured, only allow hosts that match it
+	if config.GlobalConfig != nil && config.GlobalConfig.Server.PublicURL != "" {
+		expected := config.GlobalConfig.Server.PublicURL
+		if u, err := url.Parse(expected); err == nil && u.Host != "" {
+			expected = u.Host
+		}
+		if eh, _, err := net.SplitHostPort(expected); err == nil {
+			expected = eh
+		}
+		if !strings.EqualFold(host, expected) {
+			return false
+		}
+	}
+	return true
+}
+
 // ExportNodeURI returns one URI per active client credential. Public host
 // comes from the request Host; wildcard listener addresses are never exposed.
 func (h *Handler) ExportNodeURI(c *gin.Context) {
@@ -100,7 +131,11 @@ func (h *Handler) ExportNodeURI(c *gin.Context) {
 		return
 	}
 
+	// Prefer X-Forwarded-Host only when it passes trust validation.
 	host := c.GetHeader("X-Forwarded-Host")
+	if host != "" && !h.isTrustedHost(host) {
+		host = ""
+	}
 	if host == "" {
 		host = c.Request.Host
 	}
@@ -218,10 +253,7 @@ func (h *Handler) CreateClientAccess(c *gin.Context) {
 }
 
 func (h *Handler) clientAccessResponse(c *gin.Context, token models.AccessToken) gin.H {
-	cfg := h.cfg
-	if cfg == nil {
-		cfg = config.GlobalConfig
-	}
+	cfg := config.GlobalConfig
 	return gin.H{
 		"id":                token.ID,
 		"name":              token.Name,

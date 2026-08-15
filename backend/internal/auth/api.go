@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/subtle"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -30,6 +31,20 @@ const (
 	loginWindow     = 15 * time.Minute
 	loginMaxAttempt = 8
 )
+
+// clientIdentifier returns a stable identifier for rate-limiting.
+func clientIdentifier(c *gin.Context) string {
+	remote := c.ClientIP()
+	xff := c.GetHeader("X-Forwarded-For")
+	if xff != "" {
+		parts := strings.Split(xff, ",")
+		first := strings.TrimSpace(parts[0])
+		if first != "" && net.ParseIP(first) != nil {
+			remote = first
+		}
+	}
+	return remote
+}
 
 func allowLogin(ip string) bool {
 	now := time.Now()
@@ -66,14 +81,12 @@ func resetLoginLimit(ip string) {
 	loginLimiter.Unlock()
 }
 
-// Handler serves authentication HTTP endpoints with an injected DB and JWT secret.
 type Handler struct {
 	db     *gorm.DB
 	secret string
 	cfg    *config.Config
 }
 
-// NewHandler constructs an auth HTTP handler.
 func NewHandler(db *gorm.DB, cfg *config.Config) *Handler {
 	secret := ""
 	if cfg != nil {
@@ -82,21 +95,15 @@ func NewHandler(db *gorm.DB, cfg *config.Config) *Handler {
 	return &Handler{db: db, secret: secret, cfg: cfg}
 }
 
-// RegisterRoutes mounts auth routes under the provided group.
 func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/login", h.Login)
 	rg.POST("/password", RequireAuth(h.db, h.secret), h.ChangePassword)
 	rg.GET("/me", RequireAuth(h.db, h.secret), h.Me)
 }
 
-// RegisterRoutes mounts auth routes using an explicit database handle.
-// Prefer NewHandler(db, cfg).RegisterRoutes in new code.
-func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, cfg *config.Config) {
-	NewHandler(db, cfg).RegisterRoutes(rg)
-}
-
 func (h *Handler) Login(c *gin.Context) {
-	if !allowLogin(c.ClientIP()) {
+	clientID := clientIdentifier(c)
+	if !allowLogin(clientID) {
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many login attempts; try again later"})
 		return
 	}
@@ -119,7 +126,7 @@ func (h *Handler) Login(c *gin.Context) {
 		c.JSON(status, gin.H{"error": "invalid username or password"})
 		return
 	}
-	resetLoginLimit(c.ClientIP())
+	resetLoginLimit(clientID)
 	c.JSON(http.StatusOK, result)
 }
 
@@ -166,9 +173,9 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 		nextSessionVersion = 1
 	}
 	if err := h.db.Model(&user).Updates(map[string]any{
-		"password_hash":        hash,
+		"password_hash":       hash,
 		"must_change_password": false,
-		"session_version":      nextSessionVersion,
+		"session_version":     nextSessionVersion,
 	}).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save password"})
 		return
@@ -196,17 +203,16 @@ func (h *Handler) Me(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"user_id":              claims.UserID,
-		"username":             claims.Username,
-		"role":                 claims.Role,
-		"expires_at":           claims.ExpiresAt,
+		"user_id":             claims.UserID,
+		"username":            claims.Username,
+		"role":                claims.Role,
+		"expires_at":          claims.ExpiresAt,
 		"must_change_password": user.MustChangePassword,
 	})
 }
 
 // RequireAuth validates the Bearer JWT against the provided secret and loads
-// the administrator from the provided database. It no longer reads
-// database.GlobalDB.
+// the administrator from the provided database.
 func RequireAuth(db *gorm.DB, secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := TokenFromRequest(c.GetHeader("Authorization"))

@@ -1,47 +1,31 @@
-import { apiRequest, authToken, MUST_CHANGE_KEY, USERNAME_KEY } from './request';
+import client from './client';
+import { useAuthStore } from '../stores/authStore';
 
-interface LoginResponse {
-  token?: string;
-  access_token?: string;
-  username?: string;
-  must_change_password?: boolean;
+export interface LoginInput {
+  username: string;
+  password: string;
 }
-export interface LoginInput { username: string; password: string }
 
 export async function login(input: LoginInput) {
-  const data = await apiRequest<LoginResponse>('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify(input),
-  });
-  const token = data.token || data.access_token;
-  if (token) authToken.set(token);
-  sessionStorage.setItem(USERNAME_KEY, data.username || input.username);
-  sessionStorage.setItem(MUST_CHANGE_KEY, data.must_change_password ? '1' : '0');
+  const { data } = await client.post<{
+    token: string;
+    username: string;
+    must_change_password: boolean;
+  }>('/auth/login', input);
+  useAuthStore.getState().login(data.token, data.username, data.must_change_password);
   return data;
 }
 
-export function logout() {
-  authToken.clear();
-  sessionStorage.removeItem(USERNAME_KEY);
-  sessionStorage.removeItem(MUST_CHANGE_KEY);
-}
-
-export function isAuthenticated() {
-  return Boolean(authToken.get());
-}
-
-export function mustChangePassword() {
-  return sessionStorage.getItem(MUST_CHANGE_KEY) === '1';
-}
-
-export async function changePassword(currentPassword: string, newPassword: string) {
-  const data = await apiRequest<{ status: string }>('/auth/password', {
-    method: 'POST',
-    body: JSON.stringify({
-      current_password: currentPassword,
-      new_password: newPassword,
-    }),
+export async function changePassword(current: string, next: string) {
+  const { data } = await client.post('/auth/password', {
+    current_password: current,
+    new_password: next,
   });
-  sessionStorage.setItem(MUST_CHANGE_KEY, '0');
+  useAuthStore.getState().setMustChangePassword(false);
+  return data;
+}
+
+export async function fetchMe() {
+  const { data } = await client.get('/auth/me');
   return data;
 }

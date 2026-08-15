@@ -42,13 +42,30 @@ func GetProcessManager(binary, config string) *ProcessManager {
 }
 
 // NewProcessManager creates an independent process manager instance.
-// Prefer this in tests; production code may still use GetProcessManager.
 func NewProcessManager(binary, config string) *ProcessManager {
 	return &ProcessManager{
 		binaryPath: binary,
 		configPath: config,
 		logs:       make([]string, 0, 200),
 	}
+}
+
+// isAllowedBinaryPath restricts where the Mihomo binary can reside.
+// This prevents an attacker from tricking 3m-ui into executing an arbitrary
+// file by manipulating the configuration path.
+func isAllowedBinaryPath(path string) bool {
+	allowedPrefixes := []string{
+		"/usr/local/bin/",
+		"/usr/bin/",
+		"/opt/",
+	}
+	clean := filepath.Clean(path)
+	for _, prefix := range allowedPrefixes {
+		if strings.HasPrefix(clean, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (pm *ProcessManager) GetVersion() (*VersionInfo, error) {
@@ -109,6 +126,10 @@ func (pm *ProcessManager) ValidateConfig() error {
 		return fmt.Errorf("mihomo binary is not executable: %s", binaryPath)
 	}
 
+	if !isAllowedBinaryPath(binaryPath) {
+		return fmt.Errorf("mihomo binary path is not in allowed list: %s", binaryPath)
+	}
+
 	cfgInfo, err := os.Stat(configPath)
 	if err != nil {
 		return fmt.Errorf("mihomo config not found: %s", configPath)
@@ -150,11 +171,7 @@ func (pm *ProcessManager) ValidateConfig() error {
 	return nil
 }
 
-// findExistingProcesses 查找已经运行的、使用相同 Mihomo
-// binary + config 的进程。
-//
-// 不能依赖 ps，因为 Alpine/BusyBox 的 ps 参数并不统一。
-// 直接读取 /proc 更可靠。
+// findExistingProcesses 查找已经运行的、使用相同 Mihomo binary + config 的进程。
 func (pm *ProcessManager) findExistingProcesses() []int {
 	entries, err := os.ReadDir("/proc")
 	if err != nil {
@@ -252,9 +269,6 @@ func processAlive(pid int) bool {
 }
 
 // adoptExistingLocked 接管已经存在的 Mihomo。
-// 如果发现多个实例，只保留最早的 PID，其余发送 SIGTERM。
-//
-// 注意：这个函数必须在 pm.mu 已经锁定的情况下调用。
 func (pm *ProcessManager) adoptExistingLocked(
 	pids []int,
 ) int {
@@ -298,19 +312,6 @@ func (pm *ProcessManager) adoptExistingLocked(
 }
 
 func (pm *ProcessManager) Start() error {
-	/*
-		第一阶段：
-
-		先拿内部锁。
-
-		避免：
-
-		    HTTP 请求 A -> Start()
-		    HTTP 请求 B -> Start()
-
-		同时进入。
-	*/
-
 	pm.mu.Lock()
 
 	if pm.isRunning() {
@@ -328,10 +329,6 @@ func (pm *ProcessManager) Start() error {
 	configPath := pm.configPath
 
 	pm.mu.Unlock()
-
-	/*
-		检查 binary。
-	*/
 
 	info, err := os.Stat(binaryPath)
 	if err != nil {
@@ -355,9 +352,12 @@ func (pm *ProcessManager) Start() error {
 		)
 	}
 
-	/*
-		检查 config。
-	*/
+	if !isAllowedBinaryPath(binaryPath) {
+		return fmt.Errorf(
+			"mihomo binary path is not in allowed list: %s",
+			binaryPath,
+		)
+	}
 
 	cfgInfo, err := os.Stat(configPath)
 	if err != nil {
@@ -374,19 +374,6 @@ func (pm *ProcessManager) Start() error {
 		)
 	}
 
-	/*
-		第二阶段：
-
-		重新获得锁。
-
-		这是非常重要的。
-
-		在上面的文件检查过程中，另一个请求可能已经启动
-		Mihomo。
-
-		所以不能只在函数开始时检查一次。
-	*/
-
 	pm.mu.Lock()
 
 	if pm.isRunning() {
@@ -400,44 +387,24 @@ func (pm *ProcessManager) Start() error {
 		)
 	}
 
-	/*
-		检查系统中是否已经存在 Mihomo。
-
-		这主要解决：
-
-		3m-ui 重启
-		     ↓
-		Mihomo 子进程没有退出
-		     ↓
-		新的 3m-ui 启动
-		     ↓
-		Start()
-		     ↓
-		不能再启动第二个 Mihomo
-	*/
-
 	existing := pm.findExistingProcesses()
 
-if len(existing) > 0 {
-    pid := pm.adoptExistingLocked(existing)
+	if len(existing) > 0 {
+		pid := pm.adoptExistingLocked(existing)
 
-    pm.appendLogLocked(
-        fmt.Sprintf(
-            "adopted existing Mihomo process PID %d",
-            pid,
-        ),
-    )
+		pm.appendLogLocked(
+			fmt.Sprintf(
+				"adopted existing Mihomo process PID %d",
+				pid,
+			),
+		)
 
-    pm.mu.Unlock()
+		pm.mu.Unlock()
 
-    return nil
-}
+		return nil
+	}
 
-pm.mu.Unlock()
-
-	/*
-		真正启动 Mihomo。
-	*/
+	pm.mu.Unlock()
 
 	cmd := exec.Command(
 		binaryPath,
@@ -446,12 +413,6 @@ pm.mu.Unlock()
 		"-f",
 		configPath,
 	)
-
-	/*
-		让 Mihomo 成为独立 process group。
-
-		这样 Stop 时可以连同 Mihomo 的子进程一起清理。
-	*/
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
@@ -471,10 +432,6 @@ pm.mu.Unlock()
 		)
 	}
 
-	/*
-		启动成功后立即记录 PID。
-	*/
-
 	pm.mu.Lock()
 
 	pm.cmd = cmd
@@ -489,10 +446,6 @@ pm.mu.Unlock()
 	pm.mu.Unlock()
 
 	go pm.waitProcess(cmd, done)
-
-	/*
-		给 Mihomo 一小段时间确认没有立即退出。
-	*/
 
 	select {
 	case <-done:
@@ -539,11 +492,6 @@ func (pm *ProcessManager) waitProcess(
 			"process exited",
 		)
 	}
-
-	/*
-		只有当前 cmd 仍然是 manager 管理的实例，
-		并且 desired=true，才允许自动恢复。
-	*/
 
 	restart :=
 		pm.desired &&
@@ -607,20 +555,9 @@ func (pm *ProcessManager) Stop() error {
 	cmd := pm.cmd
 	done := pm.done
 
-	/*
-		必须先关闭 desired。
-
-		否则 waitProcess 可能认为这是异常退出，
-		然后又自动 Start()。
-	*/
-
 	pm.desired = false
 
 	pm.mu.Unlock()
-
-	/*
-		优先杀整个 process group。
-	*/
 
 	if pgid, err := syscall.Getpgid(pid); err == nil &&
 		pgid > 0 {
@@ -633,11 +570,6 @@ func (pm *ProcessManager) Stop() error {
 	} else if process, err := os.FindProcess(pid); err == nil {
 		_ = process.Signal(syscall.SIGTERM)
 	}
-
-	/*
-		如果是当前 3m-ui 创建的 cmd，
-		等待 Wait() 完成。
-	*/
 
 	if done != nil {
 		select {
@@ -664,10 +596,6 @@ func (pm *ProcessManager) Stop() error {
 		}
 
 	} else {
-		/*
-			这是接管的旧 Mihomo。
-		*/
-
 		deadline :=
 			time.Now().Add(5 * time.Second)
 
@@ -702,20 +630,6 @@ func (pm *ProcessManager) Stop() error {
 }
 
 func (pm *ProcessManager) Restart() error {
-	/*
-		Restart 必须严格执行：
-
-		    Stop
-		     ↓
-		    等待退出
-		     ↓
-		    Validate
-		     ↓
-		    Start
-
-		不能直接 Start。
-	*/
-
 	if pm.IsRunning() {
 		if err := pm.Stop(); err != nil {
 			return fmt.Errorf(
