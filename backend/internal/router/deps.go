@@ -11,7 +11,6 @@ import (
 )
 
 // Deps holds runtime dependencies for HTTP handlers.
-// Production wiring comes from app.Container.RouterDeps().
 type Deps struct {
 	DB               *gorm.DB
 	Config           *config.Config

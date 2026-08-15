@@ -8,15 +8,11 @@ import (
 )
 
 // CORSMiddleware builds a CORS middleware from configured origins.
-//
-// Behaviour (API-compatible with the previous hard-coded "*"):
-//   - empty list or a single entry "*" → allow any origin (legacy default)
-//   - otherwise → reflect the request Origin only when it matches an entry
-//
-// Credentials remain disabled so wildcard origins stay valid under the CORS
-// specification.
+// - empty list → deny cross-origin (no Access-Control-Allow-Origin header)
+// - "*"        → allow any origin (explicit opt-in)
+// - otherwise  → reflect the request Origin only when it matches an entry
 func CORSMiddleware(origins []string) gin.HandlerFunc {
-	allowAll := len(origins) == 0
+	allowAll := false
 	allowed := make(map[string]struct{}, len(origins))
 	for _, o := range origins {
 		o = strings.TrimSpace(o)
@@ -28,9 +24,6 @@ func CORSMiddleware(origins []string) gin.HandlerFunc {
 			continue
 		}
 		allowed[o] = struct{}{}
-	}
-	if len(allowed) == 0 {
-		allowAll = true
 	}
 
 	const allowHeaders = "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With"

@@ -1,136 +1,119 @@
-import { useState, useEffect } from 'react';
-import { Alert, Button, Card, Col, Progress, Row, Space, Statistic, Tag, Typography, message } from 'antd';
-import { PlayCircleOutlined, StopOutlined, ReloadOutlined } from '@ant-design/icons';
-import { apiRequest } from '../api/request';
-import { useI18n } from '../i18n';
+import React, { useEffect, useState } from 'react';
+import { Row, Col, Card, Statistic, Button, Space, Tag, message } from 'antd';
+import {
+  PlayCircleOutlined,
+  PauseCircleOutlined,
+  ReloadOutlined,
+  NodeIndexOutlined,
+  ClockCircleOutlined,
+} from '@ant-design/icons';
+import { fetchDashboard, startMihomo, stopMihomo, restartMihomo } from '../api/system';
+import { fetchListeners } from '../api/nodes';
 
-const { Title, Paragraph } = Typography;
-
-type Node = {
-  id: number;
-  name: string;
-  protocol: string;
-  enabled: boolean;
-};
-
-type Data = {
-  mihomo: { running: boolean; version: string; pid: number; uptime: string };
-  system: { cpu: { percent: number }; memory: { percent: number; used: number; total: number }; disk: { percent: number } };
-  listeners: { total: number; enabled: number; disabled?: number };
-  traffic: { activeConnections: number; uploadRate: number; downloadRate: number };
-};
-
-const fmt = (n: number) => {
-  if (!n) return '0 B/s';
-  if (n < 1024) return `${Math.round(n)} B/s`;
-  if (n < 1048576) return `${(n / 1024).toFixed(1)} KB/s`;
-  return `${(n / 1048576).toFixed(1)} MB/s`;
-};
-
-export default function Dashboard() {
-  const { t } = useI18n();
-  const [data, setData] = useState<Data | null>(null);
+const Dashboard: React.FC = () => {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
+    setLoading(true);
     try {
-      const [dashboard, nodes] = await Promise.all([
-        apiRequest<Data>('/dashboard'),
-        apiRequest<Node[]>('/nodes'),
-      ]);
-
-      // /nodes is the authoritative source for the UI node count.
-      const total = Array.isArray(nodes) ? nodes.length : 0;
-      const enabled = Array.isArray(nodes) ? nodes.filter((node) => node.enabled).length : 0;
-
-      setData({
-        ...dashboard,
-        listeners: { total, enabled, disabled: Math.max(0, total - enabled) },
-      });
+      const [dash, nodes] = await Promise.all([fetchDashboard(), fetchListeners()]);
+      const total = nodes.length;
+      const enabled = nodes.filter((n: any) => n.enabled).length;
+      setData({ ...dash, listeners: { total, enabled, disabled: total - enabled } });
     } catch (e: any) {
-      message.error(e.message || t('dashboard.unavailable'));
+      message.error(e.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     load();
-    const id = window.setInterval(load, 10000);
+    const id = setInterval(load, 10000);
     return () => clearInterval(id);
   }, []);
 
-  const act = async (a: 'start' | 'stop' | 'restart') => {
+  const act = async (action: 'start' | 'stop' | 'restart') => {
     setBusy(true);
     try {
-      await apiRequest(`/mihomo/${a}`, { method: 'POST' });
-      message.success(t(`dashboard.${a === 'start' ? 'started' : a === 'stop' ? 'stopped' : 'restarted'}`));
+      if (action === 'start') await startMihomo();
+      else if (action === 'stop') await stopMihomo();
+      else await restartMihomo();
+      message.success(`${action} succeeded`);
       load();
     } catch (e: any) {
-      message.error(e.message || t('dashboard.operationFailed'));
+      message.error(e.message);
     } finally {
       setBusy(false);
     }
   };
 
-  return (
-    <>
-      <div className="page-heading">
-        <Title level={2}>{t('dashboard.title')}</Title>
-        <Paragraph>{t('dashboard.subtitle')}</Paragraph>
-      </div>
+  const mihomo = data?.mihomo;
+  const running = mihomo?.running;
 
-      <Row gutter={[12, 12]}>
-        <Col xs={24} lg={10}>
-          <Card title={t('core.title')} extra={data?.mihomo.running ? <Tag color="success">{t('dashboard.running')}</Tag> : <Tag>{t('dashboard.stoppedStatus')}</Tag>}>
-            <Space direction="vertical" size={14} style={{ width: '100%' }}>
-              <Statistic title={t('dashboard.version')} value={data?.mihomo.version || '-'} />
-              <div>PID: {data?.mihomo.pid || '-'}　{t('dashboard.uptime')}: {data?.mihomo.uptime || '-'}</div>
-              <Space wrap>
-                <Button type="primary" icon={<PlayCircleOutlined />} disabled={!!data?.mihomo.running} loading={busy} onClick={() => act('start')}>
-                  {t('dashboard.start')}
+  return (
+    <div>
+      <h2>Dashboard</h2>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={12} lg={6}>
+          <Card loading={loading}>
+            <Statistic
+              title="Core Status"
+              value={running ? 'Running' : 'Stopped'}
+              valueStyle={{ color: running ? '#52c41a' : '#ff4d4f' }}
+            />
+            <div style={{ marginTop: 8 }}>
+              <Tag>{mihomo?.version || '-'}</Tag>
+              <Tag icon={<ClockCircleOutlined />}>{mihomo?.uptime || '-'}</Tag>
+            </div>
+            <Space style={{ marginTop: 16 }}>
+              {!running && (
+                <Button icon={<PlayCircleOutlined />} onClick={() => act('start')} loading={busy}>
+                  Start
                 </Button>
-                <Button danger icon={<StopOutlined />} disabled={!data?.mihomo.running} loading={busy} onClick={() => act('stop')}>
-                  {t('dashboard.stop')}
+              )}
+              {running && (
+                <Button icon={<PauseCircleOutlined />} danger onClick={() => act('stop')} loading={busy}>
+                  Stop
                 </Button>
-                <Button icon={<ReloadOutlined />} loading={busy} onClick={() => act('restart')}>
-                  {t('dashboard.restart')}
-                </Button>
-              </Space>
+              )}
+              <Button icon={<ReloadOutlined />} onClick={() => act('restart')} loading={busy}>
+                Restart
+              </Button>
             </Space>
           </Card>
         </Col>
-        <Col xs={12} sm={6} lg={5}>
-          <Card title="CPU">
-            <div className="dashboard-progress"><Progress type="circle" percent={data?.system.cpu.percent || 0} /></div>
+
+        <Col xs={24} sm={12} lg={6}>
+          <Card loading={loading}>
+            <Statistic
+              title="Listeners"
+              value={data?.listeners?.enabled || 0}
+              suffix={`/ ${data?.listeners?.total || 0}`}
+              prefix={<NodeIndexOutlined />}
+            />
           </Card>
         </Col>
-        <Col xs={12} sm={6} lg={5}>
-          <Card title={t('dashboard.memory')}>
-            <div className="dashboard-progress"><Progress type="circle" percent={data?.system.memory.percent || 0} /></div>
+
+        <Col xs={24} sm={12} lg={6}>
+          <Card loading={loading}>
+            <Statistic title="CPU" value={data?.cpu?.percent || 0} suffix="%" precision={1} />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={4}>
-          <Card title={t('dashboard.nodes')}>
-            <Statistic value={data?.listeners.total || 0} suffix={t('dashboard.countUnit')} />
-            <div className="dashboard-muted">{data?.listeners.enabled || 0} {t('dashboard.running')}</div>
-          </Card>
-        </Col>
-        <Col xs={24}>
-          <Card title={t('dashboard.network')}>
-            <Row gutter={[12, 12]}>
-              <Col xs={24} sm={8}>
-                <Statistic title={t('dashboard.connections')} value={data?.traffic.activeConnections || 0} />
-              </Col>
-              <Col xs={24} sm={8}>
-                <Statistic title={t('dashboard.upload')} value={fmt(data?.traffic.uploadRate || 0)} />
-              </Col>
-              <Col xs={24} sm={8}>
-                <Statistic title={t('dashboard.download')} value={fmt(data?.traffic.downloadRate || 0)} />
-              </Col>
-            </Row>
+
+        <Col xs={24} sm={12} lg={6}>
+          <Card loading={loading}>
+            <Statistic title="Memory" value={data?.memory?.percent || 0} suffix="%" precision={1} />
+            <div style={{ fontSize: 12, color: '#888' }}>
+              {((data?.memory?.used || 0) / 1024).toFixed(1)} GB / {((data?.memory?.total || 0) / 1024).toFixed(1)} GB
+            </div>
           </Card>
         </Col>
       </Row>
-      <Alert className="dashboard-alert" type="info" showIcon message={t('dashboard.consoleTitle')} description={t('dashboard.consoleDescription')} />
-    </>
+    </div>
   );
-}
+};
+
+export default Dashboard;

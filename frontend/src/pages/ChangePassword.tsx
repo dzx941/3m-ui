@@ -1,62 +1,53 @@
-import { useState } from 'react';
-import { Button, Card, Form, Input, Typography, message } from 'antd';
-import { LockOutlined } from '@ant-design/icons';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Card, Form, Input, Button, Typography, Alert, message } from 'antd';
 import { changePassword } from '../api/auth';
-import { useI18n } from '../i18n';
 
-const { Title, Paragraph } = Typography;
+const { Title } = Typography;
 
-export default function ChangePassword() {
-  const { t } = useI18n();
+const ChangePassword: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
-  const submit = async (v: { currentPassword: string; newPassword: string; confirmPassword: string }) => {
+  const onFinish = async (values: { current_password: string; new_password: string; confirm: string }) => {
+    if (values.new_password !== values.confirm) {
+      message.error('Passwords do not match');
+      return;
+    }
     setLoading(true);
     try {
-      await changePassword(v.currentPassword, v.newPassword);
-      message.success(t('password.success'));
-      navigate('/dashboard', { replace: true });
+      await changePassword(values.current_password, values.new_password);
+      message.success('Password updated');
+      navigate('/');
     } catch (e: any) {
-      message.error(e.message || t('password.failed'));
+      message.error(e.message || 'Failed to change password');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f5f7fa' }}>
-      <Card style={{ width: 420 }}>
-        <Title level={3}>{t('password.title')}</Title>
-        <Paragraph>{t('password.subtitle')}</Paragraph>
-        <Form layout="vertical" onFinish={submit} requiredMark={false}>
-          <Form.Item name="currentPassword" label={t('password.current')} rules={[{ required: true, message: t('password.required') }]}>
-            <Input.Password prefix={<LockOutlined />} autoComplete="current-password" />
+    <div style={{ maxWidth: 480, margin: '40px auto' }}>
+      <Card>
+        <Title level={4}>Change Password</Title>
+        <Alert message="You must change your password before continuing" type="warning" showIcon style={{ marginBottom: 24 }} />
+        <Form layout="vertical" onFinish={onFinish}>
+          <Form.Item label="Current Password" name="current_password" rules={[{ required: true }]}>
+            <Input.Password />
           </Form.Item>
-          <Form.Item name="newPassword" label={t('password.new')} rules={[{ required: true, message: t('password.required') }, { min: 8, message: t('password.min') }]}>
-            <Input.Password prefix={<LockOutlined />} autoComplete="new-password" />
+          <Form.Item label="New Password" name="new_password" rules={[{ required: true, min: 8 }]}>
+            <Input.Password />
           </Form.Item>
-          <Form.Item
-            name="confirmPassword"
-            label={t('password.confirm')}
-            dependencies={['newPassword']}
-            rules={[
-              { required: true, message: t('password.required') },
-              ({ getFieldValue }) => ({
-                validator(_, v) {
-                  return !v || getFieldValue('newPassword') === v
-                    ? Promise.resolve()
-                    : Promise.reject(new Error(t('password.mismatch')));
-                }
-              })
-            ]}
-          >
-            <Input.Password prefix={<LockOutlined />} autoComplete="new-password" />
+          <Form.Item label="Confirm Password" name="confirm" rules={[{ required: true }]}>
+            <Input.Password />
           </Form.Item>
-          <Button type="primary" htmlType="submit" block loading={loading}>{t('password.submit')}</Button>
+          <Button type="primary" htmlType="submit" loading={loading} block>
+            Update Password
+          </Button>
         </Form>
       </Card>
     </div>
   );
-}
+};
+
+export default ChangePassword;

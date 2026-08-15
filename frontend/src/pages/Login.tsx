@@ -1,49 +1,53 @@
-import { useState } from 'react';
-import { Button, Card, Form, Input, Typography, message } from 'antd';
-import { LockOutlined, UserOutlined } from '@ant-design/icons';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { isAuthenticated, login } from '../api/auth';
-import { useI18n } from '../i18n';
+import React, { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Card, Form, Input, Button, Typography, message } from 'antd';
+import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { login } from '../api/auth';
 
-const { Title, Paragraph } = Typography;
+const { Title } = Typography;
 
-export default function Login() {
-  const { t } = useI18n();
+const Login: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
+  const from = (location.state as any)?.from?.pathname || '/';
 
-  const from = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/dashboard';
-  if (isAuthenticated()) return <Navigate to={from} replace />;
-
-  const submit = async (v: { username: string; password: string }) => {
+  const onFinish = async (values: { username: string; password: string }) => {
     setLoading(true);
     try {
-      await login(v);
-      message.success(t('login.success'));
+      await login(values);
+      message.success('Welcome back');
       navigate(from, { replace: true });
     } catch (e: any) {
-      message.error(e.message || t('login.failed'));
+      message.error(e.message || 'Login failed');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f5f7fa' }}>
-      <Card style={{ width: 400, boxShadow: '0 8px 30px rgba(0,0,0,.08)' }}>
-        <Title level={3} style={{ textAlign: 'center', marginBottom: 8 }}>3m-ui</Title>
-        <Paragraph style={{ textAlign: 'center', marginBottom: 24 }}>{t('login.subtitle')}</Paragraph>
-        <Form layout="vertical" onFinish={submit} requiredMark={false}>
-          <Form.Item name="username" label={t('login.username')} rules={[{ required: true, message: t('login.requiredUsername') }]}>
-            <Input prefix={<UserOutlined />} autoComplete="username" />
+    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f5' }}>
+      <Card style={{ width: 420, borderRadius: 12 }}>
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <Title level={3} style={{ margin: 0 }}>3M-UI</Title>
+          <Typography.Text type="secondary">Mihomo Core Management</Typography.Text>
+        </div>
+        <Form onFinish={onFinish} autoComplete="off">
+          <Form.Item name="username" rules={[{ required: true, message: 'Please input username' }]}>
+            <Input prefix={<UserOutlined />} placeholder="Username" size="large" />
           </Form.Item>
-          <Form.Item name="password" label={t('login.password')} rules={[{ required: true, message: t('login.requiredPassword') }]}>
-            <Input.Password prefix={<LockOutlined />} autoComplete="current-password" />
+          <Form.Item name="password" rules={[{ required: true, message: 'Please input password' }]}>
+            <Input.Password prefix={<LockOutlined />} placeholder="Password" size="large" />
           </Form.Item>
-          <Button type="primary" htmlType="submit" block loading={loading}>{t('login.submit')}</Button>
+          <Form.Item>
+            <Button type="primary" htmlType="submit" loading={loading} block size="large">
+              Sign In
+            </Button>
+          </Form.Item>
         </Form>
       </Card>
     </div>
   );
-}
+};
+
+export default Login;
