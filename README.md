@@ -8,25 +8,6 @@ A lightweight, modern web management console for [Mihomo Core](https://github.co
 
 ---
 
-## 🔒 Security Hardened Edition
-
-This branch contains a comprehensive security audit and hardening patch over the original codebase. All high and medium severity vulnerabilities have been addressed.
-
-### Security Fixes
-
-| Severity | Issue | Fix |
-|----------|-------|-----|
-| 🔴 High | Custom JWT implementation with potential algorithm confusion | Migrated to `golang-jwt/jwt/v5` |
-| 🔴 High | Default admin password (`admin`/`admin`) | **Kept for compatibility** — please change immediately after first login |
-| 🟠 Medium | CORS wildcard by default | Deny-by-default; explicit origin list required |
-| 🟠 Medium | Mihomo binary path configurable → arbitrary execution | Whitelist: `/usr/local/bin/`, `/usr/bin/`, `/opt/` |
-| 🟠 Medium | `X-Forwarded-Host` trusted without validation | Validate against `public_url` config; reject path traversal |
-| 🟠 Medium | Login rate limiting in memory, easily bypassed | Parse `X-Forwarded-For` leftmost IP; stricter limits |
-| 🟠 Medium | `GlobalDB` fallback breaks DI isolation | Removed fallback; panic on nil dependency |
-| 🟡 Low | Reality private key stored in plaintext | **Recommended**: encrypt at rest (future work) |
-
----
-
 ## 🏗️ Architecture
 
 ```
@@ -154,24 +135,6 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 [Mihomo Core](https://github.com/MetaCubeX/mihomo) 的轻量级现代化 Web 管理控制台，专为 VPS 代理节点管理、客户端配置分发和核心生命周期控制而设计。
 
----
-
-## 🔒 安全加固版
-
-本分支包含对原始代码库的全面安全审计与加固补丁，所有高危和中危漏洞均已修复。
-
-### 安全修复清单
-
-| 风险等级 | 问题 | 修复方案 |
-|----------|------|---------|
-| 🔴 高危 | 自定义 JWT 实现，存在算法混淆风险 | 迁移至 `golang-jwt/jwt/v5` |
-| 🔴 高危 | 默认管理员密码为 `admin`/`admin` | **为兼容性保留** — 首次登录后请立即修改 |
-| 🟠 中危 | CORS 默认通配符 | 默认拒绝跨域；需显式配置来源列表 |
-| 🟠 中危 | Mihomo 二进制路径可控，可导致任意命令执行 | 白名单限制：`/usr/local/bin/`、`/usr/bin/`、`/opt/` |
-| 🟠 中危 | `X-Forwarded-Host` 未校验即信任 | 与 `public_url` 配置比对；拒绝路径遍历字符 |
-| 🟠 中危 | 登录限流基于内存，易被绕过 | 解析 `X-Forwarded-For` 最左侧 IP；更严格的限流策略 |
-| 🟠 中危 | `GlobalDB` 回退破坏依赖注入隔离 | 移除回退；依赖为 nil 时直接 panic |
-| 🟡 低危 | Reality 私钥明文存储于数据库 | **建议**：静态加密存储（后续版本完善） |
 
 ---
 
