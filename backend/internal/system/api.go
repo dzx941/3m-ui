@@ -6,12 +6,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterRoutes registers system stats routes under the provided group
-func RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/status", GetSystemStatus)
+// RegisterRoutes accepts an optional service. The GlobalService fallback is
+// temporary compatibility for callers that have not yet migrated.
+func RegisterRoutes(rg *gin.RouterGroup, services ...*Service) {
+	svc := GlobalService
+	if len(services) > 0 && services[0] != nil { svc = services[0] }
+	rg.GET("/status", GetSystemStatus(svc))
 }
 
-func GetSystemStatus(c *gin.Context) {
-	stats := GlobalService.GetStatus()
-	c.JSON(http.StatusOK, stats)
+func GetSystemStatus(svc *Service) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if svc == nil { c.JSON(http.StatusInternalServerError, gin.H{"error": "system service not initialized"}); return }
+		c.JSON(http.StatusOK, svc.GetStatus())
+	}
 }

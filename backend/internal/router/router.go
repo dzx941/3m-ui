@@ -12,8 +12,8 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/auth"
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/converter"
-	"github.com/dzx941/3m-ui/backend/internal/database"
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
+	"github.com/dzx941/3m-ui/backend/internal/listener"
 	"github.com/dzx941/3m-ui/backend/internal/mihomo"
 	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"github.com/dzx941/3m-ui/backend/internal/node"
@@ -29,7 +29,7 @@ func generateSecureToken() string {
 	return hex.EncodeToString(b)
 }
 
-func SetupRouter(cfg *config.Config) *gin.Engine {
+func SetupRouter(cfg *config.Config, deps Dependencies) *gin.Engine {
 	if cfg.Server.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	} else {
@@ -59,7 +59,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 		apiV1.GET("/client/sub/:token", func(c *gin.Context) {
 			var token models.AccessToken
-			if err := database.GlobalDB.Where("token = ? AND enabled = ?", c.Param("token"), true).First(&token).Error; err != nil {
+			if deps.DB == nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "database not initialized"})
+				return
+			}
+			if err := deps.DB.Where("token = ? AND enabled = ?", c.Param("token"), true).First(&token).Error; err != nil {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Token 不存在或已禁用"})
 				return
 			}
@@ -72,7 +76,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				return
 			}
 
-			rawYAML, err := converter.GenerateRawConfig(database.GlobalDB, token, c.Request)
+			rawYAML, err := converter.GenerateRawConfig(deps.DB, token, c.Request)
 			if err != nil {
 				status := http.StatusInternalServerError
 				if err.Error() == "listener not found" || err.Error() == "listener is disabled" {
@@ -92,7 +96,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		{
 			accessTokenGroup.GET("", func(c *gin.Context) {
 				var tokens []models.AccessToken
-				if err := database.GlobalDB.Find(&tokens).Error; err != nil {
+				if deps.DB == nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "database not initialized"})
+					return
+				}
+				if err := deps.DB.Find(&tokens).Error; err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
 				}
@@ -110,10 +118,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				resp := make([]TokenResponse, 0, len(tokens))
 				for _, token := range tokens {
 					item := TokenResponse{AccessToken: token}
-					var listener models.Listener
-					if token.ListenerID != 0 && database.GlobalDB.First(&listener, token.ListenerID).Error == nil {
-						item.ListenerName = listener.Name
-						item.ListenerProtocol = listener.Protocol
+					var l models.Listener
+					if token.ListenerID != 0 && deps.DB.First(&l, token.ListenerID).Error == nil {
+						item.ListenerName = l.Name
+						item.ListenerProtocol = l.Protocol
 					}
 					link := converter.GetSubscriptionURL(cfg, c.Request, token.Token, "")
 					item.MihomoLink = link
@@ -135,12 +143,16 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 					c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 					return
 				}
-				var listener models.Listener
-				if err := database.GlobalDB.First(&listener, req.ListenerID).Error; err != nil {
+				var l models.Listener
+				if deps.DB == nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "database not initialized"})
+					return
+				}
+				if err := deps.DB.First(&l, req.ListenerID).Error; err != nil {
 					c.JSON(http.StatusBadRequest, gin.H{"error": "listener not found"})
 					return
 				}
-				if !listener.Enabled {
+				if !l.Enabled {
 					c.JSON(http.StatusBadRequest, gin.H{"error": "listener is disabled"})
 					return
 				}
@@ -152,7 +164,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 					ExpireAt:   req.ExpireAt,
 					ListenerID: req.ListenerID,
 				}
-				if err := database.GlobalDB.Create(&tokenObj).Error; err != nil {
+				if err := deps.DB.Create(&tokenObj).Error; err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
 				}
@@ -168,12 +180,16 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 					return
 				}
 				var token models.AccessToken
-				if err := database.GlobalDB.First(&token, c.Param("id")).Error; err != nil {
+				if deps.DB == nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "database not initialized"})
+					return
+				}
+				if err := deps.DB.First(&token, c.Param("id")).Error; err != nil {
 					c.JSON(http.StatusNotFound, gin.H{"error": "token not found"})
 					return
 				}
 				token.Enabled = req.Enabled
-				if err := database.GlobalDB.Save(&token).Error; err != nil {
+				if err := deps.DB.Save(&token).Error; err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
 				}
@@ -182,11 +198,15 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 			accessTokenGroup.DELETE("/:id", func(c *gin.Context) {
 				var token models.AccessToken
-				if err := database.GlobalDB.First(&token, c.Param("id")).Error; err != nil {
+				if deps.DB == nil {
+					c.JSON(http.StatusInternalServerError, gin.H{"error": "database not initialized"})
+					return
+				}
+				if err := deps.DB.First(&token, c.Param("id")).Error; err != nil {
 					c.JSON(http.StatusNotFound, gin.H{"error": "token not found"})
 					return
 				}
-				if err := database.GlobalDB.Delete(&token).Error; err != nil {
+				if err := deps.DB.Delete(&token).Error; err != nil {
 					c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 					return
 				}
@@ -195,17 +215,21 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		}
 
 		apiV1.GET("/dashboard", func(c *gin.Context) {
-			mihomoStatus, err := mihomo.GlobalService.GetStatus()
-			if err != nil {
+			var mihomoStatus *mihomo.StatusResponse
+			var err error
+			if deps.Mihomo != nil {
+				mihomoStatus, err = deps.Mihomo.GetStatus()
+			}
+			if err != nil || mihomoStatus == nil {
 				mihomoStatus = &mihomo.StatusResponse{Running: false, Version: "unknown", PID: 0, Uptime: "0s"}
 			}
 			sysStatus := system.GlobalService.GetStatus()
 
 			var listenerTotal int64
 			var listenerEnabled int64
-			if database.GlobalDB != nil {
-				database.GlobalDB.Model(&models.Listener{}).Count(&listenerTotal)
-				database.GlobalDB.Model(&models.Listener{}).Where("enabled = ?", true).Count(&listenerEnabled)
+			if deps.DB != nil {
+				deps.DB.Model(&models.Listener{}).Count(&listenerTotal)
+				deps.DB.Model(&models.Listener{}).Where("enabled = ?", true).Count(&listenerEnabled)
 			}
 			listenerDisabled := listenerTotal - listenerEnabled
 			if listenerDisabled < 0 {
@@ -213,16 +237,16 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 			}
 
 			var trafficSnapshot traffic.Snapshot
-			if traffic.GlobalService != nil {
-				trafficSnapshot = traffic.GlobalService.Current()
+			if deps.Traffic != nil {
+				trafficSnapshot = deps.Traffic.Current()
 			}
 			var onlineUsers int64
-			if database.GlobalDB != nil {
-				database.GlobalDB.Model(&models.ProxyUser{}).Where("online = ?", true).Count(&onlineUsers)
+			if deps.DB != nil {
+				deps.DB.Model(&models.ProxyUser{}).Where("online = ?", true).Count(&onlineUsers)
 			}
 			activeConnections := trafficSnapshot.Connections
-			if traffic.GlobalCollector != nil {
-				activeConnections = len(traffic.GlobalCollector.CurrentConnections())
+			if deps.Collector != nil {
+				activeConnections = len(deps.Collector.CurrentConnections())
 			}
 			c.JSON(http.StatusOK, gin.H{
 				"mihomo": mihomoStatus,
@@ -247,24 +271,29 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		mihomoGroup := apiV1.Group("/mihomo")
 		{
 			mihomoGroup.GET("/status", func(c *gin.Context) {
-				status, err := mihomo.GlobalService.GetStatus()
+				if deps.Mihomo == nil { c.JSON(http.StatusInternalServerError, gin.H{"error": "mihomo service not initialized"}); return }
+				status, err := deps.Mihomo.GetStatus()
 				if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				c.JSON(http.StatusOK, status)
 			})
 			mihomoGroup.POST("/start", func(c *gin.Context) {
-				if err := mihomo.GlobalService.StartMihomo(); err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
+				if deps.Mihomo == nil { c.JSON(http.StatusInternalServerError, gin.H{"error": "mihomo service not initialized"}); return }
+				if err := deps.Mihomo.StartMihomo(); err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "Mihomo started"})
 			})
 			mihomoGroup.POST("/stop", func(c *gin.Context) {
-				if err := mihomo.GlobalService.StopMihomo(); err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
+				if deps.Mihomo == nil { c.JSON(http.StatusInternalServerError, gin.H{"error": "mihomo service not initialized"}); return }
+				if err := deps.Mihomo.StopMihomo(); err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "Mihomo stopped"})
 			})
 			mihomoGroup.POST("/restart", func(c *gin.Context) {
-				if err := mihomo.GlobalService.RestartMihomo(); err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
+				if deps.Mihomo == nil { c.JSON(http.StatusInternalServerError, gin.H{"error": "mihomo service not initialized"}); return }
+				if err := deps.Mihomo.RestartMihomo(); err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "Mihomo restarted"})
 			})
 			mihomoGroup.GET("/logs", func(c *gin.Context) {
-				logs, err := mihomo.GlobalService.GetLogs()
+				if deps.Mihomo == nil { c.JSON(http.StatusInternalServerError, gin.H{"error": "mihomo service not initialized"}); return }
+				logs, err := deps.Mihomo.GetLogs()
 				if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				c.JSON(http.StatusOK, logs)
 			})
@@ -282,19 +311,19 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 		listenerGroup := apiV1.Group("/listeners")
 		{
-			node.RegisterRoutes(listenerGroup)
+			listener.RegisterRoutes(listenerGroup, deps.Listener)
 		}
 
 		trafficGroup := apiV1.Group("/traffic")
 		{
-			trafficHandler := traffic.NewHandler(traffic.GlobalService, traffic.GlobalCollector, database.GlobalDB)
+			trafficHandler := traffic.NewHandler(deps.Traffic, deps.Collector, deps.DB)
 			traffic.RegisterRoutes(trafficGroup, trafficHandler)
 		}
 
 		configGroup := apiV1.Group("/config")
 		{
 			configGroup.GET("/proxies", func(c *gin.Context) {
-				visual, err := mihomoConfig.GetVisualConfig(database.GlobalDB)
+				visual, err := mihomoConfig.GetVisualConfig(deps.DB)
 				if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				c.JSON(http.StatusOK, visual.Proxies)
 			})
@@ -304,10 +333,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				if proxy.Name == "" || proxy.Type == "" || proxy.Server == "" || proxy.Port < 1 || proxy.Port > 65535 {
 					c.JSON(http.StatusBadRequest, gin.H{"error": "名称、协议、服务器和有效端口不能为空"}); return
 				}
-				visual, err := mihomoConfig.GetVisualConfig(database.GlobalDB)
+				visual, err := mihomoConfig.GetVisualConfig(deps.DB)
 				if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				visual.Proxies = append(visual.Proxies, proxy)
-				if err = mihomoConfig.SaveVisualConfig(database.GlobalDB, visual); err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
+				if err = mihomoConfig.SaveVisualConfig(deps.DB, visual); err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				c.JSON(http.StatusCreated, proxy)
 			})
 			configGroup.PUT("/proxies/:index", func(c *gin.Context) {
@@ -315,42 +344,44 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				if err != nil || idx < 0 { c.JSON(http.StatusBadRequest, gin.H{"error": "无效节点索引"}); return }
 				var proxy mihomoConfig.ProxyEntry
 				if err = c.ShouldBindJSON(&proxy); err != nil { c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()}); return }
-				visual, err := mihomoConfig.GetVisualConfig(database.GlobalDB)
+				visual, err := mihomoConfig.GetVisualConfig(deps.DB)
 				if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				if idx >= len(visual.Proxies) { c.JSON(http.StatusNotFound, gin.H{"error": "节点不存在"}); return }
 				visual.Proxies[idx] = proxy
-				if err = mihomoConfig.SaveVisualConfig(database.GlobalDB, visual); err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
+				if err = mihomoConfig.SaveVisualConfig(deps.DB, visual); err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				c.JSON(http.StatusOK, proxy)
 			})
 			configGroup.DELETE("/proxies/:index", func(c *gin.Context) {
 				idx, err := strconv.Atoi(c.Param("index"))
 				if err != nil || idx < 0 { c.JSON(http.StatusBadRequest, gin.H{"error": "无效节点索引"}); return }
-				visual, err := mihomoConfig.GetVisualConfig(database.GlobalDB)
+				visual, err := mihomoConfig.GetVisualConfig(deps.DB)
 				if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				if idx >= len(visual.Proxies) { c.JSON(http.StatusNotFound, gin.H{"error": "节点不存在"}); return }
 				visual.Proxies = append(visual.Proxies[:idx], visual.Proxies[idx+1:]...)
-				if err = mihomoConfig.SaveVisualConfig(database.GlobalDB, visual); err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
+				if err = mihomoConfig.SaveVisualConfig(deps.DB, visual); err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				c.JSON(http.StatusOK, gin.H{"status": "ok"})
 			})
 			configGroup.GET("/visual", func(c *gin.Context) {
-				visual, err := mihomoConfig.GetVisualConfig(database.GlobalDB)
+				visual, err := mihomoConfig.GetVisualConfig(deps.DB)
 				if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				c.JSON(http.StatusOK, visual)
 			})
 			configGroup.POST("/visual", func(c *gin.Context) {
 				var visual mihomoConfig.VisualConfig
 				if err := c.ShouldBindJSON(&visual); err != nil { c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid visual configuration: " + err.Error()}); return }
-				if err := mihomoConfig.SaveVisualConfig(database.GlobalDB, visual); err != nil { c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()}); return }
+				if err := mihomoConfig.SaveVisualConfig(deps.DB, visual); err != nil { c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()}); return }
 				c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "Visual configuration saved"})
 			})
 			configGroup.GET("", func(c *gin.Context) {
-				engine := mihomoConfig.NewConfigEngine(database.GlobalDB)
+				engine := deps.ConfigEngine
+				if engine == nil { engine = mihomoConfig.NewConfigEngine(deps.DB) }
 				yamlStr, err := engine.GenerateFinalConfig()
 				if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				c.JSON(http.StatusOK, gin.H{"config": yamlStr})
 			})
 			configGroup.POST("/generate", func(c *gin.Context) {
-				engine := mihomoConfig.NewConfigEngine(database.GlobalDB)
+				engine := deps.ConfigEngine
+				if engine == nil { engine = mihomoConfig.NewConfigEngine(deps.DB) }
 				yamlStr, err := engine.GenerateFinalConfig()
 				if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				dir := filepath.Dir(cfg.Mihomo.Config)
@@ -365,7 +396,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 				c.JSON(http.StatusOK, gin.H{"valid": true})
 			})
 			configGroup.GET("/download", func(c *gin.Context) {
-				engine := mihomoConfig.NewConfigEngine(database.GlobalDB)
+				engine := deps.ConfigEngine
+				if engine == nil { engine = mihomoConfig.NewConfigEngine(deps.DB) }
 				yamlStr, err := engine.GenerateFinalConfig()
 				if err != nil { c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()}); return }
 				c.Header("Content-Disposition", "attachment; filename=config.yaml")

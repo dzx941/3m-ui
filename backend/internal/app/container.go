@@ -4,47 +4,54 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/database"
 	"github.com/dzx941/3m-ui/backend/internal/listener"
-	dbconfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"github.com/dzx941/3m-ui/backend/internal/mihomo"
+	dbconfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"github.com/dzx941/3m-ui/backend/internal/node"
+	"github.com/dzx941/3m-ui/backend/internal/system"
 	"github.com/dzx941/3m-ui/backend/internal/traffic"
 	"github.com/dzx941/3m-ui/backend/internal/user"
 	"gorm.io/gorm"
 )
 
-// Container is the application composition root. It makes the core runtime
-// dependencies explicit while legacy package globals remain temporarily
-// populated for handlers that have not yet been migrated to dependency
-// injection.
 type Container struct {
-	DB         *gorm.DB
-	Config     *config.Config
-	Mihomo     *mihomo.Service
-	Listener   *listener.Service
-	Node       *node.Service
-	User       *user.Service
-	Traffic    *traffic.Service
+	DB           *gorm.DB
+	Config       *config.Config
+	Mihomo       *mihomo.Service
+	Listener     *listener.Service
+	Node         *node.Service
+	User         *user.Service
+	System       *system.Service
+	Traffic      *traffic.Service
+	TrafficUser  *traffic.UserService
+	Collector    *traffic.Collector
+	Enforcer     *traffic.Enforcer
+	Scheduler    *traffic.Scheduler
 	ConfigEngine *dbconfig.ConfigEngine
 }
 
-// NewContainer constructs the application services from one database and one
-// configuration. Package globals are registered here, in one place, so the
-// rest of the application no longer needs to know how services are bootstrapped.
 func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
-	mihomo.InitService(cfg)
-	listener.InitService(db, cfg.Mihomo.Config)
-	node.InitService(db, cfg.Mihomo.Config)
-	user.InitService(db)
-	trafficService := traffic.InitGlobalService()
+	mihomoService := mihomo.NewService(cfg)
+	userService := user.NewService(db)
+	trafficService := traffic.NewService()
+	trafficUserService := traffic.NewUserService(db)
+	nodeService := node.NewService(db, cfg.Mihomo.Config)
+	collector := traffic.NewCollectorFromDefaults(db, trafficService, trafficUserService)
+	enforcer := traffic.NewEnforcer(db, nodeService)
+	scheduler := traffic.NewScheduler(collector, enforcer, traffic.DefaultInterval)
 
 	return &Container{
 		DB:           db,
 		Config:       cfg,
-		Mihomo:       mihomo.GlobalService,
-		Listener:     listener.GlobalService,
-		Node:         node.GlobalService,
-		User:         user.GlobalService,
+		Mihomo:       mihomoService,
+		Listener:     listener.NewService(db, cfg.Mihomo.Config, mihomoService),
+		Node:         nodeService,
+		User:         userService,
+		System:       system.NewService(),
 		Traffic:      trafficService,
+		TrafficUser:  trafficUserService,
+		Collector:    collector,
+		Enforcer:     enforcer,
+		Scheduler:    scheduler,
 		ConfigEngine: dbconfig.NewConfigEngine(db),
 	}
 }

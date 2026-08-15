@@ -17,136 +17,77 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Run boots the application and serves the embedded frontend.
-// Runtime dependencies are assembled once by NewContainer; cmd/server remains
-// a thin entrypoint and handlers can be migrated away from package globals
-// incrementally.
 func Run(frontendFS fs.FS) error {
 	configPath := defaultConfigPath()
 	cfg, err := config.LoadConfig(configPath)
-	if err != nil {
-		return fmt.Errorf("load config: %w", err)
-	}
-
+	if err != nil { return fmt.Errorf("load config: %w", err) }
 	db, err := database.InitDB(cfg.Database.Path)
-	if err != nil {
-		return fmt.Errorf("initialize database: %w", err)
-	}
-
+	if err != nil { return fmt.Errorf("initialize database: %w", err) }
 	if created, username, password, err := auth.EnsureAdmin(db, cfg.Database.Path); err != nil {
 		return fmt.Errorf("initialize administrator: %w", err)
 	} else if created {
 		log.Printf("initial administrator created: username=%s", username)
 		passwordFile := filepath.Join(filepath.Dir(cfg.Database.Path), ".initial_admin_password")
-		if err := os.WriteFile(passwordFile, []byte(password+"\n"), 0600); err != nil {
-			log.Printf("warning: could not write initial admin password file: %v", err)
-		} else {
-			log.Printf("initial administrator password saved to %s", passwordFile)
-		}
+		if err := os.WriteFile(passwordFile, []byte(password+"\n"), 0600); err != nil { log.Printf("warning: could not write initial admin password file: %v", err) } else { log.Printf("initial administrator password saved to %s", passwordFile) }
 	}
 
 	security.InitCredentialKey(cfg.Security.CredentialKey)
 	container := NewContainer(db, cfg)
 
-	// The config package receives its credential provider from the composition
-	// root. This avoids importing the user service from the Mihomo compiler and
-	// keeps credential loading behind the application boundary.
 	dbconfig.CredentialProvider = func() (map[uint][]dbconfig.Credential, error) {
-		if container.User == nil {
-			return map[uint][]dbconfig.Credential{}, nil
-		}
-		provided, err := container.User.ActiveCredentialsByListener()
-		if err != nil {
-			return nil, err
-		}
+		if container.User == nil { return map[uint][]dbconfig.Credential{}, nil }
+		provided, err := container.User.ActiveCredentialsByListener(); if err != nil { return nil, err }
 		result := make(map[uint][]dbconfig.Credential, len(provided))
 		for listenerID, credentials := range provided {
 			converted := make([]dbconfig.Credential, 0, len(credentials))
-			for _, credential := range credentials {
-				converted = append(converted, dbconfig.Credential{
-					Username: credential.Username,
-					Password: credential.Password,
-					UUID:     credential.UUID,
-				})
-			}
+			for _, credential := range credentials { converted = append(converted, dbconfig.Credential{Username: credential.Username, Password: credential.Password, UUID: credential.UUID}) }
 			result[listenerID] = converted
 		}
 		return result, nil
 	}
 
-	// Build and validate the actual Mihomo configuration before serving HTTP.
-	// The running core is therefore always backed by the same database-driven
-	// Listener configuration exposed by the panel.
-	generatedConfig, err := container.ConfigEngine.GenerateFinalConfig()
-	if err != nil {
-		return fmt.Errorf("generate Mihomo configuration: %w", err)
-	}
-	if container.Mihomo == nil {
-		return fmt.Errorf("initialize Mihomo service: service is nil")
-	}
-	if err := container.Mihomo.SaveConfig(generatedConfig); err != nil {
-		return fmt.Errorf("validate Mihomo configuration: %w", err)
-	}
-	if err := container.Mihomo.StartMihomo(); err != nil {
-		return fmt.Errorf("start Mihomo core: %w", err)
-	}
+	generatedConfig, err := container.ConfigEngine.GenerateFinalConfig(); if err != nil { return fmt.Errorf("generate Mihomo configuration: %w", err) }
+	if container.Mihomo == nil { return fmt.Errorf("initialize Mihomo service: service is nil") }
+	if err := container.Mihomo.SaveConfig(generatedConfig); err != nil { return fmt.Errorf("validate Mihomo configuration: %w", err) }
+	if err := container.Mihomo.StartMihomo(); err != nil { return fmt.Errorf("start Mihomo core: %w", err) }
 	log.Printf("Mihomo core started successfully")
 
-	r := router.SetupRouter(cfg)
-	mountFrontend(r, frontendFS)
-	addr := fmt.Sprintf(":%d", cfg.Server.Port)
-	log.Printf("3m-ui listening on %s", addr)
-	if err := r.Run(addr); err != nil {
-		return fmt.Errorf("run server: %w", err)
+	if container.Scheduler != nil {
+		container.Scheduler.Start()
+		defer container.Scheduler.Stop()
 	}
+
+	routerDeps := router.Dependencies{
+		DB: container.DB, Config: container.Config, Mihomo: container.Mihomo, Listener: container.Listener,
+		Node: container.Node, User: container.User, System: container.System, Traffic: container.Traffic,
+		Collector: container.Collector, ConfigEngine: container.ConfigEngine,
+	}
+	router.ConfigureDependencies(routerDeps)
+	r := router.SetupRouter(cfg, routerDeps)
+	mountFrontend(r, frontendFS)
+	addr := fmt.Sprintf(":%d", cfg.Server.Port); log.Printf("3m-ui listening on %s", addr)
+	if err := r.Run(addr); err != nil { return fmt.Errorf("run server: %w", err) }
 	return nil
 }
 
 func defaultConfigPath() string {
-	if value := os.Getenv("THREE_M_UI_CONFIG"); value != "" {
-		return value
-	}
-	if _, err := os.Stat("/etc/3m-ui/config.yaml"); err == nil {
-		return "/etc/3m-ui/config.yaml"
-	}
+	if value := os.Getenv("THREE_M_UI_CONFIG"); value != "" { return value }
+	if _, err := os.Stat("/etc/3m-ui/config.yaml"); err == nil { return "/etc/3m-ui/config.yaml" }
 	return "backend/config/config.yaml"
 }
 
 func mountFrontend(r *gin.Engine, frontendFS fs.FS) {
-	staticFS, err := fs.Sub(frontendFS, "web/dist")
-	if err != nil {
-		log.Printf("frontend assets unavailable: %v", err)
-		return
-	}
-
-	fileServer := http.FileServer(http.FS(staticFS))
-	r.RedirectTrailingSlash = false
-	r.RedirectFixedPath = false
+	staticFS, err := fs.Sub(frontendFS, "web/dist"); if err != nil { log.Printf("frontend assets unavailable: %v", err); return }
+	fileServer := http.FileServer(http.FS(staticFS)); r.RedirectTrailingSlash = false; r.RedirectFixedPath = false
 	r.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
-		if len(path) >= 4 && path[:4] == "/api" {
-			c.Status(http.StatusNotFound)
-			return
-		}
-		if path == "/" {
-			c.Data(http.StatusOK, "text/html; charset=utf-8", mustReadFile(staticFS, "index.html"))
-			return
-		}
-		f, err := staticFS.Open(path[1:])
-		if err == nil {
-			defer f.Close()
-			fileServer.ServeHTTP(c.Writer, c.Request)
-			return
-		}
+		if len(path) >= 4 && path[:4] == "/api" { c.Status(http.StatusNotFound); return }
+		if path == "/" { c.Data(http.StatusOK, "text/html; charset=utf-8", mustReadFile(staticFS, "index.html")); return }
+		f, err := staticFS.Open(path[1:]); if err == nil { defer f.Close(); fileServer.ServeHTTP(c.Writer, c.Request); return }
 		c.Data(http.StatusOK, "text/html; charset=utf-8", mustReadFile(staticFS, "index.html"))
 	})
 }
 
 func mustReadFile(fsys fs.FS, name string) []byte {
-	data, err := fs.ReadFile(fsys, name)
-	if err != nil {
-		log.Printf("read frontend %s failed: %v", name, err)
-		return []byte("3m-ui frontend unavailable")
-	}
-	return data
+	data, err := fs.ReadFile(fsys, name); if err != nil { log.Printf("read frontend %s failed: %v", name, err); return []byte("3m-ui frontend unavailable") }; return data
 }

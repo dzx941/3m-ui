@@ -14,12 +14,11 @@ import (
 type Service struct {
 	db         *gorm.DB
 	configPath string
+	mihomo     *mihomo.Service
 }
 
-var GlobalService *Service
-
-func InitService(db *gorm.DB, configPath string) {
-	GlobalService = &Service{db: db, configPath: configPath}
+func NewService(db *gorm.DB, configPath string, mihomoService *mihomo.Service) *Service {
+	return &Service{db: db, configPath: configPath, mihomo: mihomoService}
 }
 
 func (s *Service) Create(l *models.Listener) error {
@@ -54,7 +53,6 @@ func (s *Service) Update(l *models.Listener) error {
 	if err := s.db.First(&previous, l.ID).Error; err != nil {
 		return fmt.Errorf("failed to load previous listener: %w", err)
 	}
-
 	if err := s.db.Save(l).Error; err != nil {
 		return fmt.Errorf("failed to update listener: %w", err)
 	}
@@ -73,7 +71,6 @@ func (s *Service) Delete(id uint) error {
 	if err := s.db.First(&previous, id).Error; err != nil {
 		return fmt.Errorf("failed to fetch listener before delete: %w", err)
 	}
-
 	if err := s.db.Delete(&models.Listener{}, id).Error; err != nil {
 		return fmt.Errorf("failed to delete listener: %w", err)
 	}
@@ -87,8 +84,6 @@ func (s *Service) Delete(id uint) error {
 	return nil
 }
 
-// RegenerateConfig is the single configuration path for Listener changes.
-// It never writes a hand-built partial YAML over the full Mihomo config.
 func (s *Service) RegenerateConfig() error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("listener service not initialized")
@@ -98,8 +93,8 @@ func (s *Service) RegenerateConfig() error {
 	if err != nil {
 		return fmt.Errorf("generate Mihomo configuration: %w", err)
 	}
-	if mihomo.GlobalService != nil {
-		return mihomo.GlobalService.ApplyConfig(yamlContent)
+	if s.mihomo != nil {
+		return s.mihomo.ApplyConfig(yamlContent)
 	}
 	dir := filepath.Dir(s.configPath)
 	if err := os.MkdirAll(dir, 0750); err != nil {
@@ -111,24 +106,11 @@ func (s *Service) RegenerateConfig() error {
 	}
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName)
-	if err := tmp.Chmod(0600); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if _, err := tmp.WriteString(yamlContent); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Sync(); err != nil {
-		_ = tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	if err := os.Rename(tmpName, s.configPath); err != nil {
-		return fmt.Errorf("replace Mihomo config: %w", err)
-	}
+	if err := tmp.Chmod(0600); err != nil { _ = tmp.Close(); return err }
+	if _, err := tmp.WriteString(yamlContent); err != nil { _ = tmp.Close(); return err }
+	if err := tmp.Sync(); err != nil { _ = tmp.Close(); return err }
+	if err := tmp.Close(); err != nil { return err }
+	if err := os.Rename(tmpName, s.configPath); err != nil { return fmt.Errorf("replace Mihomo config: %w", err) }
 	return nil
 }
 

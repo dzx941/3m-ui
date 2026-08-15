@@ -2,11 +2,8 @@ package system
 
 type Service struct{}
 
-var GlobalService *Service
-
-func InitService() {
-	GlobalService = &Service{}
-}
+// NewService constructs the system service explicitly.
+func NewService() *Service { return &Service{} }
 
 func (s *Service) GetStatus() *SystemStats {
 	return GetSystemStats()
