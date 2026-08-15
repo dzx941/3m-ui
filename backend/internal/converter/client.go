@@ -47,7 +47,7 @@ func cleanURLHost(raw string) string {
 		u = h
 	}
 	u = strings.Trim(u, "[]")
-	if u == "" || strings.ContainsAny(u, "\r\n/\\") {
+	if u == "" || strings.ContainsAny(u, "\r\n/\") {
 		return "127.0.0.1"
 	}
 	return u
@@ -277,7 +277,10 @@ func listenerToProxies(l models.Listener, server string, credentials []user.Cred
 		for i, cred := range credentials {
 			p := makeProxy(fmt.Sprintf("%d", i+1))
 			p["password"] = cred.Password
-			for _, key := range []string{"up", "down", "obfs", "obfs-password", "masquerade", "bbr-profile", "realm-opts", "alpn", "sni", "skip-cert-verify", "name-cert-verify", "fingerprint"} {
+			for _, key := range []string{
+				"up", "down", "obfs", "obfs-password", "masquerade", "bbr-profile",
+				"realm-opts", "alpn", "sni", "skip-cert-verify", "name-cert-verify", "fingerprint",
+			} {
 				copyOption(p, opts, key)
 			}
 			result = append(result, p)
@@ -287,7 +290,10 @@ func listenerToProxies(l models.Listener, server string, credentials []user.Cred
 		if token, ok := opts["token"]; ok {
 			p := makeProxy("")
 			p["token"] = token
-			for _, key := range []string{"congestion-controller", "bbr-profile", "max-idle-time", "authentication-timeout", "alpn", "max-udp-relay-packet-size"} {
+			for _, key := range []string{
+				"congestion-controller", "bbr-profile", "max-idle-time",
+				"authentication-timeout", "alpn", "max-udp-relay-packet-size",
+			} {
 				copyOption(p, opts, key)
 			}
 			result = append(result, p)
@@ -299,7 +305,10 @@ func listenerToProxies(l models.Listener, server string, credentials []user.Cred
 				p := makeProxy(fmt.Sprintf("%d", i+1))
 				p["uuid"] = cred.UUID
 				p["password"] = cred.Password
-				for _, key := range []string{"congestion-controller", "bbr-profile", "max-idle-time", "authentication-timeout", "alpn", "max-udp-relay-packet-size"} {
+				for _, key := range []string{
+					"congestion-controller", "bbr-profile", "max-idle-time",
+					"authentication-timeout", "alpn", "max-udp-relay-packet-size",
+				} {
 					copyOption(p, opts, key)
 				}
 				result = append(result, p)
@@ -314,7 +323,12 @@ func listenerToProxies(l models.Listener, server string, credentials []user.Cred
 			p := makeProxy(fmt.Sprintf("%d", i+1))
 			p["username"] = cred.Username
 			p["password"] = cred.Password
-			for _, key := range []string{"sni", "alpn", "quic-versions", "zero-rtt", "udp-over-stream", "keep-alive-interval", "congestion-controller", "up", "down", "cwnd", "bbr-profile", "max-datagram-frame-size", "max-open-streams", "recv-window-conn", "recv-window", "disable-mtu-discovery"} {
+			for _, key := range []string{
+				"sni", "alpn", "quic-versions", "zero-rtt", "udp-over-stream",
+				"keep-alive-interval", "congestion-controller", "up", "down", "cwnd",
+				"bbr-profile", "max-datagram-frame-size", "max-open-streams",
+				"recv-window-conn", "recv-window", "disable-mtu-discovery",
+			} {
 				copyOption(p, opts, key)
 			}
 			result = append(result, p)
@@ -327,12 +341,22 @@ func listenerToProxies(l models.Listener, server string, credentials []user.Cred
 		for i, cred := range credentials {
 			p := makeProxy(fmt.Sprintf("%d", i+1))
 			p["password"] = cred.Password
-			for _, key := range []string{"client-fingerprint", "udp", "idle-session-check-interval", "idle-session-timeout", "min-idle-session", "sni", "alpn", "skip-cert-verify", "name-cert-verify"} {
+			for _, key := range []string{
+				"client-fingerprint", "udp", "idle-session-check-interval",
+				"idle-session-timeout", "min-idle-session", "sni", "alpn",
+				"skip-cert-verify", "name-cert-verify",
+			} {
 				copyOption(p, opts, key)
 			}
-			if value := shadowTLSClientOptions(opts); value != nil { p["shadow-tls-opts"] = value }
-			if value := resTLSClientOptions(opts); value != nil { p["restls-opts"] = value }
-			if value := jlsClientOptions(opts); value != nil { p["jls-opts"] = value }
+			if value := shadowTLSClientOptions(opts); value != nil {
+				p["shadow-tls-opts"] = value
+			}
+			if value := resTLSClientOptions(opts); value != nil {
+				p["restls-opts"] = value
+			}
+			if value := jlsClientOptions(opts); value != nil {
+				p["jls-opts"] = value
+			}
 			result = append(result, p)
 		}
 
@@ -344,13 +368,19 @@ func listenerToProxies(l models.Listener, server string, credentials []user.Cred
 			p := makeProxy(fmt.Sprintf("%d", i+1))
 			p["username"] = cred.Username
 			p["password"] = cred.Password
-			for _, key := range []string{"transport", "multiplexing", "handshake-mode", "traffic-pattern"} { copyOption(p, opts, key) }
+			for _, key := range []string{"transport", "multiplexing", "handshake-mode", "traffic-pattern"} {
+				copyOption(p, opts, key)
+			}
 			result = append(result, p)
 		}
 
 	case "sudoku":
 		p := makeProxy("")
-		for _, key := range []string{"key", "aead-method", "padding-min", "padding-max", "table-type", "custom-table", "custom-tables", "handshake-timeout", "enable-pure-downlink", "httpmask"} {
+		for _, key := range []string{
+			"key", "aead-method", "padding-min", "padding-max", "table-type",
+			"custom-table", "custom-tables", "handshake-timeout",
+			"enable-pure-downlink", "httpmask",
+		} {
 			copyOption(p, opts, key)
 		}
 		result = append(result, p)
@@ -363,7 +393,11 @@ func listenerToProxies(l models.Listener, server string, credentials []user.Cred
 			p := makeProxy(fmt.Sprintf("%d", i+1))
 			p["username"] = cred.Username
 			p["password"] = cred.Password
-			for _, key := range []string{"client-fingerprint", "health-check", "udp", "sni", "alpn", "skip-cert-verify", "name-cert-verify", "quic", "congestion-controller", "bbr-profile", "max-connections", "min-streams", "max-streams"} {
+			for _, key := range []string{
+				"client-fingerprint", "health-check", "udp", "sni", "alpn",
+				"skip-cert-verify", "name-cert-verify", "quic", "congestion-controller",
+				"bbr-profile", "max-connections", "min-streams", "max-streams",
+			} {
 				copyOption(p, opts, key)
 			}
 			result = append(result, p)
@@ -391,7 +425,10 @@ func copyClientTLS(dst, src map[string]interface{}) {
 	if _, ok := src["certificate"]; ok {
 		dst["tls"] = true
 	}
-	for _, key := range []string{"sni", "alpn", "fingerprint", "client-fingerprint", "skip-cert-verify", "name-cert-verify"} {
+	for _, key := range []string{
+		"sni", "alpn", "fingerprint", "client-fingerprint",
+		"skip-cert-verify", "name-cert-verify",
+	} {
 		copyOption(dst, src, key)
 	}
 }
@@ -418,8 +455,6 @@ func realityClientOptions(src map[string]interface{}) map[string]interface{} {
 	}
 	publicKey, hasPublic := cfg["public-key"]
 	if !hasPublic {
-		// Mihomo's listener schema contains the Reality private key, while the
-		// client schema requires the public key. Never expose/derive a secret here.
 		return nil
 	}
 	result := map[string]interface{}{"public-key": publicKey}
@@ -438,47 +473,74 @@ func shadowTLSClientOptions(src map[string]interface{}) map[string]interface{} {
 	}
 	result := map[string]interface{}{}
 	for _, key := range []string{"version", "password"} {
-		if value, ok := cfg[key]; ok { result[key] = value }
+		if value, ok := cfg[key]; ok {
+			result[key] = value
+		}
 	}
-	if len(result) == 0 { return nil }
+	if len(result) == 0 {
+		return nil
+	}
 	return result
 }
 
 func resTLSClientOptions(src map[string]interface{}) map[string]interface{} {
 	cfg, ok := src["res-tls"].(map[string]interface{})
-	if !ok { return nil }
+	if !ok {
+		return nil
+	}
 	result := map[string]interface{}{}
-	if value, ok := cfg["password"]; ok { result["password"] = value }
-	if value, ok := cfg["version-hint"]; ok { result["version-hint"] = value }
-	if len(result) == 0 { return nil }
+	if value, ok := cfg["password"]; ok {
+		result["password"] = value
+	}
+	if value, ok := cfg["version-hint"]; ok {
+		result["version-hint"] = value
+	}
+	if len(result) == 0 {
+		return nil
+	}
 	return result
 }
 
 func jlsClientOptions(src map[string]interface{}) map[string]interface{} {
 	cfg, ok := src["jls-config"].(map[string]interface{})
-	if !ok { return nil }
+	if !ok {
+		return nil
+	}
 	result := map[string]interface{}{}
 	if users, ok := cfg["users"].([]interface{}); ok && len(users) > 0 {
 		if first, ok := users[0].(map[string]interface{}); ok {
-			if value, ok := first["username"]; ok { result["username"] = value }
-			if value, ok := first["password"]; ok { result["password"] = value }
+			if value, ok := first["username"]; ok {
+				result["username"] = value
+			}
+			if value, ok := first["password"]; ok {
+				result["password"] = value
+			}
 		}
 	}
-	if len(result) == 0 { return nil }
+	if len(result) == 0 {
+		return nil
+	}
 	return result
 }
 
 func cloneMap(src map[string]interface{}) map[string]interface{} {
 	dst := make(map[string]interface{}, len(src))
-	for key, value := range src { dst[key] = value }
+	for key, value := range src {
+		dst[key] = value
+	}
 	return dst
 }
 
 func copyOption(dst, src map[string]interface{}, key string) {
-	if value, ok := src[key]; ok { dst[key] = value }
+	if value, ok := src[key]; ok {
+		dst[key] = value
+	}
 }
 
-func boolValue(v interface{}) bool { b, _ := v.(bool); return b }
+func boolValue(v interface{}) bool {
+	b, _ := v.(bool)
+	return b
+}
 
 func clientSupportsUDP(protocol string) bool {
 	switch protocol {
@@ -497,6 +559,8 @@ func credentialSuffix(credentials []user.Credential, index int) string {
 }
 
 func max(a, b int) int {
-	if a > b { return a }
+	if a > b {
+		return a
+	}
 	return b
 }
