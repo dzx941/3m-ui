@@ -13,10 +13,8 @@ import (
 	"github.com/dzx941/3m-ui/backend/internal/database"
 	"github.com/dzx941/3m-ui/backend/internal/listener"
 	"github.com/dzx941/3m-ui/backend/internal/mihomo"
-	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"github.com/dzx941/3m-ui/backend/internal/router"
 	"github.com/dzx941/3m-ui/backend/internal/system"
-	"github.com/dzx941/3m-ui/backend/internal/traffic"
 )
 
 func TestHealthAndMihomoAPIs(t *testing.T) {
@@ -29,25 +27,20 @@ func TestHealthAndMihomoAPIs(t *testing.T) {
 	cfg.Mihomo.Config = "/tmp/3m-ui-router-test/config.yaml"
 	cfg.JWT.Secret = "super-secret-token-key-for-testing-purposes"
 
+	// Init DB
 	db, err := database.InitDB(cfg.Database.Path)
 	if err != nil {
 		t.Fatalf("failed to init db: %v", err)
 	}
 
+	// Init service layer
 	mihomo.InitService(cfg)
 	listener.InitService(db, cfg.Mihomo.Config)
 	system.InitService()
 
-	deps := router.Dependencies{
-		DB:           db,
-		Config:       cfg,
-		Mihomo:       mihomo.GlobalService,
-		Listener:     listener.GlobalService,
-		Traffic:      traffic.NewService(),
-		ConfigEngine: mihomoConfig.NewConfigEngine(db),
-	}
-	r := router.SetupRouter(cfg, deps)
+	r := router.SetupRouter(cfg)
 
+	// Test GET /api/v1/health
 	{
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/api/v1/health", nil)
@@ -60,10 +53,11 @@ func TestHealthAndMihomoAPIs(t *testing.T) {
 		var resp map[string]string
 		_ = json.Unmarshal(w.Body.Bytes(), &resp)
 		if resp["status"] != "ok" {
-			t.Fatalf("expected health status 'ok', got '%v'", resp["status"])
+			t.Fatalf("expected health status 'ok', got '%v'", resp)
 		}
 	}
 
+	// Test GET /api/v1/dashboard (Unified Aggregator)
 	{
 		token, _, err := auth.GenerateToken(cfg.JWT.Secret, 1, "admin", "admin", 1*time.Hour)
 		if err != nil {

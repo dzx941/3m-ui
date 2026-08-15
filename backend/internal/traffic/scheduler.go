@@ -10,18 +10,26 @@ import (
 // is explicitly configured.
 const DefaultInterval = 10 * time.Second
 
-// Scheduler owns the traffic collection loop and enforcement lifecycle.
-// It is intentionally instance-scoped so the application container can
-// control exactly one runtime scheduler instead of relying on package globals.
+// Scheduler runs the traffic collector and enforcer on a fixed interval.
+// It is started once at server startup (see cmd/server/main.go) and
+// stopped gracefully on shutdown.
 type Scheduler struct {
 	collector *Collector
 	enforcer  *Enforcer
 	interval  time.Duration
 
-	stopCh    chan struct{}
-	stopOnce  sync.Once
-	wg        sync.WaitGroup
+	stopCh chan struct{}
+	wg     sync.WaitGroup
 }
+
+// GlobalScheduler is the process-wide traffic scheduler, following the same
+// GlobalService pattern used elsewhere in the codebase.
+var GlobalScheduler *Scheduler
+
+// GlobalCollector is the process-wide collector instance, exposed
+// separately from GlobalScheduler so HTTP handlers can read the latest
+// mapped connections without depending on scheduler internals.
+var GlobalCollector *Collector
 
 // NewScheduler builds a Scheduler. A zero/negative interval falls back to
 // DefaultInterval (10s).
@@ -37,14 +45,21 @@ func NewScheduler(collector *Collector, enforcer *Enforcer, interval time.Durati
 	}
 }
 
+// InitGlobalScheduler registers the collector as GlobalCollector, builds and
+// starts the global Scheduler.
+func InitGlobalScheduler(collector *Collector, enforcer *Enforcer, interval time.Duration) *Scheduler {
+	GlobalCollector = collector
+	GlobalScheduler = NewScheduler(collector, enforcer, interval)
+	GlobalScheduler.Start()
+	return GlobalScheduler
+}
+
 // Start begins the collection loop in a background goroutine. Every tick:
 //  1. collect Mihomo traffic (Collector.CollectOnce)
-//  2. update traffic statistics and per-user state
-//  3. check limits and enforce configuration changes
+//  2. update global statistics + TrafficRecord history (done inside CollectOnce)
+//  3. update per-user counters/online state (done inside CollectOnce)
+//  4. check limits and enforce (Enforcer.CheckAndEnforce)
 func (s *Scheduler) Start() {
-	if s == nil || s.collector == nil {
-		return
-	}
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
@@ -69,7 +84,8 @@ func (s *Scheduler) Start() {
 func (s *Scheduler) tick() {
 	if err := s.collector.CollectOnce(); err != nil {
 		// Mihomo core being stopped/unreachable is an expected, recoverable
-		// condition, so log and retry on the next tick.
+		// condition (e.g. before the admin has started it), so this is a
+		// log rather than a panic/fatal.
 		log.Printf("traffic: collection skipped: %v", err)
 		return
 	}
@@ -81,11 +97,9 @@ func (s *Scheduler) tick() {
 	}
 }
 
-// Stop signals the collection loop to exit and blocks until it has exited.
+// Stop signals the collection loop to exit and blocks until it has, for
+// graceful shutdown.
 func (s *Scheduler) Stop() {
-	if s == nil {
-		return
-	}
-	s.stopOnce.Do(func() { close(s.stopCh) })
+	close(s.stopCh)
 	s.wg.Wait()
 }
