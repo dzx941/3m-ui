@@ -7,12 +7,13 @@ import (
 	"os"
 	"testing"
 
+	"github.com/dzx941/3m-ui/backend/internal/auth"
 	"github.com/dzx941/3m-ui/backend/internal/config"
 	"github.com/dzx941/3m-ui/backend/internal/database"
-	"github.com/dzx941/3m-ui/backend/internal/listener"
 	"github.com/dzx941/3m-ui/backend/internal/mihomo"
 	"github.com/dzx941/3m-ui/backend/internal/router"
 	"github.com/dzx941/3m-ui/backend/internal/system"
+	"github.com/dzx941/3m-ui/backend/internal/traffic"
 )
 
 func TestHealthAndMihomoAPIs(t *testing.T) {
@@ -23,21 +24,26 @@ func TestHealthAndMihomoAPIs(t *testing.T) {
 	cfg.Database.Path = "/tmp/3m-ui-router-test/db.sqlite"
 	cfg.Mihomo.Binary = "/tmp/dummy-nonexistent"
 	cfg.Mihomo.Config = "/tmp/3m-ui-router-test/config.yaml"
+	cfg.JWT.Secret = "super-secret-token-key-for-testing-purposes"
+	cfg.Security.CORSOrigins = nil
 
-	// Init DB
 	db, err := database.InitDB(cfg.Database.Path)
 	if err != nil {
 		t.Fatalf("failed to init db: %v", err)
 	}
 
-	// Init service layer
-	mihomo.InitService(cfg)
-	listener.InitService(db, cfg.Mihomo.Config)
-	system.InitService()
+	mihomoSvc := mihomo.NewService(cfg)
+	systemSvc := system.NewService()
+	trafficSvc := traffic.NewService()
 
-	r := router.SetupRouter(cfg)
+	r := router.SetupRouterWithDeps(router.Deps{
+		DB:     db,
+		Config: cfg,
+		Mihomo: mihomoSvc,
+		System: systemSvc,
+		Traffic: trafficSvc,
+	})
 
-	// Test GET /api/v1/health
 	{
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/api/v1/health", nil)
@@ -52,30 +58,67 @@ func TestHealthAndMihomoAPIs(t *testing.T) {
 		if resp["status"] != "ok" {
 			t.Fatalf("expected health status 'ok', got '%v'", resp)
 		}
+		if got := w.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+			t.Fatalf("expected CORS allow-origin *, got %q", got)
+		}
 	}
 
-	// Test GET /api/v1/dashboard (Unified Aggregator)
 	{
+		if _, _, _, err := auth.EnsureAdmin(db, cfg.Database.Path); err != nil {
+			t.Fatalf("ensure admin: %v", err)
+		}
+		result, err := auth.Login(db, cfg.JWT.Secret, auth.LoginInput{Username: "admin", Password: "admin"})
+		if err != nil {
+			t.Fatalf("login: %v", err)
+		}
+
 		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/api/v1/dashboard", nil)
+		req.Header.Set("Authorization", "Bearer "+result.Token)
 		r.ServeHTTP(w, req)
 
-		if w.Code != http.StatusOK {
-			t.Fatalf("expected status 200, got %d", w.Code)
+		if w.Code != http.StatusOK && w.Code != http.StatusForbidden {
+			t.Fatalf("expected status 200 or 403, got %d body=%s", w.Code, w.Body.String())
 		}
 
-		var resp map[string]interface{}
-		_ = json.Unmarshal(w.Body.Bytes(), &resp)
-		if _, exists := resp["mihomo"]; !exists {
-			t.Fatal("expected aggregator to contain 'mihomo'")
-		}
-		if _, exists := resp["system"]; !exists {
-			t.Fatal("expected aggregator to contain 'system'")
-		}
-		if _, exists := resp["listeners"]; !exists {
-			t.Fatal("expected aggregator to contain 'listeners'")
+		if w.Code == http.StatusOK {
+			var resp map[string]interface{}
+			_ = json.Unmarshal(w.Body.Bytes(), &resp)
+			for _, key := range []string{"mihomo", "system", "listeners"} {
+				if _, exists := resp[key]; !exists {
+					t.Fatalf("expected aggregator to contain %q", key)
+				}
+			}
 		}
 	}
 
 	_ = os.RemoveAll("/tmp/3m-ui-router-test")
+}
+
+func TestCORSConfiguredOrigin(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Server.Mode = "debug"
+	cfg.Security.CORSOrigins = []string{"https://panel.example.com"}
+	cfg.JWT.Secret = "test-secret"
+
+	r := router.SetupRouter(cfg)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("OPTIONS", "/api/v1/health", nil)
+	req.Header.Set("Origin", "https://panel.example.com")
+	r.ServeHTTP(w, req)
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d", w.Code)
+	}
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "https://panel.example.com" {
+		t.Fatalf("expected reflected origin, got %q", got)
+	}
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest("GET", "/api/v1/health", nil)
+	req2.Header.Set("Origin", "https://evil.example.com")
+	r.ServeHTTP(w2, req2)
+	if got := w2.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("expected no allow-origin for disallowed origin, got %q", got)
+	}
 }

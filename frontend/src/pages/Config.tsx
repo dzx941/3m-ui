@@ -1,3 +1,4 @@
+import React, { useState, useEffect } from 'react';
 import {
   Typography, Row, Col, Card, Button, Space, Form, Input, Select, Switch, Tabs,
   InputNumber, Divider, message, Alert,
@@ -73,7 +74,7 @@ const Config: React.FC = () => {
     void loadConfig();
   }, []);
 
-  const handle保存 = async () => {
+  const handleSave = async () => {
     const values = await form.validateFields();
     setLoading(true);
     try {
@@ -121,23 +122,23 @@ const Config: React.FC = () => {
   };
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
+    <div className="config-page">
+      <div className="config-heading">
+        <div className="config-heading-copy">
           <Title level={2} style={{ margin: 0 }}>Mihomo 配置引擎</Title>
           <Paragraph style={{ margin: 0 }}>
             可视化管理 Mihomo 配置。节点协议与入站认证在 节点管理 页面独立管理。
           </Paragraph>
         </div>
-        <Space>
+        <div className="config-heading-actions">
           <Button icon={<ReloadOutlined />} onClick={() => void loadConfig()} loading={initializing}>刷新</Button>
-        </Space>
+        </div>
       </div>
 
       <Alert
         type="info"
         showIcon
-        message="配置生成逻辑"
+        message="配置生成 logic"
         description="页面保存的是可视化配置项，后端负责生成最终 config.yaml；节点管理 页面管理 listeners，Proxy 用户管理 管理认证凭据。"
         style={{ marginBottom: 24 }}
       />
@@ -227,9 +228,11 @@ const Config: React.FC = () => {
               ]} />
 
               <Divider />
-              <Button type="primary" icon={<SaveOutlined />} loading={loading} onClick={() => void handle保存()}>
-                保存并生成 config.yaml
-              </Button>
+              <div className="config-save-bar">
+                <Button type="primary" icon={<SaveOutlined />} loading={loading} onClick={() => void handleSave()}>
+                  保存并生成 config.yaml
+                </Button>
+              </div>
             </Form>
           </Card>
         </Col>
@@ -237,10 +240,12 @@ const Config: React.FC = () => {
         <Col xs={24} lg={8}>
           <Card title="配置控制中心" bordered={false}>
             <Space direction="vertical" style={{ width: '100%' }} size="middle">
-              <Button icon={<DownloadOutlined />} block onClick={() => void handleDownload()}>下载 config.yaml</Button>
-              <Button icon={<ReloadOutlined />} danger block loading={loading} onClick={() => void handleHotReload()}>重新加载 Mihomo</Button>
+              <div className="config-control-actions">
+                <Button icon={<DownloadOutlined />} block onClick={() => void handleDownload()}>下载 config.yaml</Button>
+                <Button icon={<ReloadOutlined />} danger block loading={loading} onClick={() => void handleHotReload()}>重新加载 Mihomo</Button>
+              </div>
               <Text type="secondary">生成后的配置预览</Text>
-              <TextArea value={preview} readOnly rows={24} style={{ fontFamily: 'monospace' }} />
+              <TextArea className="config-preview" value={preview} readOnly rows={24} style={{ fontFamily: 'monospace' }} />
             </Space>
           </Card>
         </Col>

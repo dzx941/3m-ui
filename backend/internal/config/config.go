@@ -16,8 +16,9 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Port int    `yaml:"port"`
-	Mode string `yaml:"mode"`
+	Port      int    `yaml:"port"`
+	Mode      string `yaml:"mode"`
+	PublicURL string `yaml:"public_url"`
 }
 
 type DatabaseConfig struct {
@@ -34,6 +35,29 @@ type MihomoConfig struct {
 }
 
 var GlobalConfig *Config
+
+// IsMihomoListenerProtocol reports whether protocol is part of the listener
+// protocol surface supported by 3m-ui's listener editor/export pipeline.
+func IsMihomoListenerProtocol(protocol string) bool {
+	switch protocol {
+	case "shadowsocks",
+		"snell",
+		"vmess",
+		"vless",
+		"trojan",
+		"hysteria2",
+		"hysteria2-realm",
+		"tuic",
+		"shadowquic",
+		"anytls",
+		"mieru",
+		"sudoku",
+		"trusttunnel":
+		return true
+	default:
+		return false
+	}
+}
 
 func LoadConfig(path string) (*Config, error) {
 	file, err := os.Open(path)
@@ -53,5 +77,6 @@ func LoadConfig(path string) (*Config, error) {
 }
 
 type SecurityConfig struct {
-	CredentialKey string `yaml:"credential_key"`
+	CredentialKey string   `yaml:"credential_key"`
+	CORSOrigins   []string `yaml:"cors_origins"`
 }

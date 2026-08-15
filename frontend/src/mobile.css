@@ -1,0 +1,258 @@
+/* Final mobile polish: shared responsive rules kept separate from the base stylesheet. */
+
+.settings-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.settings-card {
+  width: 100%;
+  max-width: 100%;
+  margin-top: 16px;
+}
+
+.settings-alert {
+  margin-top: 16px;
+}
+
+.settings-security {
+  width: 100%;
+}
+
+.settings-description {
+  margin: 6px 0 0 !important;
+  overflow-wrap: anywhere;
+}
+
+.settings-action {
+  min-width: 180px;
+}
+
+.app-shell,
+.app-content,
+.app-content-inner,
+.settings-page,
+.config-page,
+.logs-page {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ant-card,
+.ant-card-head,
+.ant-card-body,
+.ant-form,
+.ant-form-item,
+.ant-form-item-control,
+.ant-form-item-control-input,
+.ant-space,
+.ant-space-item {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ant-typography,
+.ant-form-item-label,
+.ant-form-item-control-input-content {
+  overflow-wrap: anywhere;
+}
+
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-select,
+.ant-picker,
+.ant-input-number-input {
+  max-width: 100%;
+}
+
+@media (max-width: 991px) {
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  body {
+    overscroll-behavior-x: none;
+  }
+
+  .app-shell {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  .app-header {
+    padding-left: max(10px, env(safe-area-inset-left)) !important;
+    padding-right: max(10px, env(safe-area-inset-right)) !important;
+  }
+
+  .app-content {
+    width: 100%;
+    padding-left: max(10px, env(safe-area-inset-left));
+    padding-right: max(10px, env(safe-area-inset-right));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    overflow-x: hidden;
+  }
+
+  .app-content-inner {
+    width: 100%;
+    overflow: visible;
+  }
+
+  .settings-card {
+    margin-top: 12px;
+  }
+
+  .settings-action {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .settings-alert .ant-alert-description {
+    overflow-wrap: anywhere;
+  }
+
+  .ant-space:not(.ant-space-vertical) {
+    flex-wrap: wrap;
+  }
+
+  .ant-breadcrumb,
+  .ant-page-header,
+  .ant-card-head,
+  .ant-card-head-wrapper {
+    min-width: 0;
+  }
+
+  .ant-card-head-wrapper {
+    gap: 8px;
+  }
+
+  .ant-card-head-title {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .ant-card-extra {
+    max-width: 100%;
+  }
+
+  .ant-modal-wrap {
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+  }
+
+  .ant-modal {
+    width: calc(100vw - 20px) !important;
+    max-width: calc(100vw - 20px) !important;
+    margin: 10px auto !important;
+    padding-bottom: 0 !important;
+  }
+
+  .ant-modal-content {
+    max-height: calc(100svh - 20px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ant-drawer-content-wrapper {
+    max-width: 88vw;
+  }
+
+  .ant-drawer-body {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ant-dropdown,
+  .ant-popover {
+    max-width: calc(100vw - 20px);
+  }
+
+  .ant-table-container {
+    max-width: 100%;
+  }
+
+  .ant-table-body,
+  .ant-table-content {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 575px) {
+  .settings-page .ant-typography h2,
+  .settings-page h2 {
+    font-size: 20px;
+  }
+
+  .settings-page .ant-alert {
+    padding: 10px 12px;
+  }
+
+  .settings-page .ant-card-head {
+    min-height: 46px !important;
+  }
+
+  .settings-page .ant-card-body {
+    padding: 12px !important;
+  }
+
+  .settings-page .ant-input {
+    font-size: 16px;
+  }
+
+  input,
+  textarea,
+  select,
+  .ant-input,
+  .ant-input-number-input,
+  .ant-select-selection-search-input {
+    font-size: 16px !important;
+  }
+
+  .ant-form-item-label > label {
+    height: auto;
+    white-space: normal;
+  }
+
+  .ant-btn {
+    touch-action: manipulation;
+  }
+
+  /* Config visual editor tabs: allow real horizontal touch scrolling. */
+  .config-page .ant-tabs-nav {
+    margin-bottom: 16px;
+  }
+
+  .config-page .ant-tabs-nav-wrap {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x;
+  }
+
+  .config-page .ant-tabs-nav-wrap::-webkit-scrollbar {
+    display: none;
+  }
+
+  .config-page .ant-tabs-nav-list {
+    flex: none !important;
+    width: max-content;
+  }
+
+  .config-page .ant-tabs-tab {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .ant-tabs-nav-wrap {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ant-segmented {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}

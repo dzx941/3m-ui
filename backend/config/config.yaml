@@ -8,6 +8,9 @@ database:
 jwt:
   secret: "3m-ui-default-jwt-secret-key-change-it-in-production"
 security:
+  # Empty or omit → allow all origins (legacy * behaviour).
+  # Example: ["https://panel.example.com"]
+  cors_origins: []
   credential_key: "3m-ui-default-credential-key-change-it-in-production"
 
 mihomo:

@@ -1,89 +1,213 @@
 package auth
 
 import (
+	"crypto/subtle"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
 
 	"github.com/dzx941/3m-ui/backend/internal/config"
-	"github.com/dzx941/3m-ui/backend/internal/database"
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
-func RegisterRoutes(rg *gin.RouterGroup, cfg *config.Config) {
-	rg.POST("/login", func(c *gin.Context) {
-		var input LoginInput
-		if err := c.ShouldBindJSON(&input); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
-			return
-		}
-		result, err := Login(database.GlobalDB, cfg.JWT.Secret, input)
-		if err != nil {
-			status := http.StatusUnauthorized
-			if err.Error() != "invalid username or password" {
-				status = http.StatusInternalServerError
-			}
-			c.JSON(status, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, result)
-	})
+type loginAttempt struct {
+	count   int
+	blocked time.Time
+	last    time.Time
+}
 
-	rg.POST("/password", RequireAuth(cfg.JWT.Secret), func(c *gin.Context) {
-		claims, ok := ClaimsFromContext(c)
-		if !ok {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
-			return
-		}
+var loginLimiter = struct {
+	sync.Mutex
+	items map[string]loginAttempt
+}{items: make(map[string]loginAttempt)}
 
-		var req struct {
-			CurrentPassword string `json:"current_password" binding:"required"`
-			NewPassword     string `json:"new_password" binding:"required"`
-		}
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "current_password and new_password are required"})
-			return
-		}
-		if len(req.NewPassword) < 8 {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "new password must be at least 8 characters"})
-			return
-		}
+const (
+	loginWindow     = 15 * time.Minute
+	loginMaxAttempt = 8
+)
 
-		var user models.User
-		if err := database.GlobalDB.First(&user, claims.UserID).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
-			return
-		}
-		if !CheckPasswordHash(req.CurrentPassword, user.PasswordHash) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "current password is incorrect"})
-			return
-		}
-		hash, err := HashPassword(req.NewPassword)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		if err := database.GlobalDB.Model(&user).Updates(map[string]any{
-			"password_hash":        hash,
-			"must_change_password": false,
-		}).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "password changed successfully"})
-	})
+func allowLogin(ip string) bool {
+	now := time.Now()
+	loginLimiter.Lock()
+	defer loginLimiter.Unlock()
 
-	rg.GET("/me", RequireAuth(cfg.JWT.Secret), func(c *gin.Context) {
-		claims, _ := ClaimsFromContext(c)
-		c.JSON(http.StatusOK, gin.H{
-			"user_id":    claims.UserID,
-			"username":   claims.Username,
-			"role":       claims.Role,
-			"expires_at": claims.ExpiresAt,
-		})
+	for key, attempt := range loginLimiter.items {
+		if now.Sub(attempt.last) > loginWindow {
+			delete(loginLimiter.items, key)
+		}
+	}
+
+	attempt := loginLimiter.items[ip]
+	if !attempt.blocked.IsZero() && now.Before(attempt.blocked) {
+		return false
+	}
+	if attempt.last.IsZero() || now.Sub(attempt.last) > loginWindow {
+		attempt.count = 0
+	}
+	attempt.last = now
+	if attempt.count >= loginMaxAttempt {
+		attempt.blocked = now.Add(loginWindow)
+		loginLimiter.items[ip] = attempt
+		return false
+	}
+	attempt.count++
+	loginLimiter.items[ip] = attempt
+	return true
+}
+
+func resetLoginLimit(ip string) {
+	loginLimiter.Lock()
+	delete(loginLimiter.items, ip)
+	loginLimiter.Unlock()
+}
+
+// Handler serves authentication HTTP endpoints with an injected DB and JWT secret.
+type Handler struct {
+	db     *gorm.DB
+	secret string
+	cfg    *config.Config
+}
+
+// NewHandler constructs an auth HTTP handler.
+func NewHandler(db *gorm.DB, cfg *config.Config) *Handler {
+	secret := ""
+	if cfg != nil {
+		secret = cfg.JWT.Secret
+	}
+	return &Handler{db: db, secret: secret, cfg: cfg}
+}
+
+// RegisterRoutes mounts auth routes under the provided group.
+func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.POST("/login", h.Login)
+	rg.POST("/password", RequireAuth(h.db, h.secret), h.ChangePassword)
+	rg.GET("/me", RequireAuth(h.db, h.secret), h.Me)
+}
+
+// RegisterRoutes mounts auth routes using an explicit database handle.
+// Prefer NewHandler(db, cfg).RegisterRoutes in new code.
+func RegisterRoutes(rg *gin.RouterGroup, db *gorm.DB, cfg *config.Config) {
+	NewHandler(db, cfg).RegisterRoutes(rg)
+}
+
+func (h *Handler) Login(c *gin.Context) {
+	if !allowLogin(c.ClientIP()) {
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "too many login attempts; try again later"})
+		return
+	}
+
+	var input LoginInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+	if h.db == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database is not configured"})
+		return
+	}
+	result, err := Login(h.db, h.secret, input)
+	if err != nil {
+		status := http.StatusUnauthorized
+		if err.Error() != "invalid username or password" {
+			status = http.StatusInternalServerError
+		}
+		c.JSON(status, gin.H{"error": "invalid username or password"})
+		return
+	}
+	resetLoginLimit(c.ClientIP())
+	c.JSON(http.StatusOK, result)
+}
+
+func (h *Handler) ChangePassword(c *gin.Context) {
+	claims, ok := ClaimsFromContext(c)
+	if !ok {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		return
+	}
+
+	var req struct {
+		CurrentPassword string `json:"current_password" binding:"required"`
+		NewPassword     string `json:"new_password" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "current_password and new_password are required"})
+		return
+	}
+	if len([]rune(req.NewPassword)) < 8 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "new password must be at least 8 characters"})
+		return
+	}
+	if subtle.ConstantTimeCompare([]byte(req.NewPassword), []byte(req.CurrentPassword)) == 1 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "new password must differ from current password"})
+		return
+	}
+
+	var user models.User
+	if err := h.db.First(&user, claims.UserID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+		return
+	}
+	if !CheckPasswordHash(req.CurrentPassword, user.PasswordHash) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "current password is incorrect"})
+		return
+	}
+	hash, err := HashPassword(req.NewPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+		return
+	}
+	nextSessionVersion := user.SessionVersion + 1
+	if nextSessionVersion == 0 {
+		nextSessionVersion = 1
+	}
+	if err := h.db.Model(&user).Updates(map[string]any{
+		"password_hash":        hash,
+		"must_change_password": false,
+		"session_version":      nextSessionVersion,
+	}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save password"})
+		return
+	}
+
+	if h.cfg != nil {
+		passwordFile := filepath.Join(filepath.Dir(h.cfg.Database.Path), ".initial_admin_password")
+		if err := os.Remove(passwordFile); err != nil && !os.IsNotExist(err) {
+			_ = err
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "password changed successfully"})
+}
+
+func (h *Handler) Me(c *gin.Context) {
+	claims, ok := ClaimsFromContext(c)
+	if !ok {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+		return
+	}
+	var user models.User
+	if err := h.db.First(&user, claims.UserID).Error; err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"user_id":              claims.UserID,
+		"username":             claims.Username,
+		"role":                 claims.Role,
+		"expires_at":           claims.ExpiresAt,
+		"must_change_password": user.MustChangePassword,
 	})
 }
 
-func RequireAuth(secret string) gin.HandlerFunc {
+// RequireAuth validates the Bearer JWT against the provided secret and loads
+// the administrator from the provided database. It no longer reads
+// database.GlobalDB.
+func RequireAuth(db *gorm.DB, secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := TokenFromRequest(c.GetHeader("Authorization"))
 		if token == "" {
@@ -92,10 +216,41 @@ func RequireAuth(secret string) gin.HandlerFunc {
 		}
 		claims, err := ParseToken(secret, token)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 			return
 		}
+
+		if db == nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "authentication required"})
+			return
+		}
+
+		var user models.User
+		if err := db.First(&user, claims.UserID).Error; err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not found"})
+			return
+		}
+		if !strings.EqualFold(user.Role, "admin") {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "administrator access required"})
+			return
+		}
+		if user.SessionVersion == 0 || claims.SessionVersion == 0 || user.SessionVersion != claims.SessionVersion {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "session has been invalidated; please log in again"})
+			return
+		}
+
 		c.Set("auth.claims", claims)
+		c.Set("auth.user", &user)
+
+		path := c.Request.URL.Path
+		if path != "/api/v1/auth/password" && path != "/api/v1/auth/me" && user.MustChangePassword {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "password change required",
+				"code":  "PASSWORD_CHANGE_REQUIRED",
+			})
+			return
+		}
+
 		c.Next()
 	}
 }

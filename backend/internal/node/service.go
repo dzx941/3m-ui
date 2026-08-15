@@ -15,15 +15,13 @@ import (
 type Service struct {
 	db         *gorm.DB
 	configPath string
+	mihomo     *mihomo.Service
 }
 
-var GlobalService *Service
-
-func InitService(db *gorm.DB, configPath string) {
-	GlobalService = &Service{
-		db:         db,
-		configPath: configPath,
-	}
+// NewService constructs a node/listener service.
+// Optional mihomoSvc is used for hot-reload after config regeneration.
+func NewService(db *gorm.DB, configPath string, mihomoSvc *mihomo.Service) *Service {
+	return &Service{db: db, configPath: configPath, mihomo: mihomoSvc}
 }
 
 func (s *Service) Create(l *models.Listener) error {
@@ -35,7 +33,14 @@ func (s *Service) Create(l *models.Listener) error {
 		return fmt.Errorf("failed to create node: %w", err)
 	}
 
-	return s.RegenerateConfig()
+	if err := s.RegenerateConfig(); err != nil {
+		if deleteErr := s.db.Delete(&models.Listener{}, l.ID).Error; deleteErr != nil {
+			return fmt.Errorf("failed to regenerate config: %v; rollback node %d failed: %w", err, l.ID, deleteErr)
+		}
+		return fmt.Errorf("failed to regenerate config: %w", err)
+	}
+
+	return nil
 }
 
 func (s *Service) GetAll() ([]models.Listener, error) {
@@ -59,11 +64,23 @@ func (s *Service) Update(l *models.Listener) error {
 		return err
 	}
 
+	var previous models.Listener
+	if err := s.db.First(&previous, l.ID).Error; err != nil {
+		return fmt.Errorf("failed to load node %d: %w", l.ID, err)
+	}
+
 	if err := s.db.Save(l).Error; err != nil {
 		return fmt.Errorf("failed to update node: %w", err)
 	}
 
-	return s.RegenerateConfig()
+	if err := s.RegenerateConfig(); err != nil {
+		if restoreErr := s.db.Save(&previous).Error; restoreErr != nil {
+			return fmt.Errorf("failed to regenerate config: %v; rollback node %d failed: %w", err, l.ID, restoreErr)
+		}
+		return fmt.Errorf("failed to regenerate config: %w", err)
+	}
+
+	return nil
 }
 
 func (s *Service) Delete(id uint) error {
@@ -77,7 +94,7 @@ func (s *Service) Delete(id uint) error {
 // RegenerateConfig regenerates the complete Mihomo configuration through the
 // Config Engine. Node services never write a partial listeners-only YAML file.
 func (s *Service) RegenerateConfig() error {
-	if GlobalService == nil {
+	if s == nil || s.db == nil {
 		return fmt.Errorf("node service is not initialized")
 	}
 	engine := mihomoConfig.NewConfigEngine(s.db)
@@ -93,11 +110,6 @@ func (s *Service) RegenerateConfig() error {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
-	// Best-effort hot reload: ask the running Mihomo Core to reload the
-	// config we just wrote via its external controller API. If Mihomo isn't
-	// running or the controller is unreachable, this is not a failure of
-	// config regeneration itself (the file on disk is still correct and
-	// will be picked up on the next manual/automatic start), so we only log.
 	tmpl := mihomoConfig.GetDefaultTemplate()
 	controllerURL := "http://" + tmpl.ExternalController
 	if err := mihomo.NewExternalControllerAPI(controllerURL, tmpl.Secret).ReloadConfig(map[string]interface{}{

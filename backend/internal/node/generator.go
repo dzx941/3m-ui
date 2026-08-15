@@ -3,145 +3,106 @@ package node
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/dzx941/3m-ui/backend/internal/database/models"
+	mihomoConfig "github.com/dzx941/3m-ui/backend/internal/mihomo/config"
 	"gopkg.in/yaml.v3"
 )
 
-// GenerateMihomoListeners converts database Node/Listener models to unified map arrays
 func GenerateMihomoListeners(dbNodes []models.Listener) ([]map[string]interface{}, error) {
-	var list []map[string]interface{}
+	list := make([]map[string]interface{}, 0, len(dbNodes))
+	for _, node := range dbNodes {
+		if !node.Enabled { continue }
+		if err := ValidateNode(&node); err != nil { return nil, fmt.Errorf("invalid listener %q: %w", node.Name, err) }
+		protocol := strings.ToLower(strings.TrimSpace(node.Protocol))
+		if !mihomoConfig.IsMihomoListenerProtocol(protocol) { return nil, fmt.Errorf("unsupported Mihomo listener protocol: %s", protocol) }
 
-	for _, dn := range dbNodes {
-		if !dn.Enabled {
-			continue
+		entry := map[string]interface{}{
+			"name": node.Name,
+			"type": protocol,
+			"port": node.Port,
+			"listen": firstNonEmpty(node.BindAddress, node.Listen, "0.0.0.0"),
 		}
+		if node.Rule != "" { entry["rule"] = node.Rule }
+		if node.Proxy != "" { entry["proxy"] = node.Proxy }
 
-		// Initialize core listener properties
-		lm := map[string]interface{}{
-			"name":   dn.Name,
-			"type":   dn.Protocol,
-			"port":   dn.Port,
-			"listen": dn.BindAddress,
-		}
-
-		if dn.UDP {
-			lm["udp"] = true
-		}
-
-		// Parse dynamic config attributes (passwords, certificates, uuid, flow, etc.)
-		var configMap map[string]interface{}
-		if dn.Config != "" {
-			_ = json.Unmarshal([]byte(dn.Config), &configMap)
-		}
-		if configMap == nil {
-			configMap = make(map[string]interface{})
-		}
-
-		// 1. TLS configuration block
-		if dn.TLS {
-			tlsMap := map[string]interface{}{
-				"enable": true,
-			}
-			if cert, ok := configMap["certificate"]; ok {
-				tlsMap["certificate"] = cert
-			}
-			if pk, ok := configMap["private_key"]; ok {
-				tlsMap["private-key"] = pk
-			}
-			// Alternative tag
-			if pk, ok := configMap["private-key"]; ok {
-				tlsMap["private-key"] = pk
-			}
-			lm["tls"] = tlsMap
-		}
-
-		// 2. Protocols credential/users block
-		proto := dn.Protocol
-		var user map[string]interface{}
-
-		switch proto {
-		case "shadowsocks":
-			if pwd, ok := configMap["password"]; ok {
-				user = map[string]interface{}{
-					"password": pwd,
-				}
-			}
-		case "trojan":
-			if pwd, ok := configMap["password"]; ok {
-				user = map[string]interface{}{
-					"password": pwd,
-				}
-			}
-		case "vmess":
-			if uid, ok := configMap["uuid"]; ok {
-				user = map[string]interface{}{
-					"uuid": uid,
-				}
-			}
-		case "vless":
-			userMap := map[string]interface{}{}
-			if uid, ok := configMap["uuid"]; ok {
-				userMap["uuid"] = uid
-			}
-			if flow, ok := configMap["flow"]; ok {
-				userMap["flow"] = flow
-			}
-			if len(userMap) > 0 {
-				user = userMap
-			}
-		case "hysteria2":
-			if pwd, ok := configMap["password"]; ok {
-				user = map[string]interface{}{
-					"password": pwd,
-				}
-			}
-		case "tuic":
-			if pwd, ok := configMap["password"]; ok {
-				user = map[string]interface{}{
-					"password": pwd,
-				}
-			}
-			if uuid, ok := configMap["uuid"]; ok {
-				if user == nil {
-					user = map[string]interface{}{}
-				}
-				user["uuid"] = uuid
-			}
-		}
-
-		if user != nil {
-			lm["users"] = []map[string]interface{}{user}
-		}
-
-		// Merge remaining extra parameters from dynamic config that are not already handled
-		for k, v := range configMap {
-			if k != "password" && k != "uuid" && k != "flow" && k != "certificate" && k != "private_key" && k != "private-key" {
-				lm[k] = v
-			}
-		}
-
-		list = append(list, lm)
+		options, err := decodeAndExpand(node.Config)
+		if err != nil { return nil, fmt.Errorf("invalid config for listener %q: %w", node.Name, err) }
+		normalizeListenerUsers(protocol, options)
+		for key, value := range options { if value != nil { entry[key] = value } }
+		list = append(list, entry)
 	}
-
 	return list, nil
 }
 
-// GenerateConfigYAML returns a full Mihomo listeners block serialized as YAML
 func GenerateConfigYAML(dbNodes []models.Listener) (string, error) {
-	listenersList, err := GenerateMihomoListeners(dbNodes)
-	if err != nil {
-		return "", err
-	}
+	listeners, err := GenerateMihomoListeners(dbNodes)
+	if err != nil { return "", err }
+	data, err := yaml.Marshal(map[string]interface{}{"listeners": listeners})
+	if err != nil { return "", fmt.Errorf("failed to marshal listeners yaml: %w", err) }
+	return string(data), nil
+}
 
-	root := map[string]interface{}{
-		"listeners": listenersList,
-	}
+func decodeAndExpand(raw string) (map[string]interface{}, error) {
+	if strings.TrimSpace(raw) == "" { return map[string]interface{}{}, nil }
+	var rawMap map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &rawMap); err != nil { return nil, err }
+	return expandDottedKeys(rawMap), nil
+}
 
-	bytes, err := yaml.Marshal(&root)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal listeners yaml: %w", err)
+func expandDottedKeys(src map[string]interface{}) map[string]interface{} {
+	dst := make(map[string]interface{}, len(src))
+	for key, value := range src {
+		value = expandValue(value)
+		parts := strings.Split(key, ".")
+		if len(parts) == 1 { dst[key] = value; continue }
+		cursor := dst
+		for _, part := range parts[:len(parts)-1] {
+			next, ok := cursor[part].(map[string]interface{})
+			if !ok { next = map[string]interface{}{}; cursor[part] = next }
+			cursor = next
+		}
+		cursor[parts[len(parts)-1]] = value
 	}
+	return dst
+}
 
-	return string(bytes), nil
+func expandValue(value interface{}) interface{} {
+	switch v := value.(type) {
+	case map[string]interface{}: return expandDottedKeys(v)
+	case []interface{}:
+		for i := range v { v[i] = expandValue(v[i]) }
+	}
+	return value
+}
+
+func normalizeListenerUsers(protocol string, options map[string]interface{}) {
+	users, ok := options["users"].([]interface{})
+	if !ok || len(users) == 0 { return }
+	if protocol == "anytls" || protocol == "hysteria2" || protocol == "mieru" || protocol == "tuic" {
+		m := map[string]interface{}{}
+		for _, raw := range users {
+			row, ok := raw.(map[string]interface{}); if !ok { continue }
+			name := strings.TrimSpace(fmt.Sprint(row["username"]))
+			if name == "" { name = strings.TrimSpace(fmt.Sprint(row["uuid"])) }
+			password := row["password"]
+			if name != "" && password != nil { m[name] = password }
+		}
+		if len(m) > 0 { options["users"] = m }
+		return
+	}
+	for _, raw := range users {
+		row, ok := raw.(map[string]interface{}); if !ok { continue }
+		switch protocol {
+		case "vmess": delete(row, "flow")
+		case "vless": delete(row, "alterId")
+		case "trojan", "shadowquic", "trusttunnel": delete(row, "uuid"); delete(row, "flow"); delete(row, "alterId")
+		}
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values { if strings.TrimSpace(value) != "" { return strings.TrimSpace(value) } }
+	return ""
 }

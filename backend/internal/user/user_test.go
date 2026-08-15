@@ -15,23 +15,23 @@ func TestActiveCredentialsFiltering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	InitService(db)
+	svc := NewService(db)
 
 	l1 := models.Listener{Name: "ss", Protocol: "shadowsocks", Port: 8388, Enabled: true}
 	if err := db.Create(&l1).Error; err != nil {
 		t.Fatal(err)
 	}
 
-	active, err := GlobalService.Create(CreateInput{Username: "active", Password: "p1"})
+	active, err := svc.Create(CreateInput{Username: "active", Password: "p1"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	expiredAt := time.Now().Add(-time.Hour)
-	expired, err := GlobalService.Create(CreateInput{Username: "expired", Password: "p2", ExpireTime: &expiredAt})
+	expired, err := svc.Create(CreateInput{Username: "expired", Password: "p2", ExpireTime: &expiredAt})
 	if err != nil {
 		t.Fatal(err)
 	}
-	limited, err := GlobalService.Create(CreateInput{Username: "limited", Password: "p3", TrafficLimit: 10})
+	limited, err := svc.Create(CreateInput{Username: "limited", Password: "p3", TrafficLimit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestActiveCredentialsFiltering(t *testing.T) {
 		}
 	}
 
-	creds, err := GlobalService.ActiveCredentialsByListener()
+	creds, err := svc.ActiveCredentialsByListener()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,9 +60,9 @@ func TestBindListenersIsReplacement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	InitService(db)
+	svc := NewService(db)
 
-	u, err := GlobalService.Create(CreateInput{Username: "bind-user", Password: "p"})
+	u, err := svc.Create(CreateInput{Username: "bind-user", Password: "p"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,13 +74,13 @@ func TestBindListenersIsReplacement(t *testing.T) {
 		}
 		listeners = append(listeners, l)
 	}
-	if err := GlobalService.BindListeners(u.ID, []uint{listeners[0].ID, listeners[1].ID}); err != nil {
+	if err := svc.BindListeners(u.ID, []uint{listeners[0].ID, listeners[1].ID}); err != nil {
 		t.Fatal(err)
 	}
-	if err := GlobalService.BindListeners(u.ID, []uint{listeners[2].ID}); err != nil {
+	if err := svc.BindListeners(u.ID, []uint{listeners[2].ID}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := GlobalService.GetListeners(u.ID)
+	got, err := svc.GetListeners(u.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,10 +88,10 @@ func TestBindListenersIsReplacement(t *testing.T) {
 		t.Fatalf("expected replacement binding, got %#v", got)
 	}
 
-	if err := GlobalService.BindListeners(u.ID, []uint{listeners[2].ID, listeners[2].ID, listeners[0].ID}); err != nil {
+	if err := svc.BindListeners(u.ID, []uint{listeners[2].ID, listeners[2].ID, listeners[0].ID}); err != nil {
 		t.Fatal(err)
 	}
-	got, err = GlobalService.GetListeners(u.ID)
+	got, err = svc.GetListeners(u.ID)
 	if err != nil {
 		t.Fatal(err)
 	}

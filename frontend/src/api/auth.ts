@@ -1,4 +1,4 @@
-import { apiRequest, authToken } from './request';
+import { apiRequest, authToken, MUST_CHANGE_KEY, USERNAME_KEY } from './request';
 
 interface LoginResponse {
   token?: string;
@@ -9,25 +9,29 @@ interface LoginResponse {
 export interface LoginInput { username: string; password: string }
 
 export async function login(input: LoginInput) {
-  const data = await apiRequest<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify(input) });
+  const data = await apiRequest<LoginResponse>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
   const token = data.token || data.access_token;
   if (token) authToken.set(token);
-  localStorage.setItem('3m-ui.username', data.username || input.username);
-  localStorage.setItem('3m-ui.must_change_password', data.must_change_password ? '1' : '0');
+  sessionStorage.setItem(USERNAME_KEY, data.username || input.username);
+  sessionStorage.setItem(MUST_CHANGE_KEY, data.must_change_password ? '1' : '0');
   return data;
 }
 
 export function logout() {
   authToken.clear();
-  localStorage.removeItem('3m-ui.username');
-  localStorage.removeItem('3m-ui.must_change_password');
+  sessionStorage.removeItem(USERNAME_KEY);
+  sessionStorage.removeItem(MUST_CHANGE_KEY);
 }
 
-export function isAuthenticated() { return Boolean(authToken.get()); }
-
+export function isAuthenticated() {
+  return Boolean(authToken.get());
+}
 
 export function mustChangePassword() {
-  return localStorage.getItem('3m-ui.must_change_password') === '1';
+  return sessionStorage.getItem(MUST_CHANGE_KEY) === '1';
 }
 
 export async function changePassword(currentPassword: string, newPassword: string) {
@@ -38,6 +42,6 @@ export async function changePassword(currentPassword: string, newPassword: strin
       new_password: newPassword,
     }),
   });
-  localStorage.setItem('3m-ui.must_change_password', '0');
+  sessionStorage.setItem(MUST_CHANGE_KEY, '0');
   return data;
 }

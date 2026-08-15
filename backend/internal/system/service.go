@@ -2,10 +2,9 @@ package system
 
 type Service struct{}
 
-var GlobalService *Service
-
-func InitService() {
-	GlobalService = &Service{}
+// NewService constructs a system metrics service.
+func NewService() *Service {
+	return &Service{}
 }
 
 func (s *Service) GetStatus() *SystemStats {

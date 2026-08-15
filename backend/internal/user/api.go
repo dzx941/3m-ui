@@ -10,18 +10,29 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("", List)
-	rg.POST("", Create)
-	rg.GET("/:id", Get)
-	rg.PUT("/:id", Update)
-	rg.DELETE("/:id", Delete)
-	rg.POST("/:id/listeners", BindListeners)
-	rg.GET("/:id/listeners", GetListeners)
+// Handler serves user HTTP endpoints using an injected Service.
+type Handler struct {
+	svc *Service
+}
+
+// NewHandler constructs a user HTTP handler.
+func NewHandler(svc *Service) *Handler {
+	return &Handler{svc: svc}
+}
+
+// RegisterRoutes registers user routes on the provided group.
+func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("", h.List)
+	rg.POST("", h.Create)
+	rg.GET("/:id", h.Get)
+	rg.PUT("/:id", h.Update)
+	rg.DELETE("/:id", h.Delete)
+	rg.POST("/:id/listeners", h.BindListeners)
+	rg.GET("/:id/listeners", h.GetListeners)
 	// /nodes is the public naming used by the server-node UI; /listeners is
 	// retained as a backward-compatible alias.
-	rg.POST("/:id/nodes", BindListeners)
-	rg.GET("/:id/nodes", GetListeners)
+	rg.POST("/:id/nodes", h.BindListeners)
+	rg.GET("/:id/nodes", h.GetListeners)
 }
 
 func parseID(c *gin.Context) (uint, bool) {
@@ -33,8 +44,8 @@ func parseID(c *gin.Context) (uint, bool) {
 	return uint(id), true
 }
 
-func List(c *gin.Context) {
-	users, err := GlobalService.GetAll()
+func (h *Handler) List(c *gin.Context) {
+	users, err := h.svc.GetAll()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -46,13 +57,13 @@ func List(c *gin.Context) {
 	c.JSON(http.StatusOK, out)
 }
 
-func Create(c *gin.Context) {
+func (h *Handler) Create(c *gin.Context) {
 	var in CreateInput
 	if err := c.ShouldBindJSON(&in); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	u, err := GlobalService.Create(in)
+	u, err := h.svc.Create(in)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -60,12 +71,12 @@ func Create(c *gin.Context) {
 	c.JSON(http.StatusCreated, ToSafeUser(u))
 }
 
-func Get(c *gin.Context) {
+func (h *Handler) Get(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
 		return
 	}
-	u, err := GlobalService.GetByID(id)
+	u, err := h.svc.GetByID(id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
@@ -77,7 +88,7 @@ func Get(c *gin.Context) {
 	c.JSON(http.StatusOK, ToSafeUser(u))
 }
 
-func Update(c *gin.Context) {
+func (h *Handler) Update(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
 		return
@@ -87,7 +98,7 @@ func Update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	u, err := GlobalService.Update(id, in)
+	u, err := h.svc.Update(id, in)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -95,19 +106,19 @@ func Update(c *gin.Context) {
 	c.JSON(http.StatusOK, ToSafeUser(u))
 }
 
-func Delete(c *gin.Context) {
+func (h *Handler) Delete(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
 		return
 	}
-	if err := GlobalService.Delete(id); err != nil {
+	if err := h.svc.Delete(id); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-func BindListeners(c *gin.Context) {
+func (h *Handler) BindListeners(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
 		return
@@ -119,24 +130,23 @@ func BindListeners(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if err := GlobalService.BindListeners(id, req.ListenerIDs); err != nil {
+	if err := h.svc.BindListeners(id, req.ListenerIDs); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "listener_ids": req.ListenerIDs})
 }
 
-func GetListeners(c *gin.Context) {
+func (h *Handler) GetListeners(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
 		return
 	}
-	list, err := GlobalService.GetListeners(id)
+	list, err := h.svc.GetListeners(id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	// Return only non-sensitive node fields.
 	type nodeDTO struct {
 		ID          uint   `json:"id"`
 		Name        string `json:"name"`

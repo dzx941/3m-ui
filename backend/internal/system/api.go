@@ -6,12 +6,22 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// RegisterRoutes registers system stats routes under the provided group
-func RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/status", GetSystemStatus)
+// Handler serves system HTTP endpoints using an injected Service.
+type Handler struct {
+	svc *Service
 }
 
-func GetSystemStatus(c *gin.Context) {
-	stats := GlobalService.GetStatus()
+// NewHandler constructs a system HTTP handler.
+func NewHandler(svc *Service) *Handler {
+	return &Handler{svc: svc}
+}
+
+// RegisterRoutes registers system stats routes under the provided group.
+func (h *Handler) RegisterRoutes(rg *gin.RouterGroup) {
+	rg.GET("/status", h.GetSystemStatus)
+}
+
+func (h *Handler) GetSystemStatus(c *gin.Context) {
+	stats := h.svc.GetStatus()
 	c.JSON(http.StatusOK, stats)
 }

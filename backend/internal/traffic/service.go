@@ -11,16 +11,6 @@ type Service struct {
 	lastTime time.Time
 }
 
-// GlobalService is the process-wide global traffic snapshot tracker,
-// following the same GlobalService pattern used by the mihomo/node/user
-// packages. It is set by InitGlobalService (called from main at startup).
-var GlobalService *Service
-
-// InitGlobalService creates and registers the global traffic Service.
-func InitGlobalService() *Service {
-	GlobalService = NewService()
-	return GlobalService
-}
 
 func NewService() *Service {
 	return &Service{lastTime: time.Now()}

@@ -22,15 +22,6 @@ type Scheduler struct {
 	wg     sync.WaitGroup
 }
 
-// GlobalScheduler is the process-wide traffic scheduler, following the same
-// GlobalService pattern used elsewhere in the codebase.
-var GlobalScheduler *Scheduler
-
-// GlobalCollector is the process-wide collector instance, exposed
-// separately from GlobalScheduler so HTTP handlers can read the latest
-// mapped connections without depending on scheduler internals.
-var GlobalCollector *Collector
-
 // NewScheduler builds a Scheduler. A zero/negative interval falls back to
 // DefaultInterval (10s).
 func NewScheduler(collector *Collector, enforcer *Enforcer, interval time.Duration) *Scheduler {
@@ -43,15 +34,6 @@ func NewScheduler(collector *Collector, enforcer *Enforcer, interval time.Durati
 		interval:  interval,
 		stopCh:    make(chan struct{}),
 	}
-}
-
-// InitGlobalScheduler registers the collector as GlobalCollector, builds and
-// starts the global Scheduler.
-func InitGlobalScheduler(collector *Collector, enforcer *Enforcer, interval time.Duration) *Scheduler {
-	GlobalCollector = collector
-	GlobalScheduler = NewScheduler(collector, enforcer, interval)
-	GlobalScheduler.Start()
-	return GlobalScheduler
 }
 
 // Start begins the collection loop in a background goroutine. Every tick:
