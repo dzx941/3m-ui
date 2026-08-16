@@ -2,7 +2,7 @@ import React from 'react';
 import { Layout, Menu } from 'antd';
 import {
   DashboardOutlined, NodeIndexOutlined, UserOutlined, SettingOutlined,
-  CodeOutlined, FileTextOutlined, ApiOutlined, LogoutOutlined, ThunderboltOutlined,
+  CodeOutlined, FileTextOutlined, ApiOutlined, LogoutOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
@@ -19,7 +19,6 @@ const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
   const items = [
     { key: '/', icon: <DashboardOutlined />, label: t('nav.dashboard') },
     { key: '/listeners', icon: <NodeIndexOutlined />, label: t('nav.listeners') },
-    { key: '/inbound-templates', icon: <ThunderboltOutlined />, label: t('nav.inboundTemplates') },
     { key: '/users', icon: <UserOutlined />, label: t('nav.users') },
     { key: '/core', icon: <ApiOutlined />, label: t('nav.core') },
     { key: '/logs', icon: <FileTextOutlined />, label: t('nav.logs') },

@@ -1,7 +1,7 @@
 export default {
   app: { name: '3M-UI', title: 'Mihomo Core Management' },
   nav: {
-    dashboard: 'Dashboard', listeners: 'Nodes', inboundTemplates: 'Quick Create', users: 'Users',
+    dashboard: 'Dashboard', listeners: 'Nodes', users: 'Users',
     core: 'Core', logs: 'Logs', config: 'Config', settings: 'Settings', logout: 'Logout',
   },
   common: {
@@ -70,5 +70,4 @@ export default {
     passwordDescription: 'Change your password regularly to improve security', changePassword: 'Change Password',
     about: 'About 3M-UI', version: 'Version',
   },
-  templates: { title: 'Quick Create Node' },
 };
