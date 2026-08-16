@@ -1,0 +1,18 @@
+server:
+  port: 8080
+  mode: "debug"
+
+database:
+  path: "backend/data/3m-ui.db"
+
+jwt:
+  secret: "3m-ui-default-jwt-secret-key-change-it-in-production"
+security:
+  # Empty or omit → allow all origins (legacy * behaviour).
+  # Example: ["https://panel.example.com"]
+  cors_origins: []
+  credential_key: "3m-ui-default-credential-key-change-it-in-production"
+
+mihomo:
+  binary: "/usr/local/bin/mihomo"
+  config: "backend/data/mihomo/config.yaml"

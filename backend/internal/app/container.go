@@ -1,0 +1,73 @@
+package app
+
+import (
+	"github.com/kazeyukiro/3m-ui/backend/internal/config"
+	"github.com/kazeyukiro/3m-ui/backend/internal/listener"
+	"github.com/kazeyukiro/3m-ui/backend/internal/mihomo"
+	dbconfig "github.com/kazeyukiro/3m-ui/backend/internal/mihomo/config"
+	"github.com/kazeyukiro/3m-ui/backend/internal/node"
+	"github.com/kazeyukiro/3m-ui/backend/internal/router"
+	"github.com/kazeyukiro/3m-ui/backend/internal/system"
+	"github.com/kazeyukiro/3m-ui/backend/internal/traffic"
+	"github.com/kazeyukiro/3m-ui/backend/internal/user"
+	"gorm.io/gorm"
+)
+
+// Container is the application composition root.
+type Container struct {
+	DB               *gorm.DB
+	Config           *config.Config
+	Mihomo           *mihomo.Service
+	Listener         *listener.Service
+	Node             *node.Service
+	User             *user.Service
+	Traffic          *traffic.Service
+	TrafficCollector *traffic.Collector
+	TrafficScheduler *traffic.Scheduler
+	System           *system.Service
+	ConfigEngine     *dbconfig.ConfigEngine
+}
+
+// NewContainer constructs services and starts the traffic collection loop.
+func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
+	mihomoSvc := mihomo.NewService(cfg)
+	nodeSvc := node.NewService(db, cfg.Mihomo.Config, mihomoSvc)
+	listenerSvc := listener.NewService(db, cfg.Mihomo.Config, mihomoSvc)
+	userSvc := user.NewService(db)
+	systemSvc := system.NewService()
+
+	trafficSvc := traffic.NewService()
+	userTraffic := traffic.NewUserService(db)
+	collector := traffic.NewCollectorFromDefaults(db, trafficSvc, userTraffic)
+	enforcer := traffic.NewEnforcer(db, nodeSvc)
+	scheduler := traffic.NewScheduler(collector, enforcer, 0)
+	scheduler.Start()
+
+	return &Container{
+		DB:               db,
+		Config:           cfg,
+		Mihomo:           mihomoSvc,
+		Listener:         listenerSvc,
+		Node:             nodeSvc,
+		User:             userSvc,
+		Traffic:          trafficSvc,
+		TrafficCollector: collector,
+		TrafficScheduler: scheduler,
+		System:           systemSvc,
+		ConfigEngine:     dbconfig.NewConfigEngine(db),
+	}
+}
+
+// RouterDeps builds the dependency bag consumed by the HTTP layer.
+func (c *Container) RouterDeps() router.Deps {
+	return router.Deps{
+		DB:               c.DB,
+		Config:           c.Config,
+		Mihomo:           c.Mihomo,
+		Traffic:          c.Traffic,
+		TrafficCollector: c.TrafficCollector,
+		User:             c.User,
+		Node:             c.Node,
+		System:           c.System,
+	}
+}

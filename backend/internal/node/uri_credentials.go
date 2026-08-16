@@ -1,0 +1,51 @@
+package node
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/kazeyukiro/3m-ui/backend/internal/database/models"
+	"github.com/kazeyukiro/3m-ui/backend/internal/user"
+)
+
+// ClientURIsWithCredentials bridges node URI export with the canonical
+// credential service. Listener.Config is server configuration and is not the
+// source of truth for users managed by 3m-ui.
+func ClientURIsWithCredentials(listener models.Listener, host string, credentials []user.Credential) ([]string, error) {
+	var cfg map[string]interface{}
+	if listener.Config != "" {
+		if err := json.Unmarshal([]byte(listener.Config), &cfg); err != nil {
+			return nil, fmt.Errorf("invalid listener configuration: %w", err)
+		}
+	}
+	if cfg == nil {
+		cfg = map[string]interface{}{}
+	}
+	if len(credentials) > 0 {
+		switch listener.Protocol {
+		case "anytls", "hysteria2", "mieru", "tuic":
+			users := make(map[string]interface{}, len(credentials))
+			for _, credential := range credentials {
+				if credential.Username != "" {
+					users[credential.Username] = credential.Password
+				}
+			}
+			cfg["users"] = users
+		default:
+			users := make([]interface{}, 0, len(credentials))
+			for _, credential := range credentials {
+				users = append(users, map[string]interface{}{"username": credential.Username, "password": credential.Password, "uuid": credential.UUID})
+			}
+			cfg["users"] = users
+		}
+		if listener.Protocol == "shadowsocks" {
+			cfg["password"] = credentials[0].Password
+		}
+	}
+	encoded, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare URI configuration: %w", err)
+	}
+	listener.Config = string(encoded)
+	return ClientURIs(listener, host)
+}
