@@ -1,0 +1,49 @@
+/* Global mobile-friendly baseline for 3m-ui */
+html, body, #root {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Prevent iOS zoom on form focus (16px+) */
+@media (max-width: 767px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+
+  /* Tables: allow horizontal scroll without breaking layout */
+  .ant-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Modal nearly full-screen on phones */
+  .ant-modal {
+    max-width: calc(100vw - 16px) !important;
+    margin: 8px auto !important;
+    padding-bottom: 0;
+  }
+  .ant-modal-body {
+    max-height: calc(100vh - 140px) !important;
+  }
+
+  /* Card headers with action buttons wrap cleanly */
+  .ant-card-head {
+    flex-wrap: wrap;
+  }
+  .ant-card-extra {
+    margin: 8px 0 0 0;
+  }
+
+  /* Space of action buttons can wrap */
+  .ant-space {
+    flex-wrap: wrap;
+  }
+
+  /* Drawer menu full height safe area */
+  .app-mobile-drawer .ant-drawer-body {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+}
