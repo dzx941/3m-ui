@@ -9,8 +9,8 @@ import (
 
 func TestGenerateListenersUsesNativeSchema(t *testing.T) {
 	listeners := []models.Listener{
-		{Model: gorm.Model{ID: 1}, Name: "ss", Protocol: "shadowsocks", Port: 443, BindAddress: "0.0.0.0", Enabled: true, Config: `{"cipher":"aes-256-gcm"}`},
-		{Model: gorm.Model{ID: 2}, Name: "vless", Protocol: "vless", Port: 8443, BindAddress: "0.0.0.0", Enabled: true, Config: `{"flow":"xtls-rprx-vision","certificate":"cert","private-key":"key","reality-config":{"private-key":"secret"}}`},
+		{Model: gorm.Model{ID: 1}, Name: "ss", Protocol: "shadowsocks", Port: "443", BindAddress: "0.0.0.0", Enabled: true, Config: `{"cipher":"aes-256-gcm"}`},
+		{Model: gorm.Model{ID: 2}, Name: "vless", Protocol: "vless", Port: "8443", BindAddress: "0.0.0.0", Enabled: true, Config: `{"flow":"xtls-rprx-vision","certificate":"cert","private-key":"key","reality-config":{"private-key":"secret"}}`},
 	}
 	creds := map[uint][]Credential{
 		1: {{Username: "alice", Password: "ss-pass"}},
@@ -40,7 +40,7 @@ func TestGenerateShadowQUICNormalizesObjectUsers(t *testing.T) {
 	listeners := []models.Listener{{
 		Name:        "shadowquic",
 		Protocol:    "shadowquic",
-		Port:        8443,
+		Port: "8443",
 		BindAddress: "0.0.0.0",
 		Enabled:     true,
 		Config:      `{"users":{"alice":"secret","bob":"secret2"}}`,
@@ -66,7 +66,7 @@ func TestGenerateShadowQUICUsesCredentialsAsList(t *testing.T) {
 		Model:       gorm.Model{ID: 1},
 		Name:        "shadowquic",
 		Protocol:    "shadowquic",
-		Port:        8443,
+		Port: "8443",
 		BindAddress: "0.0.0.0",
 		Enabled:     true,
 	}}
@@ -86,7 +86,7 @@ func TestGenerateShadowQUICUsesCredentialsAsList(t *testing.T) {
 
 func TestGenerateListenersRejectsExcludedProtocols(t *testing.T) {
 	for _, protocol := range []string{"socks", "http", "tproxy", "redir", "mixed", "tunnel", "tun", "wireguard"} {
-		_, err := generateListeners([]models.Listener{{Name: "bad", Protocol: protocol, Port: 1080, Enabled: true}}, nil)
+		_, err := generateListeners([]models.Listener{{Name: "bad", Protocol: protocol, Port: "1080", Enabled: true}}, nil)
 		if err == nil {
 			t.Fatalf("expected protocol %q to be rejected", protocol)
 		}
@@ -95,8 +95,8 @@ func TestGenerateListenersRejectsExcludedProtocols(t *testing.T) {
 
 func TestGenerateListenersSkipsDisabled(t *testing.T) {
 	result, err := generateListeners([]models.Listener{
-		{Name: "on", Protocol: "shadowsocks", Port: 1080, Enabled: true, Config: `{"cipher":"aes-256-gcm","password":"x"}`},
-		{Name: "off", Protocol: "vless", Port: 1081, Enabled: false},
+		{Name: "on", Protocol: "shadowsocks", Port: "1080", Enabled: true, Config: `{"cipher":"aes-256-gcm","password":"x"}`},
+		{Name: "off", Protocol: "vless", Port: "1081", Enabled: false},
 	}, nil)
 	if err != nil {
 		t.Fatalf("generateListeners failed: %v", err)
