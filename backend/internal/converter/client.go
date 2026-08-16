@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/kazeyukiro/3m-ui/backend/internal/config"
@@ -148,10 +149,16 @@ func listenerToProxies(l models.Listener, server string, credentials []user.Cred
 		return nil, fmt.Errorf("invalid listener config for %q: %w", l.Name, err)
 	}
 
+	// Prefer numeric port for single ports so client YAML matches official examples.
+	var portVal interface{} = strings.TrimSpace(l.Port)
+	if p, err := strconv.Atoi(strings.TrimSpace(l.Port)); err == nil {
+		portVal = p
+	}
+
 	base := map[string]interface{}{
 		"type":   protocol,
 		"server": server,
-		"port":   l.Port,
+		"port":   portVal,
 	}
 	if l.UDP && clientSupportsUDP(protocol) {
 		base["udp"] = true
@@ -212,18 +219,35 @@ func listenerToProxies(l models.Listener, server string, credentials []user.Cred
 			return nil, fmt.Errorf("listener %q requires at least one active user for %s client export", l.Name, protocol)
 		}
 		for i, cred := range credentials {
-			p := makeProxy(fmt.Sprintf("%d", i+1))
 			if cred.UUID == "" {
 				continue
 			}
+			// Single-user export keeps the listener name; multi-user gets a stable suffix.
+			suffix := ""
+			if len(credentials) > 1 {
+				suffix = credentialSuffix(credentials, i)
+				if suffix == "" {
+					suffix = fmt.Sprintf("%d", i+1)
+				}
+			}
+			p := makeProxy(suffix)
 			p["uuid"] = cred.UUID
-			copyOption(p, opts, "alterId")
 			copyOption(p, opts, "cipher")
 			copyOption(p, opts, "packet-encoding")
 			copyOption(p, opts, "global-padding")
 			copyOption(p, opts, "authenticated-length")
 			copyOption(p, opts, "encryption")
-			copyOption(p, opts, "flow")
+			// Per-user fields (flow / alterId) live under users[] in official listener schema.
+			if flow := userFieldFromOpts(opts, cred.UUID, "flow"); flow != nil {
+				p["flow"] = flow
+			} else {
+				copyOption(p, opts, "flow")
+			}
+			if alterID := userFieldFromOpts(opts, cred.UUID, "alterId"); alterID != nil {
+				p["alterId"] = alterID
+			} else {
+				copyOption(p, opts, "alterId")
+			}
 			if value := realityClientOptions(opts); value != nil {
 				p["reality-opts"] = value
 			}
@@ -556,6 +580,32 @@ func credentialSuffix(credentials []user.Credential, index int) string {
 		return credentials[index].Username
 	}
 	return ""
+}
+
+// userFieldFromOpts reads a per-user field (e.g. flow, alterId) from the
+// official listeners users[] list by matching uuid.
+func userFieldFromOpts(opts map[string]interface{}, uuid, field string) interface{} {
+	uuid = strings.TrimSpace(uuid)
+	if uuid == "" {
+		return nil
+	}
+	list, ok := opts["users"].([]interface{})
+	if !ok {
+		return nil
+	}
+	for _, item := range list {
+		row, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(fmt.Sprint(row["uuid"])) != uuid {
+			continue
+		}
+		if value, exists := row[field]; exists && value != nil && fmt.Sprint(value) != "" {
+			return value
+		}
+	}
+	return nil
 }
 
 func max(a, b int) int {
