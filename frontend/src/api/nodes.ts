@@ -4,7 +4,7 @@ export interface Listener {
   id: number;
   name: string;
   protocol: string;
-  port: number;
+  port: string;
   bind_address: string;
   enabled: boolean;
   udp: boolean;

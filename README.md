@@ -34,7 +34,7 @@ A lightweight, modern web management console for [Mihomo Core](https://github.co
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.25+
 - Node.js 20+
 - Linux VPS (Ubuntu/Debian recommended)
 
@@ -85,14 +85,14 @@ mihomo:
   config_path: "/etc/mihomo/config.yaml"
 
 security:
-  cors_origins: []    # ← Empty = deny all cross-origin; add "https://admin.your-domain.com" if needed
+  cors_origins: []    # ← Empty = deny cross-origin browser access; add your admin origin if needed
 ```
 
 ---
 
 ## 🛡️ Security Recommendations
 
-1. **Change default password immediately** after first login (`admin`/`admin`).
+1. **Change the initial administrator password immediately** after first login. The default initial administrator credentials remain `admin` / `admin`; change the password after first login.
 2. **Use HTTPS** in production (reverse proxy with Nginx/Caddy).
 3. **Set strong JWT secret** (≥ 32 random characters).
 4. **Restrict CORS origins** to your admin domain only.
@@ -112,6 +112,7 @@ security:
 | GET | `/api/v1/nodes` | Yes | List listeners |
 | POST | `/api/v1/nodes` | Yes | Create listener |
 | GET | `/api/v1/nodes/:id/uri` | Yes | Export node URI |
+| GET | `/api/v1/client/sub/:token` | Token | Client subscription (Mihomo raw or subconverter target) |
 | POST | `/api/v1/mihomo/start` | Yes | Start core |
 | POST | `/api/v1/mihomo/stop` | Yes | Stop core |
 
@@ -164,7 +165,7 @@ MIT License — see [LICENSE](LICENSE) for details.
 
 ### 环境要求
 
-- Go 1.22+
+- Go 1.25+
 - Node.js 20+
 - Linux VPS（推荐 Ubuntu/Debian）
 

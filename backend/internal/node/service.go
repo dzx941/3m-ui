@@ -103,11 +103,14 @@ func (s *Service) RegenerateConfig() error {
 		return err
 	}
 	dir := filepath.Dir(s.configPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
-	if err := os.WriteFile(s.configPath, []byte(yamlContent), 0644); err != nil {
+	if err := os.WriteFile(s.configPath, []byte(yamlContent), 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
+	}
+	if err := os.Chmod(s.configPath, 0600); err != nil {
+		return fmt.Errorf("failed to secure config file: %w", err)
 	}
 
 	tmpl := mihomoConfig.GetDefaultTemplate()

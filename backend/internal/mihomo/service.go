@@ -18,7 +18,7 @@ func NewService(cfg *config.Config) *Service {
 		return &Service{}
 	}
 	return &Service{
-		pm: GetProcessManager(cfg.Mihomo.Binary, cfg.Mihomo.Config),
+		pm: NewProcessManager(cfg.Mihomo.Binary, cfg.Mihomo.Config),
 		cm: NewConfigManager(cfg.Mihomo.Config),
 	}
 }
@@ -55,12 +55,18 @@ func (s *Service) GetStatus() (*StatusResponse, error) {
 }
 
 func (s *Service) SaveConfig(content string) error {
-	if s == nil || s.cm == nil || s.pm == nil {
+	if s == nil || s.cm == nil {
 		return fmt.Errorf("mihomo service not initialized")
 	}
 	old, readErr := s.cm.ReadConfig()
 	if err := s.cm.SaveConfig(content); err != nil {
 		return err
+	}
+	// The management UI remains usable when Mihomo is intentionally not
+	// installed (for example, --no-mihomo installs). Validate when a core
+	// binary is available, but do not make the panel itself depend on it.
+	if s.pm == nil {
+		return nil
 	}
 	if err := s.pm.ValidateConfig(); err != nil {
 		if readErr == nil {
@@ -72,14 +78,17 @@ func (s *Service) SaveConfig(content string) error {
 }
 
 func (s *Service) ApplyConfig(content string) error {
-	if s == nil || s.pm == nil || s.cm == nil {
+	if s == nil || s.cm == nil {
 		return fmt.Errorf("mihomo service not initialized")
 	}
 	old, readErr := s.cm.ReadConfig()
-	wasRunning := s.pm.IsRunning()
 	if err := s.cm.SaveConfig(content); err != nil {
 		return err
 	}
+	if s.pm == nil {
+		return nil
+	}
+	wasRunning := s.pm.IsRunning()
 	if err := s.pm.ValidateConfig(); err != nil {
 		if readErr == nil {
 			_ = s.cm.SaveConfig(old)

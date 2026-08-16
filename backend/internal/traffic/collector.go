@@ -76,8 +76,10 @@ func (c *Collector) CollectOnce() error {
 	// as optional: if unavailable, the global snapshot just omits the rate
 	// refinement and callers fall back to Service's own delta calculation.
 	var upRate, downRate int64
+	trafficAvailable := false
 	if t, err := c.client.Traffic(); err == nil {
 		upRate, downRate = t.Up, t.Down
+		trafficAvailable = true
 	}
 
 	listenerNameToID, listenerIDToName, err := c.loadListeners()
@@ -202,7 +204,14 @@ func (c *Collector) CollectOnce() error {
 		return fmt.Errorf("update online status: %w", err)
 	}
 
-	c.svc.ApplySample(connResp.UploadTotal, connResp.DownloadTotal, len(connResp.Connections), upRate, downRate)
+	if trafficAvailable {
+		c.svc.ApplySample(connResp.UploadTotal, connResp.DownloadTotal, len(connResp.Connections), upRate, downRate)
+	} else {
+		// Mihomo's /traffic endpoint is optional/unavailable on some setups.
+		// Fall back to the cumulative counters so the dashboard still gets a
+		// useful rate instead of being stuck at 0 B/s.
+		c.svc.Update(connResp.UploadTotal, connResp.DownloadTotal, len(connResp.Connections))
+	}
 
 	c.mu.Lock()
 	c.prevConn = nextPrev

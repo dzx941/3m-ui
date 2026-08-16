@@ -43,11 +43,11 @@ func SetupRouterWithDeps(d Deps) *gin.Engine {
 			c.JSON(http.StatusOK, gin.H{"status": "ok"})
 		})
 
-		RegisterAccessTokenRoutes(apiV1, d)
+		RegisterPublicSubscriptionRoutes(apiV1, db, cfg)
 
 		apiV1.Use(auth.RequireAuth(db, cfg.JWT.Secret))
+		RegisterAccessTokenRoutes(apiV1, d)
 
-				RegisterAccessTokenRoutes(apiV1, d)
 		registerDashboardRoute(apiV1, d)
 
 		system.NewHandler(d.systemService()).RegisterRoutes(apiV1.Group("/system"))

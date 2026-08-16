@@ -28,3 +28,7 @@ func (d Deps) trafficCollector() *traffic.Collector { return d.TrafficCollector 
 func (d Deps) userService() *user.Service           { return d.User }
 func (d Deps) nodeService() *node.Service           { return d.Node }
 func (d Deps) systemService() *system.Service       { return d.System }
+
+func resolveDB(d Deps) *gorm.DB {
+	return d.DB
+}

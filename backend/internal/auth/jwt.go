@@ -11,11 +11,10 @@ import (
 
 // JWTClaims represents the authenticated administrator identity.
 type JWTClaims struct {
-	UserID         uint      `json:"user_id"`
-	Username       string    `json:"username"`
-	Role           string    `json:"role"`
-	SessionVersion uint      
-	ExpiresAt      time.Time `json:"session_version"`
+	UserID         uint   `json:"user_id"`
+	Username       string `json:"username"`
+	Role           string `json:"role"`
+	SessionVersion uint
 	ExpiresAt      time.Time `json:"expires_at"`
 }
 

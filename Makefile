@@ -11,7 +11,7 @@ LDFLAGS := -s -w -X main.version=$(VERSION) -X main.gitCommit=$(GIT_COMMIT) -X m
 
 build:
 	mkdir -p $(DIST_DIR)
-	cd $(FRONTEND_DIR) && pnpm build
+	cd $(FRONTEND_DIR) && npm install && npm run build
 	rm -rf $(BACKEND_DIR)/cmd/server/web/dist
 	cp -R $(FRONTEND_DIR)/dist $(BACKEND_DIR)/cmd/server/web/dist
 	cd $(BACKEND_DIR) && go build -trimpath -ldflags "$(LDFLAGS)" -o ../$(DIST_DIR)/$(APP_NAME) ./cmd/server

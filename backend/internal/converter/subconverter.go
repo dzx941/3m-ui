@@ -14,6 +14,12 @@ var SubconverterURL = "http://127.0.0.1:25500"
 
 // CallSubconverter calls the local subconverter service to convert standard configurations.
 func CallSubconverter(cfg *config.Config, token string, target string, rawYAML []byte) ([]byte, error) {
+	return CallSubconverterWithRequest(cfg, token, target, rawYAML)
+}
+
+// CallSubconverterWithRequest is the request-independent implementation used
+// by both the public subscription route and internal callers.
+func CallSubconverterWithRequest(cfg *config.Config, token string, target string, rawYAML []byte) ([]byte, error) {
 	port := 8080
 	if cfg != nil && cfg.Server.Port != 0 {
 		port = cfg.Server.Port

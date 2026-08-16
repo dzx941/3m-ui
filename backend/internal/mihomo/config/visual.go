@@ -60,6 +60,9 @@ func DefaultVisualConfig() VisualConfig {
 
 func GetVisualConfig(db *gorm.DB) (VisualConfig, error) {
 	cfg := DefaultVisualConfig()
+	if db == nil {
+		return cfg, fmt.Errorf("database is not initialized")
+	}
 	var fragment models.Config
 	err := db.Where("name = ?", visualConfigName).First(&fragment).Error
 	if err != nil {
@@ -75,6 +78,9 @@ func GetVisualConfig(db *gorm.DB) (VisualConfig, error) {
 }
 
 func SaveVisualConfig(db *gorm.DB, cfg VisualConfig) error {
+	if db == nil {
+		return fmt.Errorf("database is not initialized")
+	}
 	cfg.Mode = strings.ToLower(strings.TrimSpace(cfg.Mode))
 	switch cfg.Mode {
 	case "rule", "global", "direct", "script":

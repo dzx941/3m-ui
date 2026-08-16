@@ -81,6 +81,9 @@ func (pm *ProcessManager) GetVersion() (*VersionInfo, error) {
 	if info.IsDir() {
 		return nil, fmt.Errorf("mihomo binary path is a directory: %s", pm.binaryPath)
 	}
+	if !isAllowedBinaryPath(pm.binaryPath) {
+		return nil, fmt.Errorf("mihomo binary path is not in allowed list: %s", pm.binaryPath)
+	}
 
 	cmd := exec.Command(pm.binaryPath, "-v")
 
@@ -96,8 +99,14 @@ func (pm *ProcessManager) GetVersion() (*VersionInfo, error) {
 	parts := strings.Fields(output)
 
 	version := "unknown"
-	if len(parts) >= 2 {
-		version = parts[1]
+	// Mihomo output has changed over time (for example, it may contain
+	// both the product name and the version). Prefer the first token that
+	// looks like a semantic version instead of assuming it is fields[1].
+	for _, part := range parts {
+		if strings.HasPrefix(part, "v") && len(part) > 1 && strings.ContainsAny(part[1:], "0123456789") {
+			version = part
+			break
+		}
 	}
 
 	return &VersionInfo{

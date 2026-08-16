@@ -35,6 +35,9 @@ func NewContainer(db *gorm.DB, cfg *config.Config) *Container {
 	listenerSvc := listener.NewService(db, cfg.Mihomo.Config, mihomoSvc)
 	userSvc := user.NewService(db)
 	systemSvc := system.NewService()
+	userSvc.SetCredentialsChangedHandler(func() error {
+		return nodeSvc.RegenerateConfig()
+	})
 
 	trafficSvc := traffic.NewService()
 	userTraffic := traffic.NewUserService(db)

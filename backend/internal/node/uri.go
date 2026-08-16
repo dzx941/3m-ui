@@ -27,7 +27,10 @@ func ClientURIs(listener models.Listener, host string) ([]string, error) {
 	// in the JSON config. URI generation must match the actual listener.
 	cfg["_listener-tls"] = listener.TLS
 	cfg["_listener-udp"] = listener.UDP
-	port := listener.Port
+	port := strings.TrimSpace(listener.Port)
+	if strings.ContainsAny(port, ",-") {
+		return nil, fmt.Errorf("URI export requires a single listener port; ranges and port lists are not representable in a share URI")
+	}
 	switch strings.ToLower(listener.Protocol) {
 	case "shadowsocks":
 		return shadowsocksURIs(listener.Name, host, port, cfg)

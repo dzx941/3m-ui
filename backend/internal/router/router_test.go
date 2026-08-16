@@ -46,6 +46,24 @@ func TestHealthAndMihomoAPIs(t *testing.T) {
 
 	{
 		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1", nil)
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusUnauthorized {
+			t.Fatalf("expected access-token management endpoint to require auth, got %d", w.Code)
+		}
+	}
+
+	{
+		w := httptest.NewRecorder()
+		req, _ := http.NewRequest("GET", "/api/v1/client/sub/does-not-exist", nil)
+		r.ServeHTTP(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("expected missing public subscription to return 404, got %d", w.Code)
+		}
+	}
+
+	{
+		w := httptest.NewRecorder()
 		req, _ := http.NewRequest("GET", "/api/v1/health", nil)
 		r.ServeHTTP(w, req)
 
@@ -58,16 +76,17 @@ func TestHealthAndMihomoAPIs(t *testing.T) {
 		if resp["status"] != "ok" {
 			t.Fatalf("expected health status 'ok', got '%v'", resp)
 		}
-		if got := w.Header().Get("Access-Control-Allow-Origin"); got != "*" {
-			t.Fatalf("expected CORS allow-origin *, got %q", got)
+		if got := w.Header().Get("Access-Control-Allow-Origin"); got != "" {
+			t.Fatalf("expected no CORS allow-origin when no origins are configured, got %q", got)
 		}
 	}
 
 	{
-		if _, _, _, err := auth.EnsureAdmin(db, cfg.Database.Path); err != nil {
+		_, username, password, err := auth.EnsureAdmin(db, cfg.Database.Path)
+		if err != nil {
 			t.Fatalf("ensure admin: %v", err)
 		}
-		result, err := auth.Login(db, cfg.JWT.Secret, auth.LoginInput{Username: "admin", Password: "admin"})
+		result, err := auth.Login(db, cfg.JWT.Secret, auth.LoginInput{Username: username, Password: password})
 		if err != nil {
 			t.Fatalf("login: %v", err)
 		}

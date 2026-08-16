@@ -29,7 +29,7 @@ func registerConfigRoutes(api *gin.RouterGroup, d Deps, cfg *config.Config) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		if proxy.Name == "" || proxy.Type == "" || proxy.Server == "" || proxy.Port == "" || proxy.Port == "0" || proxy.Port == "" {
+		if proxy.Name == "" || proxy.Type == "" || proxy.Server == "" || proxy.Port == "" || proxy.Port == "0" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "名称、协议、服务器和有效端口不能为空"})
 			return
 		}
@@ -131,11 +131,15 @@ func registerConfigRoutes(api *gin.RouterGroup, d Deps, cfg *config.Config) {
 			return
 		}
 		dir := filepath.Dir(cfg.Mihomo.Config)
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
-		if err := os.WriteFile(cfg.Mihomo.Config, []byte(yamlStr), 0644); err != nil {
+		if err := os.WriteFile(cfg.Mihomo.Config, []byte(yamlStr), 0600); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if err := os.Chmod(cfg.Mihomo.Config, 0600); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}

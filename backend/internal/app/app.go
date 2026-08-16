@@ -6,12 +6,12 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kazeyukiro/3m-ui/backend/internal/auth"
 	"github.com/kazeyukiro/3m-ui/backend/internal/config"
 	"github.com/kazeyukiro/3m-ui/backend/internal/database"
+	"github.com/kazeyukiro/3m-ui/backend/internal/mihomo"
 	dbconfig "github.com/kazeyukiro/3m-ui/backend/internal/mihomo/config"
 	"github.com/kazeyukiro/3m-ui/backend/internal/router"
 	"github.com/kazeyukiro/3m-ui/backend/internal/security"
@@ -33,16 +33,10 @@ func Run(frontendFS fs.FS) error {
 		return fmt.Errorf("initialize database: %w", err)
 	}
 
-	if created, username, password, err := auth.EnsureAdmin(db, cfg.Database.Path); err != nil {
+	if created, username, _, err := auth.EnsureAdmin(db, cfg.Database.Path); err != nil {
 		return fmt.Errorf("initialize administrator: %w", err)
 	} else if created {
 		log.Printf("initial administrator created: username=%s", username)
-		passwordFile := filepath.Join(filepath.Dir(cfg.Database.Path), ".initial_admin_password")
-		if err := os.WriteFile(passwordFile, []byte(password+"\n"), 0600); err != nil {
-			log.Printf("warning: could not write initial admin password file: %v", err)
-		} else {
-			log.Printf("initial administrator password saved to %s", passwordFile)
-		}
 	}
 
 	security.InitCredentialKey(cfg.Security.CredentialKey)
@@ -84,13 +78,24 @@ func Run(frontendFS fs.FS) error {
 	if container.Mihomo == nil {
 		return fmt.Errorf("initialize Mihomo service: service is nil")
 	}
-	if err := container.Mihomo.SaveConfig(generatedConfig); err != nil {
-		return fmt.Errorf("validate Mihomo configuration: %w", err)
+	if _, statErr := os.Stat(cfg.Mihomo.Binary); statErr == nil {
+		if err := container.Mihomo.SaveConfig(generatedConfig); err != nil {
+			return fmt.Errorf("validate Mihomo configuration: %w", err)
+		}
+		if err := container.Mihomo.StartMihomo(); err != nil {
+			return fmt.Errorf("start Mihomo core: %w", err)
+		}
+		log.Printf("Mihomo core started successfully")
+	} else {
+		// Keep the management panel usable when Mihomo is intentionally
+		// omitted. The generated configuration is still persisted and can be
+		// validated/applied after the core is installed.
+		manager := mihomo.NewConfigManager(cfg.Mihomo.Config)
+		if err := manager.SaveConfig(generatedConfig); err != nil {
+			return fmt.Errorf("save Mihomo configuration: %w", err)
+		}
+		log.Printf("warning: Mihomo binary unavailable at %s; panel started without core", cfg.Mihomo.Binary)
 	}
-	if err := container.Mihomo.StartMihomo(); err != nil {
-		return fmt.Errorf("start Mihomo core: %w", err)
-	}
-	log.Printf("Mihomo core started successfully")
 
 	r := router.SetupRouterWithDeps(container.RouterDeps())
 	mountFrontend(r, frontendFS)
@@ -106,10 +111,16 @@ func defaultConfigPath() string {
 	if value := os.Getenv("THREE_M_UI_CONFIG"); value != "" {
 		return value
 	}
-	if _, err := os.Stat("/etc/3m-ui/config.yaml"); err == nil {
-		return "/etc/3m-ui/config.yaml"
+	for _, candidate := range []string{
+		"/etc/3m-ui/config.yaml",
+		"config/config.yaml",
+		"backend/config/config.yaml",
+	} {
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
 	}
-	return "backend/config/config.yaml"
+	return "config/config.yaml"
 }
 
 func mountFrontend(r *gin.Engine, frontendFS fs.FS) {

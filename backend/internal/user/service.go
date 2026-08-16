@@ -15,11 +15,29 @@ import (
 	"gorm.io/gorm"
 )
 
-type Service struct{ db *gorm.DB }
+type Service struct {
+	db                 *gorm.DB
+	credentialsChanged func() error
+}
 
 // NewService constructs a user service bound to the given database.
 func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
+}
+
+// SetCredentialsChangedHandler registers the callback used to apply changes
+// to proxy credentials/bindings to the generated Mihomo configuration.
+// Keeping this callback optional makes the service easy to unit-test while
+// ensuring the production composition root can hot-reload credentials.
+func (s *Service) SetCredentialsChangedHandler(fn func() error) {
+	s.credentialsChanged = fn
+}
+
+func (s *Service) notifyCredentialsChanged() error {
+	if s.credentialsChanged == nil {
+		return nil
+	}
+	return s.credentialsChanged()
 }
 
 type CreateInput struct {
@@ -46,8 +64,12 @@ func (s *Service) Create(in CreateInput) (*models.ProxyUser, error) {
 		return nil, errors.New("username is required")
 	}
 	password := in.Password
+	var err error
 	if password == "" {
-		password, _ = randomToken(24)
+		password, err = randomToken(24)
+		if err != nil {
+			return nil, fmt.Errorf("generate proxy user password: %w", err)
+		}
 	}
 	uuid := in.UUID
 	if uuid == "" {
@@ -72,6 +94,9 @@ func (s *Service) Create(in CreateInput) (*models.ProxyUser, error) {
 	u := &models.ProxyUser{Username: username, PasswordEncrypted: encrypted, UUID: uuid, TrafficLimit: in.TrafficLimit, ExpireTime: expire, Enabled: enabled}
 	if err := s.db.Create(u).Error; err != nil {
 		return nil, fmt.Errorf("create proxy user: %w", err)
+	}
+	if err := s.notifyCredentialsChanged(); err != nil {
+		return u, fmt.Errorf("proxy user created, but Mihomo configuration could not be updated: %w", err)
 	}
 	return u, nil
 }
@@ -118,18 +143,27 @@ func (s *Service) Update(id uint, in UpdateInput) (*models.ProxyUser, error) {
 	if err := s.db.Save(u).Error; err != nil {
 		return nil, fmt.Errorf("update proxy user: %w", err)
 	}
+	if err := s.notifyCredentialsChanged(); err != nil {
+		return u, fmt.Errorf("proxy user updated, but Mihomo configuration could not be updated: %w", err)
+	}
 	return u, nil
 }
 func (s *Service) Delete(id uint) error {
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("proxy_user_id = ?", id).Delete(&models.ListenerUser{}).Error; err != nil {
 			return err
 		}
 		return tx.Delete(&models.ProxyUser{}, id).Error
-	})
+	}); err != nil {
+		return err
+	}
+	if err := s.notifyCredentialsChanged(); err != nil {
+		return fmt.Errorf("proxy user deleted, but Mihomo configuration could not be updated: %w", err)
+	}
+	return nil
 }
 func (s *Service) BindListeners(userID uint, listenerIDs []uint) error {
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		var user models.ProxyUser
 		if err := tx.First(&user, userID).Error; err != nil {
 			return err
@@ -176,7 +210,13 @@ func (s *Service) BindListeners(userID uint, listenerIDs []uint) error {
 			}
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	if err := s.notifyCredentialsChanged(); err != nil {
+		return fmt.Errorf("listener bindings updated, but Mihomo configuration could not be updated: %w", err)
+	}
+	return nil
 }
 func (s *Service) GetListeners(userID uint) ([]models.Listener, error) {
 	var listeners []models.Listener
@@ -203,7 +243,54 @@ func (s *Service) ActiveCredentialsByListener() (map[uint][]Credential, error) {
 	if err := s.db.Where("enabled = ?", true).Find(&listeners).Error; err != nil {
 		return nil, err
 	}
+
+	// A listener with explicit ProxyUser bindings must use those bindings as
+	// the source of truth. In particular, an inactive/expired bound user must
+	// not cause the listener's legacy/generated credentials to remain usable.
+	var rows []struct {
+		ListenerID  uint
+		ProxyUserID uint
+	}
+	if err := s.db.Model(&models.ListenerUser{}).
+		Select("listener_id, proxy_user_id").
+		Where("deleted_at IS NULL").
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	boundUsers := make(map[uint][]uint)
+	for _, row := range rows {
+		boundUsers[row.ListenerID] = append(boundUsers[row.ListenerID], row.ProxyUserID)
+	}
+
 	for _, listener := range listeners {
+		if ids, hasBindings := boundUsers[listener.ID]; hasBindings {
+			for _, userID := range ids {
+				u, err := s.GetByID(userID)
+				if err != nil {
+					if errors.Is(err, gorm.ErrRecordNotFound) {
+						continue
+					}
+					return nil, err
+				}
+				if !IsCredentialActive(*u) {
+					continue
+				}
+				password, err := decryptPassword(u.PasswordEncrypted)
+				if err != nil {
+					return nil, fmt.Errorf("decrypt proxy user %d password: %w", u.ID, err)
+				}
+				result[listener.ID] = append(result[listener.ID], Credential{
+					Username: u.Username,
+					Password: password,
+					UUID:     u.UUID,
+				})
+			}
+			continue
+		}
+
+		// Backward-compatible fallback for listeners that have never been bound
+		// to a ProxyUser. This is also where EnsureListenerCredentials keeps
+		// legacy standalone listeners exportable.
 		before := listener.Config
 		if err := credentials.EnsureListenerCredentials(&listener); err != nil {
 			return nil, fmt.Errorf("prepare listener %q credentials: %w", listener.Name, err)
@@ -213,40 +300,13 @@ func (s *Service) ActiveCredentialsByListener() (map[uint][]Credential, error) {
 				return nil, fmt.Errorf("save generated credentials for listener %q: %w", listener.Name, err)
 			}
 		}
-		creds := credentialsFromListenerConfig(listener.Protocol, listener.Config)
-		if len(creds) > 0 {
+		if creds := credentialsFromListenerConfig(listener.Protocol, listener.Config); len(creds) > 0 {
 			result[listener.ID] = creds
 		}
 	}
-	var rows []struct {
-		ListenerID  uint
-		ProxyUserID uint
-	}
-	if err := s.db.Model(&models.ListenerUser{}).Select("listener_id, proxy_user_id").Where("deleted_at IS NULL").Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		if len(result[row.ListenerID]) > 0 {
-			continue
-		}
-		u, err := s.GetByID(row.ProxyUserID)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				continue
-			}
-			return nil, err
-		}
-		if !IsCredentialActive(*u) {
-			continue
-		}
-		password, err := decryptPassword(u.PasswordEncrypted)
-		if err != nil {
-			return nil, fmt.Errorf("decrypt proxy user %d password: %w", u.ID, err)
-		}
-		result[row.ListenerID] = append(result[row.ListenerID], Credential{Username: u.Username, Password: password, UUID: u.UUID})
-	}
 	return result, nil
 }
+
 func credentialsFromListenerConfig(protocol, raw string) []Credential {
 	var cfg map[string]interface{}
 	if strings.TrimSpace(raw) == "" || json.Unmarshal([]byte(raw), &cfg) != nil {

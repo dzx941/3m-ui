@@ -20,6 +20,9 @@ type ConfigEngine struct{ db *gorm.DB }
 func NewConfigEngine(db *gorm.DB) *ConfigEngine { return &ConfigEngine{db: db} }
 
 func (ce *ConfigEngine) GenerateFinalConfig() (string, error) {
+	if ce == nil || ce.db == nil {
+		return "", fmt.Errorf("config engine database is not initialized")
+	}
 	baseBytes, err := yaml.Marshal(GetDefaultTemplate())
 	if err != nil {
 		return "", err

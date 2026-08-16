@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -84,28 +83,6 @@ func EnsureAdmin(db *gorm.DB, dbPath string) (created bool, username, password s
 
 	return true, username, password, nil
 }
-
-func randomPassword(n int) (string, error) {
-	const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789"
-	buf := make([]byte, n)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	for i := range buf {
-		buf[i] = alphabet[int(buf[i])%len(alphabet)]
-	}
-	return string(buf), nil
-}
-
-func BearerToken(header string) string {
-	const prefix = "Bearer "
-	if strings.HasPrefix(header, prefix) {
-		return strings.TrimSpace(strings.TrimPrefix(header, prefix))
-	}
-	return ""
-}
-
-func TokenFromRequest(authHeader string) string { return BearerToken(authHeader) }
 
 func EncodePassword(password string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(password))

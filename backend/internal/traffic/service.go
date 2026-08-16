@@ -28,8 +28,18 @@ func (s *Service) Update(totalUpload, totalDownload int64, connections int) Snap
 	}
 
 	if seconds > 0 {
-		result.UploadRate = int64(float64(totalUpload-s.last.UploadBytes) / seconds)
-		result.DownloadRate = int64(float64(totalDownload-s.last.DownloadBytes) / seconds)
+		uploadDelta := totalUpload - s.last.UploadBytes
+		downloadDelta := totalDownload - s.last.DownloadBytes
+		// Mihomo counters can reset when the core restarts. Never expose a
+		// negative bandwidth rate during that transition.
+		if uploadDelta < 0 {
+			uploadDelta = 0
+		}
+		if downloadDelta < 0 {
+			downloadDelta = 0
+		}
+		result.UploadRate = int64(float64(uploadDelta) / seconds)
+		result.DownloadRate = int64(float64(downloadDelta) / seconds)
 	}
 
 	s.last = result

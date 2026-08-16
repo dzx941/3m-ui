@@ -7,7 +7,6 @@ import {
   Modal,
   Form,
   Input,
-  InputNumber,
   Select,
   Switch,
   message,
@@ -199,8 +198,33 @@ const Listeners: React.FC = () => {
           <Form.Item name="protocol" label="Protocol" rules={[{ required: true }]} initialValue="shadowsocks">
             <Select options={PROTOCOLS.map((p) => ({ value: p, label: p }))} />
           </Form.Item>
-          <Form.Item name="port" label="Port" rules={[{ required: true, type: 'number', min: 1, max: 65535 }]}>
-            <InputNumber style={{ width: '100%' }} />
+          <Form.Item
+            name="port"
+            label="Port"
+            rules={[
+              { required: true, message: 'Port is required' },
+              {
+                validator: (_, value) => {
+                  const v = String(value ?? '').trim();
+                  if (!v) return Promise.resolve();
+                  const parts = v.split(',').map((part) => part.trim()).filter(Boolean);
+                  const valid = parts.every((part) => {
+                    if (/^\d+$/.test(part)) {
+                      const n = Number(part);
+                      return n >= 1 && n <= 65535;
+                    }
+                    const range = part.match(/^(\d+)\s*-\s*(\d+)$/);
+                    if (!range) return false;
+                    const start = Number(range[1]);
+                    const end = Number(range[2]);
+                    return start >= 1 && end <= 65535 && start <= end;
+                  });
+                  return valid ? Promise.resolve() : Promise.reject(new Error('Use a port, range (e.g. 8080-8090), or comma-separated ports'));
+                },
+              },
+            ]}
+          >
+            <Input placeholder="8080 or 8080-8090" />
           </Form.Item>
           <Form.Item name="bind_address" label="Bind Address" initialValue="0.0.0.0">
             <Input />

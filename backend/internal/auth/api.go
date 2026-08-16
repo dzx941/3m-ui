@@ -4,8 +4,6 @@ import (
 	"crypto/subtle"
 	"net"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -34,16 +32,18 @@ const (
 
 // clientIdentifier returns a stable identifier for rate-limiting.
 func clientIdentifier(c *gin.Context) string {
-	remote := c.ClientIP()
-	xff := c.GetHeader("X-Forwarded-For")
-	if xff != "" {
-		parts := strings.Split(xff, ",")
-		first := strings.TrimSpace(parts[0])
-		if first != "" && net.ParseIP(first) != nil {
-			remote = first
-		}
+	// Never trust a client-supplied X-Forwarded-For value for authentication
+	// rate limiting. A proxy can be configured to restore the real client IP
+	// at the Gin layer, but accepting the raw header here lets an attacker
+	// rotate arbitrary IPs and bypass the limiter.
+	remote, _, err := net.SplitHostPort(c.Request.RemoteAddr)
+	if err == nil && net.ParseIP(remote) != nil {
+		return remote
 	}
-	return remote
+	if ip := net.ParseIP(strings.TrimSpace(c.Request.RemoteAddr)); ip != nil {
+		return ip.String()
+	}
+	return "unknown"
 }
 
 func allowLogin(ip string) bool {
@@ -179,13 +179,6 @@ func (h *Handler) ChangePassword(c *gin.Context) {
 	}).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save password"})
 		return
-	}
-
-	if h.cfg != nil {
-		passwordFile := filepath.Join(filepath.Dir(h.cfg.Database.Path), ".initial_admin_password")
-		if err := os.Remove(passwordFile); err != nil && !os.IsNotExist(err) {
-			_ = err
-		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "password changed successfully"})

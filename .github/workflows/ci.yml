@@ -32,17 +32,14 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          package_json_file: frontend/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm build
+          cache: npm
+          cache-dependency-path: frontend/package.json
+      - run: npm install
+      - run: npm run lint
+      - run: npm run build
 
   scripts:
     runs-on: ubuntu-latest

@@ -8,7 +8,8 @@ database:
 jwt:
   secret: "3m-ui-default-jwt-secret-key-change-it-in-production"
 security:
-  # Empty or omit → allow all origins (legacy * behaviour).
+  # Empty → no cross-origin browser access. Use ["*"] only when you
+  # intentionally want to allow every origin.
   # Example: ["https://panel.example.com"]
   cors_origins: []
   credential_key: "3m-ui-default-credential-key-change-it-in-production"

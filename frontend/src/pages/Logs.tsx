@@ -3,9 +3,9 @@ import { Card, List, Tag } from 'antd';
 import { fetchLogs } from '../api/system';
 
 const Logs: React.FC = () => {
-  const [logs, setLogs] = useState<string[]>([]);
+  const [logs, setLogs] = useState<Awaited<ReturnType<typeof fetchLogs>>>([]);
   useEffect(() => {
-    fetchLogs().then((d) => setLogs(d.logs || []));
+    fetchLogs().then(setLogs).catch(() => setLogs([]));
   }, []);
   return (
     <div>
@@ -16,8 +16,8 @@ const Logs: React.FC = () => {
           dataSource={logs}
           renderItem={(item) => (
             <List.Item>
-              <Tag color="blue">INFO</Tag>
-              <code style={{ fontSize: 12 }}>{item}</code>
+              <Tag color="blue">{item.level?.toUpperCase() || 'INFO'}</Tag>
+              <code style={{ fontSize: 12 }}>{item.payload}</code>
             </List.Item>
           )}
         />
