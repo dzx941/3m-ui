@@ -3,7 +3,6 @@ export default {
   nav: {
     dashboard: '仪表盘',
     listeners: '节点管理',
-    inboundTemplates: '快速创建',
     users: '用户管理',
     core: '核心管理',
     logs: '运行日志',
@@ -73,5 +72,4 @@ export default {
     passwordDescription: '定期修改密码可以提高账户安全性', changePassword: '前往修改密码',
     about: '关于 3M-UI', version: '版本',
   },
-  templates: { title: '快速创建节点' },
 };
