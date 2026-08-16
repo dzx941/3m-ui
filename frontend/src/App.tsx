@@ -14,7 +14,6 @@ import Core from './pages/Core';
 import Logs from './pages/Logs';
 import ConfigPage from './pages/Config';
 import Settings from './pages/Settings';
-import InboundTemplates from './pages/InboundTemplates';
 
 const ThemedApp: React.FC = () => {
   const isDark = useThemeStore((s) => s.isDark);
@@ -31,7 +30,6 @@ const ThemedApp: React.FC = () => {
                   <Routes>
                     <Route path="/" element={<Dashboard />} />
                     <Route path="/listeners" element={<Listeners />} />
-                    <Route path="/inbound-templates" element={<InboundTemplates />} />
                     <Route path="/users" element={<Users />} />
                     <Route path="/core" element={<Core />} />
                     <Route path="/logs" element={<Logs />} />
