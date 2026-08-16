@@ -9,7 +9,7 @@ import (
 )
 
 func validNode(protocol, config string) *models.Listener {
-	return &models.Listener{Name: "test", Protocol: protocol, Type: protocol, Port: 443, BindAddress: "0.0.0.0", Enabled: true, Config: config}
+	return &models.Listener{Name: "test", Protocol: protocol, Type: protocol, Port: "443", BindAddress: "0.0.0.0", Enabled: true, Config: config}
 }
 
 func TestValidateNodeRejectsUnknownField(t *testing.T) {
