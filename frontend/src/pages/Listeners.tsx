@@ -1,44 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import {
-  Table,
-  Button,
-  Space,
-  Tag,
-  Modal,
-  Form,
-  Input,
-  Select,
-  Switch,
-  message,
-  Popconfirm,
-  Tooltip,
-  Card,
-} from 'antd';
-import {
-  PlusOutlined,
-  ReloadOutlined,
-  QrcodeOutlined,
-  DeleteOutlined,
-  EditOutlined,
-  CopyOutlined,
-} from '@ant-design/icons';
-import {
-  fetchListeners,
-  createListener,
-  updateListener,
-  deleteListener,
-  reloadListener,
-  exportNodeURI,
-  Listener,
-} from '../api/nodes';
+import { Table, Button, Space, Tag, Modal, Form, Input, Select, Switch, message, Popconfirm, Tooltip, Card } from 'antd';
+import { PlusOutlined, ReloadOutlined, QrcodeOutlined, DeleteOutlined, EditOutlined, CopyOutlined } from '@ant-design/icons';
+import { fetchListeners, createListener, updateListener, deleteListener, reloadListener, exportNodeURI, Listener } from '../api/nodes';
+import { useI18n } from '../i18n';
 
-const PROTOCOLS = [
-  'shadowsocks', 'snell', 'vmess', 'vless', 'trojan',
-  'hysteria2', 'tuic', 'shadowquic', 'anytls', 'mieru',
-  'sudoku', 'trusttunnel',
-];
+const PROTOCOLS = ['shadowsocks', 'snell', 'vmess', 'vless', 'trojan', 'hysteria2', 'tuic', 'shadowquic', 'anytls', 'mieru', 'sudoku', 'trusttunnel'];
 
 const Listeners: React.FC = () => {
+  const { t } = useI18n();
   const [data, setData] = useState<Listener[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -49,240 +18,80 @@ const Listeners: React.FC = () => {
 
   const load = async () => {
     setLoading(true);
-    try {
-      const res = await fetchListeners();
-      setData(res);
-    } catch (e: any) {
-      message.error(e.message);
-    } finally {
-      setLoading(false);
-    }
+    try { const res = await fetchListeners(); setData(res); }
+    catch (e: any) { message.error(e.message); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   const onSubmit = async (values: any) => {
     try {
-      const payload = {
-        ...values,
-        config: values.config ? JSON.stringify(JSON.parse(values.config)) : '{}',
-      };
-      if (editing) {
-        await updateListener(editing.id, payload);
-        message.success('Updated');
-      } else {
-        await createListener(payload);
-        message.success('Created');
-      }
-      setModalOpen(false);
-      setEditing(null);
-      form.resetFields();
-      load();
-    } catch (e: any) {
-      message.error(e.message);
-    }
+      const payload = { ...values, config: values.config ? JSON.stringify(JSON.parse(values.config)) : '{}' };
+      if (editing) { await updateListener(editing.id, payload); message.success(t('listeners.updated')); }
+      else { await createListener(payload); message.success(t('listeners.created')); }
+      setModalOpen(false); setEditing(null); form.resetFields(); load();
+    } catch (e: any) { message.error(e.message); }
   };
 
   const onDelete = async (id: number) => {
-    try {
-      await deleteListener(id);
-      message.success('Deleted');
-      load();
-    } catch (e: any) {
-      message.error(e.message);
-    }
+    try { await deleteListener(id); message.success(t('listeners.deleted')); load(); }
+    catch (e: any) { message.error(e.message); }
   };
 
   const onReload = async (id: number) => {
-    try {
-      await reloadListener(id);
-      message.success('Reloaded');
-    } catch (e: any) {
-      message.error(e.message);
-    }
+    try { await reloadListener(id); message.success(t('listeners.reloaded')); }
+    catch (e: any) { message.error(e.message); }
   };
 
   const showURIs = async (id: number) => {
-    try {
-      const res = await exportNodeURI(id);
-      setUris(res.uris);
-      setUriModal(true);
-    } catch (e: any) {
-      message.error(e.message);
-    }
+    try { const res = await exportNodeURI(id); setUris(res.uris); setUriModal(true); }
+    catch (e: any) { message.error(e.message); }
   };
 
   const columns = [
-    { title: 'Name', dataIndex: 'name', key: 'name' },
-    { title: 'Protocol', dataIndex: 'protocol', key: 'protocol', render: (p: string) => <Tag>{p}</Tag> },
-    { title: 'Port', dataIndex: 'port', key: 'port' },
-    {
-      title: 'Status',
-      dataIndex: 'enabled',
-      key: 'enabled',
-      render: (v: boolean) => (
-        <Tag color={v ? 'green' : 'red'}>{v ? 'Enabled' : 'Disabled'}</Tag>
-      ),
-    },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_: any, record: Listener) => (
-        <Space>
-          <Tooltip title="Export URI">
-            <Button icon={<QrcodeOutlined />} size="small" onClick={() => showURIs(record.id)} />
-          </Tooltip>
-          <Tooltip title="Reload">
-            <Button icon={<ReloadOutlined />} size="small" onClick={() => onReload(record.id)} />
-          </Tooltip>
-          <Tooltip title="Edit">
-            <Button
-              icon={<EditOutlined />}
-              size="small"
-              onClick={() => {
-                setEditing(record);
-                form.setFieldsValue({
-                  ...record,
-                  config: record.config ? JSON.stringify(JSON.parse(record.config), null, 2) : '{}',
-                });
-                setModalOpen(true);
-              }}
-            />
-          </Tooltip>
-          <Popconfirm title="Delete?" onConfirm={() => onDelete(record.id)}>
-            <Button icon={<DeleteOutlined />} danger size="small" />
-          </Popconfirm>
-        </Space>
-      ),
-    },
+    { title: t('listeners.name'), dataIndex: 'name', key: 'name' },
+    { title: t('listeners.protocol'), dataIndex: 'protocol', key: 'protocol', render: (p: string) => <Tag>{p}</Tag> },
+    { title: t('listeners.port'), dataIndex: 'port', key: 'port' },
+    { title: t('listeners.status'), dataIndex: 'enabled', key: 'enabled', render: (v: boolean) => <Tag color={v ? 'success' : 'default'}>{v ? t('common.enabled') : t('common.disabled')}</Tag> },
+    { title: t('common.actions'), key: 'actions', render: (_: any, record: Listener) => (
+      <Space>
+        <Tooltip title={t('listeners.copyURI')}><Button icon={<QrcodeOutlined />} onClick={() => showURIs(record.id)} /></Tooltip>
+        <Tooltip title={t('common.refresh')}><Button icon={<ReloadOutlined />} onClick={() => onReload(record.id)} /></Tooltip>
+        <Button icon={<EditOutlined />} onClick={() => { setEditing(record); form.setFieldsValue({ ...record, config: record.config ? JSON.stringify(JSON.parse(record.config), null, 2) : '{}' }); setModalOpen(true); }} />
+        <Popconfirm title={t('listeners.deleteConfirm')} onConfirm={() => onDelete(record.id)}><Button icon={<DeleteOutlined />} danger /></Popconfirm>
+      </Space>
+    )},
   ];
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ margin: 0 }}>Listeners</h2>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => {
-            setEditing(null);
-            form.resetFields();
-            setModalOpen(true);
-          }}
-        >
-          Add Listener
-        </Button>
-      </div>
-
-      <Card>
-        <Table rowKey="id" columns={columns} dataSource={data} loading={loading} />
+      <h2>{t('listeners.title')}</h2>
+      <Card extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); form.resetFields(); setModalOpen(true); }}>{t('listeners.create')}</Button>}>
+        <Table dataSource={data} columns={columns} rowKey="id" loading={loading} />
       </Card>
-
-      <Modal
-        open={modalOpen}
-        title={editing ? 'Edit Listener' : 'New Listener'}
-        onCancel={() => {
-          setModalOpen(false);
-          setEditing(null);
-          form.resetFields();
-        }}
-        onOk={() => form.submit()}
-        width={640}
-      >
+      <Modal open={modalOpen} title={editing ? t('listeners.edit') : t('listeners.create')} onCancel={() => { setModalOpen(false); setEditing(null); form.resetFields(); }} onOk={() => form.submit()} width={640}>
         <Form form={form} layout="vertical" onFinish={onSubmit}>
-          <Form.Item name="name" label="Name" rules={[{ required: true }]}>
-            <Input />
+          <Form.Item name="name" label={t('listeners.name')} rules={[{ required: true }]}><Input /></Form.Item>
+          <Form.Item name="protocol" label={t('listeners.protocol')} rules={[{ required: true }]}>
+            <Select>{PROTOCOLS.map((p) => <Select.Option key={p} value={p}>{p}</Select.Option>)}</Select>
           </Form.Item>
-          <Form.Item name="protocol" label="Protocol" rules={[{ required: true }]} initialValue="shadowsocks">
-            <Select options={PROTOCOLS.map((p) => ({ value: p, label: p }))} />
-          </Form.Item>
-          <Form.Item
-            name="port"
-            label="Port"
-            rules={[
-              { required: true, message: 'Port is required' },
-              {
-                validator: (_, value) => {
-                  const v = String(value ?? '').trim();
-                  if (!v) return Promise.resolve();
-                  const parts = v.split(',').map((part) => part.trim()).filter(Boolean);
-                  const valid = parts.every((part) => {
-                    if (/^\d+$/.test(part)) {
-                      const n = Number(part);
-                      return n >= 1 && n <= 65535;
-                    }
-                    const range = part.match(/^(\d+)\s*-\s*(\d+)$/);
-                    if (!range) return false;
-                    const start = Number(range[1]);
-                    const end = Number(range[2]);
-                    return start >= 1 && end <= 65535 && start <= end;
-                  });
-                  return valid ? Promise.resolve() : Promise.reject(new Error('Use a port, range (e.g. 8080-8090), or comma-separated ports'));
-                },
-              },
-            ]}
-          >
-            <Input placeholder="8080 or 8080-8090" />
-          </Form.Item>
-          <Form.Item name="bind_address" label="Bind Address" initialValue="0.0.0.0">
-            <Input />
-          </Form.Item>
-          <Form.Item name="enabled" label="Enabled" valuePropName="checked" initialValue={true}>
-            <Switch />
-          </Form.Item>
-          <Form.Item name="udp" label="UDP" valuePropName="checked" initialValue={false}>
-            <Switch />
-          </Form.Item>
-          <Form.Item name="tls" label="TLS" valuePropName="checked" initialValue={false}>
-            <Switch />
-          </Form.Item>
-          <Form.Item
-            name="config"
-            label="Config (JSON)"
-            rules={[
-              {
-                validator: (_, v) => {
-                  if (!v) return Promise.resolve();
-                  try {
-                    JSON.parse(v);
-                    return Promise.resolve();
-                  } catch {
-                    return Promise.reject(new Error('Invalid JSON'));
-                  }
-                },
-              },
-            ]}
-          >
-            <Input.TextArea rows={6} placeholder='{"password":"..."}' />
+          <Form.Item name="port" label={t('listeners.port')} rules={[{ required: true }]}><Input type="number" /></Form.Item>
+          <Form.Item name="bind_address" label={t('listeners.bindAddress')} initialValue="0.0.0.0"><Input /></Form.Item>
+          <Form.Item name="enabled" label={t('listeners.status')} valuePropName="checked" initialValue={true}><Switch /></Form.Item>
+          <Form.Item name="udp" label={t('listeners.udp')} valuePropName="checked" initialValue={false}><Switch /></Form.Item>
+          <Form.Item name="tls" label={t('listeners.tls')} valuePropName="checked" initialValue={false}><Switch /></Form.Item>
+          <Form.Item name="config" label={t('listeners.config')} rules={[{ validator: (_: any, v: string) => { if (!v) return Promise.resolve(); try { JSON.parse(v); return Promise.resolve(); } catch { return Promise.reject(new Error(t('listeners.invalidJSON'))); } } }]}>
+            <Input.TextArea rows={4} />
           </Form.Item>
         </Form>
       </Modal>
-
-      <Modal
-        open={uriModal}
-        title="Node URIs"
-        onCancel={() => setUriModal(false)}
-        footer={null}
-      >
+      <Modal open={uriModal} title={t('listeners.urisTitle')} onCancel={() => setUriModal(false)} footer={null}>
         <Space direction="vertical" style={{ width: '100%' }}>
           {uris.map((uri, i) => (
-            <Input
-              key={i}
-              value={uri}
-              readOnly
-              addonAfter={
-                <Button
-                  icon={<CopyOutlined />}
-                  type="text"
-                  onClick={() => {
-                    navigator.clipboard.writeText(uri);
-                    message.success('Copied');
-                  }}
-                />
-              }
-            />
+            <Card key={i} size="small">
+              <Space><Input value={uri} readOnly style={{ width: 400 }} /><Button icon={<CopyOutlined />} onClick={() => { navigator.clipboard.writeText(uri); message.success(t('common.copy')); }} /></Space>
+            </Card>
           ))}
         </Space>
       </Modal>

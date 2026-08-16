@@ -1,114 +1,95 @@
 import React, { useEffect, useState } from 'react';
-import { Row, Col, Card, Statistic, Button, Space, Tag, message } from 'antd';
-import {
-  PlayCircleOutlined,
-  PauseCircleOutlined,
-  ReloadOutlined,
-  NodeIndexOutlined,
-  ClockCircleOutlined,
-} from '@ant-design/icons';
+import { Card, Row, Col, Statistic, Button, Space, Tag, Progress, message } from 'antd';
+import { PlayCircleOutlined, StopOutlined, RedoOutlined } from '@ant-design/icons';
 import { fetchDashboard, startMihomo, stopMihomo, restartMihomo } from '../api/system';
-import { fetchListeners } from '../api/nodes';
+import { useI18n } from '../i18n';
+
+const formatBytes = (bytes: number) => {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+const formatRate = (bps: number) => formatBytes(bps) + '/s';
 
 const Dashboard: React.FC = () => {
+  const { t } = useI18n();
   const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
-    setLoading(true);
-    try {
-      const [dash, nodes] = await Promise.all([fetchDashboard(), fetchListeners()]);
-      const total = nodes.length;
-      const enabled = nodes.filter((n: any) => n.enabled).length;
-      setData({ ...dash, listeners: { total, enabled, disabled: total - enabled } });
-    } catch (e: any) {
-      message.error(e.message);
-    } finally {
-      setLoading(false);
-    }
+    try { const d = await fetchDashboard(); setData(d); }
+    catch (e: any) { message.error(e.message || t('dashboard.unavailable')); }
   };
 
-  useEffect(() => {
-    load();
-    const id = setInterval(load, 10000);
-    return () => clearInterval(id);
-  }, []);
+  useEffect(() => { load(); const id = window.setInterval(load, 10000); return () => clearInterval(id); }, []);
 
-  const act = async (action: 'start' | 'stop' | 'restart') => {
+  const act = async (a: 'start' | 'stop' | 'restart') => {
     setBusy(true);
     try {
-      if (action === 'start') await startMihomo();
-      else if (action === 'stop') await stopMihomo();
+      if (a === 'start') await startMihomo();
+      else if (a === 'stop') await stopMihomo();
       else await restartMihomo();
-      message.success(`${action} succeeded`);
+      message.success(t(`dashboard.${a === 'start' ? 'started' : a === 'stop' ? 'stopped' : 'restarted'}`));
       load();
-    } catch (e: any) {
-      message.error(e.message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (e: any) { message.error(e.message || t('dashboard.operationFailed')); }
+    finally { setBusy(false); }
   };
 
-  const mihomo = data?.mihomo;
-  const running = mihomo?.running;
+  const sys = data?.system || {};
 
   return (
     <div>
-      <h2>Dashboard</h2>
+      <h2>{t('dashboard.title')}</h2>
+      <p style={{ color: 'rgba(0,0,0,0.45)' }}>{t('dashboard.subtitle')}</p>
       <Row gutter={[16, 16]}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card loading={loading}>
-            <Statistic
-              title="Core Status"
-              value={running ? 'Running' : 'Stopped'}
-              valueStyle={{ color: running ? '#52c41a' : '#ff4d4f' }}
-            />
-            <div style={{ marginTop: 8 }}>
-              <Tag>{mihomo?.version || '-'}</Tag>
-              <Tag icon={<ClockCircleOutlined />}>{mihomo?.uptime || '-'}</Tag>
-            </div>
-            <Space style={{ marginTop: 16 }}>
-              {!running && (
-                <Button icon={<PlayCircleOutlined />} onClick={() => act('start')} loading={busy}>
-                  Start
-                </Button>
-              )}
-              {running && (
-                <Button icon={<PauseCircleOutlined />} danger onClick={() => act('stop')} loading={busy}>
-                  Stop
-                </Button>
-              )}
-              <Button icon={<ReloadOutlined />} onClick={() => act('restart')} loading={busy}>
-                Restart
-              </Button>
+        <Col xs={24} md={12} lg={8}>
+          <Card title={t('dashboard.status')}>
+            <Space direction="vertical" style={{ width: '100%' }}>
+              <Tag color={data?.mihomo?.running ? 'success' : 'error'}>{data?.mihomo?.running ? t('dashboard.running') : t('dashboard.stopped')}</Tag>
+              <div>{t('dashboard.version')}: {data?.mihomo?.version || '-'}</div>
+              <div>PID: {data?.mihomo?.pid || '-'} | {t('dashboard.uptime')}: {data?.mihomo?.uptime || '-'}</div>
+              <Space>
+                <Button icon={<PlayCircleOutlined />} onClick={() => act('start')} loading={busy}>{t('dashboard.start')}</Button>
+                <Button icon={<StopOutlined />} danger onClick={() => act('stop')} loading={busy}>{t('dashboard.stop')}</Button>
+                <Button icon={<RedoOutlined />} onClick={() => act('restart')} loading={busy}>{t('dashboard.restart')}</Button>
+              </Space>
             </Space>
           </Card>
         </Col>
-
-        <Col xs={24} sm={12} lg={6}>
-          <Card loading={loading}>
-            <Statistic
-              title="Listeners"
-              value={data?.listeners?.enabled || 0}
-              suffix={`/ ${data?.listeners?.total || 0}`}
-              prefix={<NodeIndexOutlined />}
-            />
+        <Col xs={24} md={12} lg={8}>
+          <Card title={t('dashboard.listeners')}>
+            <Row gutter={16}>
+              <Col span={8}><Statistic title={t('dashboard.total')} value={data?.listeners?.total || 0} /></Col>
+              <Col span={8}><Statistic title={t('dashboard.enabled')} value={data?.listeners?.enabled || 0} valueStyle={{ color: '#3f8600' }} /></Col>
+              <Col span={8}><Statistic title={t('dashboard.disabled')} value={data?.listeners?.disabled || 0} valueStyle={{ color: '#cf1322' }} /></Col>
+            </Row>
           </Card>
         </Col>
-
-        <Col xs={24} sm={12} lg={6}>
-          <Card loading={loading}>
-            <Statistic title="CPU" value={data?.cpu?.percent || 0} suffix="%" precision={1} />
+        <Col xs={24} md={12} lg={8}>
+          <Card title={t('dashboard.traffic')}>
+            <Row gutter={[8, 8]}>
+              <Col span={12}><Statistic title={t('dashboard.uploadRate')} value={formatRate(data?.traffic?.uploadRate || 0)} /></Col>
+              <Col span={12}><Statistic title={t('dashboard.downloadRate')} value={formatRate(data?.traffic?.downloadRate || 0)} /></Col>
+              <Col span={12}><Statistic title={t('dashboard.onlineUsers')} value={data?.traffic?.onlineUsers || 0} /></Col>
+              <Col span={12}><Statistic title={t('dashboard.activeConnections')} value={data?.traffic?.activeConnections || 0} /></Col>
+            </Row>
           </Card>
         </Col>
-
-        <Col xs={24} sm={12} lg={6}>
-          <Card loading={loading}>
-            <Statistic title="Memory" value={data?.memory?.percent || 0} suffix="%" precision={1} />
-            <div style={{ fontSize: 12, color: '#888' }}>
-              {((data?.memory?.used || 0) / 1024).toFixed(1)} GB / {((data?.memory?.total || 0) / 1024).toFixed(1)} GB
-            </div>
+        <Col xs={24} md={8}>
+          <Card title={`${t('dashboard.cpu')} ${sys.cpu?.percent || 0}%`}><Progress percent={sys.cpu?.percent || 0} size="small" /></Card>
+        </Col>
+        <Col xs={24} md={8}>
+          <Card title={`${t('dashboard.memory')} ${sys.memory?.percent || 0}%`}>
+            <Progress percent={sys.memory?.percent || 0} size="small" status={sys.memory?.percent > 90 ? 'exception' : 'normal'} />
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>{formatBytes(sys.memory?.used || 0)} / {formatBytes(sys.memory?.total || 0)}</div>
+          </Card>
+        </Col>
+        <Col xs={24} md={8}>
+          <Card title={`${t('dashboard.disk')} ${sys.disk?.percent || 0}%`}>
+            <Progress percent={sys.disk?.percent || 0} size="small" />
+            <div style={{ fontSize: 12, color: 'rgba(0,0,0,0.45)' }}>{formatBytes(sys.disk?.used || 0)} / {formatBytes(sys.disk?.total || 0)}</div>
           </Card>
         </Col>
       </Row>
