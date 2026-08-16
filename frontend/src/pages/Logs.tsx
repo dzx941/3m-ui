@@ -9,7 +9,7 @@ const Logs: React.FC = () => {
   }, []);
   return (
     <div>
-      <h2>Logs</h2>
+      <h2>日志</h2>
       <Card>
         <List
           size="small"
