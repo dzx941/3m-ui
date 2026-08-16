@@ -41,7 +41,7 @@ const Dashboard: React.FC = () => {
       if (action === 'start') await startMihomo();
       else if (action === 'stop') await stopMihomo();
       else await restartMihomo();
-      message.success(`${action} succeeded`);
+      message.success(`${action === 'start' ? '启动' : action === 'stop' ? '停止' : '重启'}成功`);
       load();
     } catch (e: any) {
       message.error(e.message);
@@ -55,13 +55,13 @@ const Dashboard: React.FC = () => {
 
   return (
     <div>
-      <h2>Dashboard</h2>
+      <h2>仪表盘</h2>
       <Row gutter={[16, 16]}>
         <Col xs={24} sm={12} lg={6}>
           <Card loading={loading}>
             <Statistic
-              title="Core Status"
-              value={running ? 'Running' : 'Stopped'}
+              title="核心状态"
+              value={running ? '运行中' : '已停止'}
               valueStyle={{ color: running ? '#52c41a' : '#ff4d4f' }}
             />
             <div style={{ marginTop: 8 }}>
@@ -71,16 +71,16 @@ const Dashboard: React.FC = () => {
             <Space style={{ marginTop: 16 }}>
               {!running && (
                 <Button icon={<PlayCircleOutlined />} onClick={() => act('start')} loading={busy}>
-                  Start
+                  启动
                 </Button>
               )}
               {running && (
                 <Button icon={<PauseCircleOutlined />} danger onClick={() => act('stop')} loading={busy}>
-                  Stop
+                  停止
                 </Button>
               )}
               <Button icon={<ReloadOutlined />} onClick={() => act('restart')} loading={busy}>
-                Restart
+                重启
               </Button>
             </Space>
           </Card>
@@ -89,7 +89,7 @@ const Dashboard: React.FC = () => {
         <Col xs={24} sm={12} lg={6}>
           <Card loading={loading}>
             <Statistic
-              title="Listeners"
+              title="监听器"
               value={data?.listeners?.enabled || 0}
               suffix={`/ ${data?.listeners?.total || 0}`}
               prefix={<NodeIndexOutlined />}
@@ -105,7 +105,7 @@ const Dashboard: React.FC = () => {
 
         <Col xs={24} sm={12} lg={6}>
           <Card loading={loading}>
-            <Statistic title="Memory" value={data?.memory?.percent || 0} suffix="%" precision={1} />
+            <Statistic title="内存" value={data?.memory?.percent || 0} suffix="%" precision={1} />
             <div style={{ fontSize: 12, color: '#888' }}>
               {((data?.memory?.used || 0) / 1024).toFixed(1)} GB / {((data?.memory?.total || 0) / 1024).toFixed(1)} GB
             </div>
