@@ -29,7 +29,7 @@ export default {
     button: '修改密码', success: '密码已更新', failed: '修改密码失败', mismatch: '两次输入的密码不一致',
   },
   dashboard: {
-    title: '仪表盘', subtitle: '系统与核心状态概览', status: '核心状态', running: '运行中', stopped: '已停止',
+    title: '仪表盘', subtitle: '系统与核心状态概览', status: '核心状态', running: '运行中',
     stoppedStatus: '已停止', version: '版本', pid: '进程 ID', uptime: '运行时间', listeners: '节点统计',
     total: '总数', enabled: '已启用', disabled: '已禁用', system: '系统资源', cpu: 'CPU', memory: '内存',
     disk: '磁盘', network: '网络', upload: '上传', download: '下载', traffic: '流量统计',
@@ -45,7 +45,7 @@ export default {
     reloaded: '重载成功', copyURI: '复制订阅链接', urisTitle: '节点订阅链接', invalidJSON: '无效的 JSON',
   },
   core: {
-    title: '核心管理', status: '核心状态', running: '运行中', stopped: '已停止', stoppedStatus: '已停止',
+    title: '核心管理', status: '核心状态', running: '运行中', stoppedStatus: '已停止',
     version: '版本', pid: '进程 ID', uptime: '运行时间', start: '启动核心', stop: '停止核心', restart: '重启核心',
     started: '核心已启动', stopped: '核心已停止', restarted: '核心已重启', operationFailed: '操作失败',
     unavailable: '无法获取核心状态',
@@ -74,4 +74,4 @@ export default {
     about: '关于 3M-UI', version: '版本',
   },
   templates: { title: '快速创建节点' },
-} as const;
+};

@@ -3,7 +3,7 @@ import en from './locales/en';
 import zh from './locales/zh';
 
 type Locale = 'en' | 'zh';
-type Translations = typeof zh;
+type Translations = Record<string, any>;
 
 const translations: Record<Locale, Translations> = { en, zh };
 
@@ -43,7 +43,11 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [locale]
   );
 
-  return <I18nContext.Provider value={{ locale, t, setLocale }}>{children}</I18nContext.Provider>;
+  return (
+    <I18nContext.Provider value={{ locale, t, setLocale }}>
+      {children}
+    </I18nContext.Provider>
+  );
 };
 
 export const useI18n = () => {

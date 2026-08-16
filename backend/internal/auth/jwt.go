@@ -81,3 +81,12 @@ func ParseToken(secret, tokenString string) (*JWTClaims, error) {
 	}
 	return jc, nil
 }
+
+// TokenFromRequest extracts the Bearer token from the Authorization header.
+func TokenFromRequest(authHeader string) string {
+const prefix = "Bearer "
+if strings.HasPrefix(authHeader, prefix) {
+return strings.TrimSpace(authHeader[len(prefix):])
+}
+return ""
+}

@@ -24,14 +24,13 @@ export default {
   },
   dashboard: {
     title: 'Dashboard', subtitle: 'System & Core Overview', status: 'Core Status', running: 'Running',
-    stopped: 'Stopped', stoppedStatus: 'Stopped', version: 'Version', pid: 'PID', uptime: 'Uptime',
-    listeners: 'Node Stats', total: 'Total', enabled: 'Enabled', disabled: 'Disabled',
-    system: 'System Resources', cpu: 'CPU', memory: 'Memory', disk: 'Disk', network: 'Network',
-    upload: 'Upload', download: 'Download', traffic: 'Traffic Stats', uploadRate: 'Upload Rate',
-    downloadRate: 'Download Rate', totalUpload: 'Total Upload', totalDownload: 'Total Download',
-    onlineUsers: 'Online Users', activeConnections: 'Active Connections', start: 'Start', stop: 'Stop',
-    restart: 'Restart', started: 'Core started', stopped: 'Core stopped', restarted: 'Core restarted',
-    operationFailed: 'Operation failed', unavailable: 'Status unavailable',
+    stoppedStatus: 'Stopped', version: 'Version', pid: 'PID', uptime: 'Uptime', listeners: 'Node Stats',
+    total: 'Total', enabled: 'Enabled', disabled: 'Disabled', system: 'System Resources', cpu: 'CPU', memory: 'Memory',
+    disk: 'Disk', network: 'Network', upload: 'Upload', download: 'Download', traffic: 'Traffic Stats',
+    uploadRate: 'Upload Rate', downloadRate: 'Download Rate', totalUpload: 'Total Upload', totalDownload: 'Total Download',
+    onlineUsers: 'Online Users', activeConnections: 'Active Connections', start: 'Start', stop: 'Stop', restart: 'Restart',
+    started: 'Core started', stopped: 'Core stopped', restarted: 'Core restarted', operationFailed: 'Operation failed',
+    unavailable: 'Status unavailable',
   },
   listeners: {
     title: 'Node Management', create: 'Create Node', edit: 'Edit Node', name: 'Name', protocol: 'Protocol',
@@ -41,10 +40,9 @@ export default {
     copyURI: 'Copy URI', urisTitle: 'Node URIs', invalidJSON: 'Invalid JSON',
   },
   core: {
-    title: 'Core Management', status: 'Core Status', running: 'Running', stopped: 'Stopped',
-    stoppedStatus: 'Stopped', version: 'Version', pid: 'PID', uptime: 'Uptime',
-    start: 'Start Core', stop: 'Stop Core', restart: 'Restart Core', started: 'Core started',
-    stopped: 'Core stopped', restarted: 'Core restarted', operationFailed: 'Operation failed',
+    title: 'Core Management', status: 'Core Status', running: 'Running', stoppedStatus: 'Stopped',
+    version: 'Version', pid: 'PID', uptime: 'Uptime', start: 'Start Core', stop: 'Stop Core', restart: 'Restart Core',
+    started: 'Core started', stopped: 'Core stopped', restarted: 'Core restarted', operationFailed: 'Operation failed',
     unavailable: 'Core status unavailable',
   },
   config: {
@@ -73,4 +71,4 @@ export default {
     about: 'About 3M-UI', version: 'Version',
   },
   templates: { title: 'Quick Create Node' },
-} as const;
+};
