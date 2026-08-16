@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kazeyukiro/3m-ui/backend/internal/auth"
 	"github.com/kazeyukiro/3m-ui/backend/internal/config"
+	"github.com/kazeyukiro/3m-ui/backend/internal/inboundtemplate"
 	"github.com/kazeyukiro/3m-ui/backend/internal/node"
 	"github.com/kazeyukiro/3m-ui/backend/internal/system"
 	"github.com/kazeyukiro/3m-ui/backend/internal/traffic"
@@ -58,6 +59,8 @@ func SetupRouterWithDeps(d Deps) *gin.Engine {
 		nodeHandler := node.NewHandler(d.nodeService(), d.userService(), db)
 		nodeHandler.RegisterRoutes(apiV1.Group("/nodes"))
 		nodeHandler.RegisterRoutes(apiV1.Group("/listeners"))
+
+		inboundtemplate.NewHandler(d.nodeService().Create, d.userService().Create, d.userService().BindListeners).RegisterRoutes(apiV1.Group("/inbound-templates"))
 
 		traffic.RegisterRoutes(
 			apiV1.Group("/traffic"),
