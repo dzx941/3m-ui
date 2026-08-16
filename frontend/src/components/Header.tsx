@@ -1,16 +1,31 @@
 import React from 'react';
 import { Layout, Button, Space, Tag, Dropdown } from 'antd';
-import { MenuFoldOutlined, MenuUnfoldOutlined, UserOutlined, GlobalOutlined, BgColorsOutlined } from '@ant-design/icons';
+import {
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  MenuOutlined,
+  UserOutlined,
+  GlobalOutlined,
+  BgColorsOutlined,
+} from '@ant-design/icons';
 import { useAuthStore } from '../stores/authStore';
 import { useThemeStore, ThemeMode } from '../stores/themeStore';
 import { useI18n } from '../i18n';
+import useIsMobile from '../hooks/useIsMobile';
 
 const { Header } = Layout;
 
-const HeaderBar: React.FC<{ collapsed: boolean; setCollapsed: (v: boolean) => void; }> = ({ collapsed, setCollapsed }) => {
+type Props = {
+  collapsed: boolean;
+  setCollapsed: (v: boolean) => void;
+  onOpenMobileNav?: () => void;
+};
+
+const HeaderBar: React.FC<Props> = ({ collapsed, setCollapsed, onOpenMobileNav }) => {
   const { t, locale, setLocale } = useI18n();
   const { mode, setMode } = useThemeStore();
   const username = useAuthStore((s) => s.username);
+  const isMobile = useIsMobile();
 
   const langItems = [
     { key: 'zh', label: '中文' },
@@ -23,17 +38,58 @@ const HeaderBar: React.FC<{ collapsed: boolean; setCollapsed: (v: boolean) => vo
     { key: 'system', label: t('settings.system') },
   ];
 
+  const displayName = username || 'Admin';
+  const shortName = displayName.length > 8 ? `${displayName.slice(0, 8)}…` : displayName;
+
   return (
-    <Header style={{ padding: '0 24px', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-      <Button type="text" icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={() => setCollapsed(!collapsed)} />
-      <Space>
-        <Dropdown menu={{ items: themeItems, selectedKeys: [mode], onClick: (e) => setMode(e.key as ThemeMode) }}>
-          <Button type="text" icon={<BgColorsOutlined />}>{t('settings.theme')}</Button>
+    <Header
+      style={{
+        padding: isMobile ? '0 12px' : '0 24px',
+        background: 'transparent',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+        height: 64,
+        lineHeight: '64px',
+      }}
+    >
+      {isMobile ? (
+        <Button type="text" icon={<MenuOutlined />} onClick={onOpenMobileNav} aria-label="menu" />
+      ) : (
+        <Button
+          type="text"
+          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          onClick={() => setCollapsed(!collapsed)}
+        />
+      )}
+
+      <Space size={isMobile ? 4 : 'middle'} wrap>
+        <Dropdown
+          menu={{
+            items: themeItems,
+            selectedKeys: [mode],
+            onClick: (e) => setMode(e.key as ThemeMode),
+          }}
+        >
+          <Button type="text" icon={<BgColorsOutlined />}>
+            {!isMobile && t('settings.theme')}
+          </Button>
         </Dropdown>
-        <Dropdown menu={{ items: langItems, selectedKeys: [locale], onClick: (e) => setLocale(e.key as 'en' | 'zh') }}>
-          <Button type="text" icon={<GlobalOutlined />}>{locale === 'zh' ? '中文' : 'English'}</Button>
+        <Dropdown
+          menu={{
+            items: langItems,
+            selectedKeys: [locale],
+            onClick: (e) => setLocale(e.key as 'en' | 'zh'),
+          }}
+        >
+          <Button type="text" icon={<GlobalOutlined />}>
+            {!isMobile && (locale === 'zh' ? '中文' : 'English')}
+          </Button>
         </Dropdown>
-        <Tag icon={<UserOutlined />}>{username || 'Admin'}</Tag>
+        <Tag icon={<UserOutlined />} style={{ marginInlineEnd: 0 }}>
+          {isMobile ? shortName : displayName}
+        </Tag>
       </Space>
     </Header>
   );

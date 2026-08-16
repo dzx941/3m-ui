@@ -10,7 +10,7 @@ import { useI18n } from '../i18n';
 
 const { Sider } = Layout;
 
-const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
+export function useSidebarMenuItems(onNavigate?: () => void) {
   const navigate = useNavigate();
   const location = useLocation();
   const logout = useAuthStore((s) => s.logout);
@@ -26,15 +26,86 @@ const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
     { key: '/settings', icon: <SettingOutlined />, label: t('nav.settings') },
   ];
 
+  const onMenuClick = ({ key }: { key: string }) => {
+    navigate(key);
+    onNavigate?.();
+  };
+
+  const onLogout = () => {
+    logout();
+    navigate('/login');
+    onNavigate?.();
+  };
+
+  return { items, selectedKeys: [location.pathname], onMenuClick, onLogout, t };
+}
+
+/** Shared nav body used by desktop Sider and mobile Drawer. */
+export const SidebarMenu: React.FC<{ onNavigate?: () => void; style?: React.CSSProperties }> = ({
+  onNavigate,
+  style,
+}) => {
+  const { items, selectedKeys, onMenuClick, onLogout, t } = useSidebarMenuItems(onNavigate);
+
   return (
-    <Sider trigger={null} collapsible collapsed={collapsed} theme="light">
-      <div style={{ height: 64, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 18 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', ...style }}>
+      <div
+        style={{
+          height: 64,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontWeight: 700,
+          fontSize: 18,
+          flexShrink: 0,
+        }}
+      >
         3M-UI
       </div>
-      <Menu mode="inline" selectedKeys={[location.pathname]} items={items} onClick={({ key }) => navigate(key)} />
-      <Menu mode="inline" selectable={false} items={[
-        { key: 'logout', icon: <LogoutOutlined />, label: t('nav.logout'), onClick: () => { logout(); navigate('/login'); } },
-      ]} style={{ position: 'absolute', bottom: 0, width: '100%' }} />
+      <Menu
+        mode="inline"
+        selectedKeys={selectedKeys}
+        items={items}
+        onClick={onMenuClick}
+        style={{ flex: 1, borderInlineEnd: 'none' }}
+      />
+      <Menu
+        mode="inline"
+        selectable={false}
+        items={[
+          {
+            key: 'logout',
+            icon: <LogoutOutlined />,
+            label: t('nav.logout'),
+            onClick: onLogout,
+          },
+        ]}
+        style={{ borderInlineEnd: 'none', borderTop: '1px solid rgba(5,5,5,0.06)' }}
+      />
+    </div>
+  );
+};
+
+const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
+  return (
+    <Sider
+      trigger={null}
+      collapsible
+      collapsed={collapsed}
+      theme="light"
+      breakpoint="md"
+      collapsedWidth={80}
+      width={220}
+      style={{
+        overflow: 'auto',
+        height: '100vh',
+        position: 'sticky',
+        insetInlineStart: 0,
+        top: 0,
+        bottom: 0,
+      }}
+    >
+      <SidebarMenu />
     </Sider>
   );
 };
