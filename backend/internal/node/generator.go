@@ -3,6 +3,7 @@ package node
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/kazeyukiro/3m-ui/backend/internal/database/models"
@@ -24,10 +25,15 @@ func GenerateMihomoListeners(dbNodes []models.Listener) ([]map[string]interface{
 			return nil, fmt.Errorf("unsupported Mihomo listener protocol: %s", protocol)
 		}
 
+		// Prefer numeric port for single ports to match official Mihomo listener examples.
+		var portVal interface{} = strings.TrimSpace(node.Port)
+		if p, err := strconv.Atoi(strings.TrimSpace(node.Port)); err == nil {
+			portVal = p
+		}
 		entry := map[string]interface{}{
 			"name":   node.Name,
 			"type":   protocol,
-			"port":   node.Port,
+			"port":   portVal,
 			"listen": firstNonEmpty(node.BindAddress, node.Listen, "0.0.0.0"),
 		}
 		if node.Rule != "" {
