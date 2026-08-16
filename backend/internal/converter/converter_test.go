@@ -40,7 +40,7 @@ func TestAccessTokenCRUDAndListenerBinding(t *testing.T) {
 		BindAddress: "0.0.0.0",
 		Port:        "10086",
 		Enabled:     true,
-		Config:      `{\"users\":[{\"username\":\"u1\",\"uuid\":\"11111111-1111-1111-1111-111111111111\",\"flow\":\"xtls-rprx-vision\"}]}`,
+		Config:      `{"users":[{"username":"u1","uuid":"11111111-1111-1111-1111-111111111111","flow":"xtls-rprx-vision"}]}`,
 	}
 	if err := db.Create(&listener).Error; err != nil {
 		t.Fatalf("failed to create listener: %v", err)
@@ -94,7 +94,7 @@ func TestListenerSubscriptionGeneration(t *testing.T) {
 		UDP:         true,
 		// Official VLESS listener schema: credentials live under users[].
 		// flow is per-user; top-level network is not a listener field (client transport is derived separately).
-		Config: `{\"users\":[{\"username\":\"u1\",\"uuid\":\"11111111-1111-1111-1111-111111111111\",\"flow\":\"xtls-rprx-vision\"}]}`,
+		Config: `{"users":[{"username":"u1","uuid":"11111111-1111-1111-1111-111111111111","flow":"xtls-rprx-vision"}]}`,
 	}
 	if err := db.Create(&listener).Error; err != nil {
 		t.Fatalf("failed to create listener: %v", err)
