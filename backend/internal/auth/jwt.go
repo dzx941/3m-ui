@@ -39,6 +39,17 @@ func GenerateToken(secret string, userID uint, username, role string, sessionVer
 	return signed, exp, nil
 }
 
+// TokenFromRequest extracts a Bearer token from an HTTP Authorization header.
+// It deliberately accepts only the standard "Bearer <token>" form and does
+// not fall back to query parameters or cookies.
+func TokenFromRequest(authorization string) string {
+	parts := strings.Fields(authorization)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return ""
+	}
+	return strings.TrimSpace(parts[1])
+}
+
 // ParseToken verifies the signature and returns parsed claims.
 func ParseToken(secret, tokenString string) (*JWTClaims, error) {
 	if strings.TrimSpace(secret) == "" {
