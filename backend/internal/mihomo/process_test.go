@@ -14,6 +14,10 @@ func writeFakeMihomo(t *testing.T, dir string) (binaryPath, configPath string) {
 	binaryPath = filepath.Join(dir, "fake-mihomo")
 	configPath = filepath.Join(dir, "config.yaml")
 
+	// Behaves enough like mihomo for ProcessManager:
+	//  - `-v` prints a version line and exits
+	//  - `-t` validates config and exits 0
+	//  - default mode stays running (like a core process)
 	script := `#!/bin/sh
 case "$1" in
   -v)
@@ -39,6 +43,8 @@ func TestProcessManagerStartStop(t *testing.T) {
 	dir := t.TempDir()
 	binaryPath, configPath := writeFakeMihomo(t, dir)
 
+	// Production only allows /usr/local/bin, /usr/bin, /opt. Tests place a
+	// fake binary under t.TempDir(), so temporarily extend the allowlist.
 	t.Cleanup(mihomo.AllowBinaryPathPrefixForTesting(dir))
 
 	pm := mihomo.NewProcessManager(binaryPath, configPath)
