@@ -22,8 +22,8 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5' }}>
-      <Card style={{ width: 420 }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0f2f5', padding: '16px 0' }}>
+      <Card style={{ width: '100%', maxWidth: 420, margin: '0 16px' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <Title level={3}>{t('login.title')}</Title>
           <Typography.Text type="secondary">{t('login.subtitle')}</Typography.Text>

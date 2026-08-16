@@ -49,7 +49,7 @@ const Users: React.FC = () => {
     <div>
       <h2>{t('users.title')}</h2>
       <Card extra={<Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); form.resetFields(); setModalOpen(true); }}>{t('users.create')}</Button>}>
-        <Table dataSource={data} columns={columns} rowKey="id" loading={loading} />
+        <Table scroll={{ x: 480 }} size="middle" dataSource={data} columns={columns} rowKey="id" loading={loading} />
       </Card>
       <Modal open={modalOpen} title={editing ? t('users.edit') : t('users.create')} onCancel={() => { setModalOpen(false); setEditing(null); form.resetFields(); }} onOk={() => form.submit()} destroyOnClose>
         <Form form={form} layout="vertical" onFinish={onSubmit}>
