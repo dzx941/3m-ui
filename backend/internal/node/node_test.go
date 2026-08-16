@@ -13,7 +13,7 @@ func TestValidateNode(t *testing.T) {
 	n1 := models.Listener{
 		Name:        "hk-ss",
 		Protocol:    "shadowsocks",
-		Port:        8388,
+		Port: "8388",
 		BindAddress: "0.0.0.0",
 		Config:      `{"password": "mypassword"}`,
 	}
@@ -26,7 +26,7 @@ func TestValidateNode(t *testing.T) {
 	n2 := models.Listener{
 		Name:        "hk-ss",
 		Protocol:    "shadowsocks",
-		Port:        8388,
+		Port: "8388",
 		BindAddress: "0.0.0.0",
 		Config:      `{}`,
 	}
@@ -38,7 +38,7 @@ func TestValidateNode(t *testing.T) {
 	n3 := models.Listener{
 		Name:        "hk-ss",
 		Protocol:    "shadowsocks",
-		Port:        99999,
+		Port: "99999",
 		BindAddress: "0.0.0.0",
 		Config:      `{"password": "pass"}`,
 	}
@@ -52,7 +52,7 @@ func TestGenerateConfigYAML(t *testing.T) {
 		{
 			Name:        "hk-ss",
 			Protocol:    "shadowsocks",
-			Port:        8388,
+			Port: "8388",
 			BindAddress: "0.0.0.0",
 			Enabled:     true,
 			Config:      `{"password": "secretpwd"}`,
@@ -60,10 +60,12 @@ func TestGenerateConfigYAML(t *testing.T) {
 		{
 			Name:        "hk-vmess",
 			Protocol:    "vmess",
-			Port:        10086,
+			Port:        "10086",
 			BindAddress: "127.0.0.1",
 			Enabled:     true,
-			Config:      `{"uuid": "test-uuid-1234"}`,
+			// Official VMess listener schema requires users as a list of
+			// {username, uuid, alterId?} objects — not a top-level uuid field.
+			Config: `{"users":[{"username":"u1","uuid":"test-uuid-1234","alterId":0}]}`,
 		},
 	}
 
@@ -82,5 +84,8 @@ func TestGenerateConfigYAML(t *testing.T) {
 
 	if !strings.Contains(yamlStr, "uuid: test-uuid-1234") {
 		t.Fatal("expected yaml to contain VMess UUID")
+	}
+	if !strings.Contains(yamlStr, "port: 10086") {
+		t.Fatal("expected numeric port for single-port listener")
 	}
 }
