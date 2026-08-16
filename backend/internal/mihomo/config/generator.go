@@ -98,10 +98,18 @@ func generateListeners(listeners []models.Listener, creds map[uint][]Credential)
 			listen = "0.0.0.0"
 		}
 
+		// Official Mihomo examples use numeric port for single ports and
+		// string form for ranges/lists (ports syntax). Prefer int when possible
+		// so generated YAML matches the documented schema.
+		var portVal interface{} = strings.TrimSpace(l.Port)
+		if p, err := strconv.Atoi(strings.TrimSpace(l.Port)); err == nil {
+			portVal = p
+		}
+
 		m := map[string]interface{}{
 			"name":   l.Name,
 			"type":   protocol,
-			"port":   l.Port,
+			"port":   portVal,
 			"listen": listen,
 		}
 
