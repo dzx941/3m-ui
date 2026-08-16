@@ -34,7 +34,15 @@ func EnsureListenerCredentials(l *models.Listener) error {
 				return fmt.Errorf("generate client uuid: %w", err)
 			}
 			cfg["users"] = []interface{}{map[string]interface{}{"username": "client", "uuid": uuid}}
-		case "trojan", "hysteria2", "anytls", "mieru", "shadowquic", "tuic":
+		case "trojan", "shadowquic":
+			// Official listener schema uses a list of {username, password} objects.
+			password, err := randomSecret(24)
+			if err != nil {
+				return fmt.Errorf("generate client credential: %w", err)
+			}
+			cfg["users"] = []interface{}{map[string]interface{}{"username": "client", "password": password}}
+		case "hysteria2", "anytls", "mieru", "tuic":
+			// Official schema for these protocols uses a username→password map.
 			password, err := randomSecret(24)
 			if err != nil {
 				return fmt.Errorf("generate client credential: %w", err)

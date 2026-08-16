@@ -15,7 +15,7 @@ func TestGenerateConfigYAML(t *testing.T) {
 			Protocol:    "shadowsocks",
 			Listen:      "0.0.0.0",
 			BindAddress: "0.0.0.0",
-			Port:        1080,
+			Port: "1080",
 			Enabled:     true,
 			UDP:         true,
 			Config:      `{"cipher":"aes-256-gcm","password":"pass"}`,
@@ -24,7 +24,7 @@ func TestGenerateConfigYAML(t *testing.T) {
 			Name:    "disabled",
 			Type:    "vless",
 			Listen:  "127.0.0.1",
-			Port:    1081,
+			Port: "1081",
 			Enabled: false,
 		},
 	}
@@ -48,7 +48,7 @@ func TestGenerateConfigYAML(t *testing.T) {
 }
 
 func TestGenerateConfigYAMLRejectsExcludedProtocol(t *testing.T) {
-	_, err := listener.GenerateConfigYAML([]models.Listener{{Name: "socks", Type: "socks", Protocol: "socks", Listen: "0.0.0.0", Port: 1080, Enabled: true}})
+	_, err := listener.GenerateConfigYAML([]models.Listener{{Name: "socks", Type: "socks", Protocol: "socks", Listen: "0.0.0.0", Port: "1080", Enabled: true}})
 	if err == nil {
 		t.Fatal("expected excluded SOCKS listener protocol to be rejected")
 	}
