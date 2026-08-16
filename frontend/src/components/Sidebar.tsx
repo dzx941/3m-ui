@@ -16,13 +16,13 @@ import { useAuthStore } from '../stores/authStore';
 const { Sider } = Layout;
 
 const items = [
-  { key: '/', icon: <DashboardOutlined />, label: 'Dashboard' },
-  { key: '/listeners', icon: <NodeIndexOutlined />, label: 'Listeners' },
-  { key: '/users', icon: <UserOutlined />, label: 'Users' },
-  { key: '/core', icon: <ApiOutlined />, label: 'Core' },
-  { key: '/logs', icon: <FileTextOutlined />, label: 'Logs' },
-  { key: '/config', icon: <CodeOutlined />, label: 'Config' },
-  { key: '/settings', icon: <SettingOutlined />, label: 'Settings' },
+  { key: '/', icon: <DashboardOutlined />, label: '仪表盘' },
+  { key: '/listeners', icon: <NodeIndexOutlined />, label: '监听器' },
+  { key: '/users', icon: <UserOutlined />, label: '用户' },
+  { key: '/core', icon: <ApiOutlined />, label: '核心' },
+  { key: '/logs', icon: <FileTextOutlined />, label: '日志' },
+  { key: '/config', icon: <CodeOutlined />, label: '配置' },
+  { key: '/settings', icon: <SettingOutlined />, label: '设置' },
 ];
 
 const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
@@ -58,7 +58,7 @@ const Sidebar: React.FC<{ collapsed: boolean }> = ({ collapsed }) => {
           {
             key: 'logout',
             icon: <LogoutOutlined />,
-            label: 'Logout',
+            label: '退出登录',
             onClick: () => {
               logout();
               navigate('/login');
