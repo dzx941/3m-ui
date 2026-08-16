@@ -50,18 +50,46 @@ func NewProcessManager(binary, config string) *ProcessManager {
 	}
 }
 
-// isAllowedBinaryPath restricts where the Mihomo binary can reside.
-// This prevents an attacker from tricking 3m-ui into executing an arbitrary
-// file by manipulating the configuration path.
-func isAllowedBinaryPath(path string) bool {
-	allowedPrefixes := []string{
-		"/usr/local/bin/",
-		"/usr/bin/",
-		"/opt/",
+// productionAllowedBinaryPrefixes is the hard-coded allowlist used in
+// production. It prevents an attacker from tricking 3m-ui into executing an
+// arbitrary file by manipulating the configured binary path.
+var productionAllowedBinaryPrefixes = []string{
+	"/usr/local/bin/",
+	"/usr/bin/",
+	"/opt/",
+}
+
+// extraAllowedBinaryPrefixes is consulted by isAllowedBinaryPath in addition
+// to the production list. Production code never sets this; unit tests may
+// temporarily allow paths under t.TempDir() via AllowBinaryPathPrefixForTesting.
+var extraAllowedBinaryPrefixes []string
+
+// AllowBinaryPathPrefixForTesting appends a directory prefix that
+// isAllowedBinaryPath will accept. Intended only for unit tests that need a
+// fake mihomo binary under t.TempDir(). Callers should restore the previous
+// state with the returned function (typically via t.Cleanup).
+func AllowBinaryPathPrefixForTesting(prefix string) (restore func()) {
+	prev := append([]string(nil), extraAllowedBinaryPrefixes...)
+	clean := filepath.Clean(prefix)
+	if clean != "" && !strings.HasSuffix(clean, string(filepath.Separator)) {
+		clean += string(filepath.Separator)
 	}
+	extraAllowedBinaryPrefixes = append(extraAllowedBinaryPrefixes, clean)
+	return func() {
+		extraAllowedBinaryPrefixes = prev
+	}
+}
+
+// isAllowedBinaryPath restricts where the Mihomo binary can reside.
+func isAllowedBinaryPath(path string) bool {
 	clean := filepath.Clean(path)
-	for _, prefix := range allowedPrefixes {
+	for _, prefix := range productionAllowedBinaryPrefixes {
 		if strings.HasPrefix(clean, prefix) {
+			return true
+		}
+	}
+	for _, prefix := range extraAllowedBinaryPrefixes {
+		if prefix != "" && strings.HasPrefix(clean, prefix) {
 			return true
 		}
 	}
