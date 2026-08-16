@@ -55,17 +55,11 @@ func ValidateNode(l *models.Listener) error {
 	return validateProtocolSpecific(proto, cfg)
 }
 
-// isValidPortString validates mihomo's "ports format":
-//   - single port: "8080"
-//   - port range:  "8080-8090"
-//   - port list:   "8080,8081,8082"
 func isValidPortString(s string) bool {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return false
 	}
-
-	// Comma-separated list
 	if strings.Contains(s, ",") {
 		parts := strings.Split(s, ",")
 		for _, p := range parts {
@@ -75,8 +69,6 @@ func isValidPortString(s string) bool {
 		}
 		return true
 	}
-
-	// Range
 	if strings.Contains(s, "-") {
 		parts := strings.SplitN(s, "-", 2)
 		if len(parts) != 2 {
@@ -89,8 +81,6 @@ func isValidPortString(s string) bool {
 		}
 		return true
 	}
-
-	// Single port
 	port, err := strconv.Atoi(s)
 	if err != nil || port < 1 || port > 65535 {
 		return false

@@ -169,8 +169,6 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-// listenerSupportsUDP reports whether the given protocol supports the udp option
-// in Mihomo's listener schema.
 func listenerSupportsUDP(protocol string) bool {
 	switch protocol {
 	case "shadowsocks", "snell", "vmess", "vless", "trojan", "anytls", "trusttunnel":

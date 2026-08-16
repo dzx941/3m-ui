@@ -15,7 +15,7 @@
     "jsx": "react-jsx",
     "strict": false,
     "noImplicitAny": false,
-    "noUnusedLocals": false, 
+    "noUnusedLocals": false,
     "noUnusedParameters": false,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true

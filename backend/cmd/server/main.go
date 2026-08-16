@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/dzx941/3m-ui/backend/internal/app"
+	"github.com/kazeyukiro/3m-ui/backend/internal/app"
 )
 
 //go:embed web/dist/*

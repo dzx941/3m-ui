@@ -14,7 +14,8 @@ type JWTClaims struct {
 	UserID         uint      `json:"user_id"`
 	Username       string    `json:"username"`
 	Role           string    `json:"role"`
-	SessionVersion uint      `json:"session_version"`
+	SessionVersion uint      
+	ExpiresAt      time.Time `json:"session_version"`
 	ExpiresAt      time.Time `json:"expires_at"`
 }
 
