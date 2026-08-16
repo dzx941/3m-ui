@@ -11,7 +11,7 @@ func TestListenerToProxiesDoesNotLeakServerTLSSecrets(t *testing.T) {
 	listener := models.Listener{
 		Name:     "vless-reality",
 		Protocol: "vless",
-		Port:     443,
+		Port: "443",
 		Enabled:  true,
 		Config:   `{"certificate":"/etc/server.crt","private-key":"/etc/server.key","flow":"xtls-rprx-vision","ws-path":"/ws","reality-config":{"private-key":"server-secret","short-id":["0123456789abcdef"]}}`,
 	}
@@ -41,7 +41,7 @@ func TestListenerToProxiesDoesNotLeakServerTLSSecrets(t *testing.T) {
 }
 
 func TestListenerToProxiesRejectsRealm(t *testing.T) {
-	_, err := listenerToProxies(models.Listener{Name: "realm", Protocol: "hysteria2-realm", Port: 10820}, "example.com", nil)
+	_, err := listenerToProxies(models.Listener{Name: "realm", Protocol: "hysteria2-realm", Port: "10820"}, "example.com", nil)
 	if err == nil {
 		t.Fatal("expected realm listener to be rejected as a client proxy export")
 	}
@@ -62,7 +62,7 @@ func TestListenerToProxiesSupportsExtendedProtocols(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			proxies, err := listenerToProxies(models.Listener{Name: tc.name, Protocol: tc.protocol, Port: 443, Config: tc.config}, "example.com", tc.creds)
+			proxies, err := listenerToProxies(models.Listener{Name: tc.name, Protocol: tc.protocol, Port: "443", Config: tc.config}, "example.com", tc.creds)
 			if err != nil {
 				t.Fatalf("listenerToProxies failed: %v", err)
 			}
