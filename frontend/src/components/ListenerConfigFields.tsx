@@ -646,7 +646,7 @@ const EnableSection: React.FC<{
   children: React.ReactNode;
 }> = ({ name, label, hint, children }) => (
   <>
-    <Divider orientation="left" plain>{label}</Divider>
+    <Divider titlePlacement="start" plain>{label}</Divider>
     {hint && (
       <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>{hint}</Text>
     )}
@@ -676,7 +676,7 @@ const ListenerConfigFields: React.FC<Props> = ({ protocol }) => {
       {/* ---- Protocol core options ---- */}
       {protocol === 'shadowsocks' && (
         <>
-          <Divider orientation="left" plain>{t('listeners.sectionProtocol')}</Divider>
+          <Divider titlePlacement="start" plain>{t('listeners.sectionProtocol')}</Divider>
           <Form.Item name="cipher" label={t('listeners.cipher')} rules={[{ required: true }]}>
             <Select options={SS_CIPHERS.map((c) => ({ value: c, label: c }))} showSearch />
           </Form.Item>
@@ -688,7 +688,7 @@ const ListenerConfigFields: React.FC<Props> = ({ protocol }) => {
 
       {protocol === 'snell' && (
         <>
-          <Divider orientation="left" plain>{t('listeners.sectionProtocol')}</Divider>
+          <Divider titlePlacement="start" plain>{t('listeners.sectionProtocol')}</Divider>
           <Form.Item name="psk" label={t('listeners.psk')} rules={[{ required: true }]}>
             <Input.Password />
           </Form.Item>
@@ -706,7 +706,7 @@ const ListenerConfigFields: React.FC<Props> = ({ protocol }) => {
 
       {protocol === 'vmess' && (
         <>
-          <Divider orientation="left" plain>{t('listeners.sectionProtocol')}</Divider>
+          <Divider titlePlacement="start" plain>{t('listeners.sectionProtocol')}</Divider>
           <Form.Item name="alterId" label={t('listeners.alterId')} tooltip={t('listeners.alterIdHint')}>
             <InputNumber min={0} max={65535} style={{ width: '100%' }} placeholder="0" />
           </Form.Item>
@@ -715,7 +715,7 @@ const ListenerConfigFields: React.FC<Props> = ({ protocol }) => {
 
       {protocol === 'vless' && (
         <>
-          <Divider orientation="left" plain>{t('listeners.sectionProtocol')}</Divider>
+          <Divider titlePlacement="start" plain>{t('listeners.sectionProtocol')}</Divider>
           <Form.Item name="flow" label={t('listeners.flow')} tooltip={t('listeners.flowHint')}>
             <Select allowClear options={[{ value: 'xtls-rprx-vision', label: 'xtls-rprx-vision' }]} />
           </Form.Item>
@@ -727,7 +727,7 @@ const ListenerConfigFields: React.FC<Props> = ({ protocol }) => {
 
       {TRANSPORT_PROTOCOLS.has(protocol) && (
         <>
-          <Divider orientation="left" plain>{t('listeners.sectionTransport')}</Divider>
+          <Divider titlePlacement="start" plain>{t('listeners.sectionTransport')}</Divider>
           <Form.Item name="ws-path" label={t('listeners.wsPath')} tooltip={t('listeners.wsPathHint')}>
             <Input placeholder="/" />
           </Form.Item>
@@ -753,7 +753,7 @@ const ListenerConfigFields: React.FC<Props> = ({ protocol }) => {
 
       {protocol === 'hysteria2' && (
         <>
-          <Divider orientation="left" plain>{t('listeners.sectionProtocol')}</Divider>
+          <Divider titlePlacement="start" plain>{t('listeners.sectionProtocol')}</Divider>
           <Form.Item name="up" label={t('listeners.up')} tooltip={t('listeners.bandwidthHint')}>
             <Input placeholder="100 Mbps" />
           </Form.Item>
@@ -795,7 +795,7 @@ const ListenerConfigFields: React.FC<Props> = ({ protocol }) => {
 
       {protocol === 'tuic' && (
         <>
-          <Divider orientation="left" plain>{t('listeners.sectionProtocol')}</Divider>
+          <Divider titlePlacement="start" plain>{t('listeners.sectionProtocol')}</Divider>
           <Form.Item name="token" label={t('listeners.token')} tooltip={t('listeners.tokenHint')}>
             <Input placeholder={t('listeners.tokenPlaceholder')} />
           </Form.Item>
@@ -822,7 +822,7 @@ const ListenerConfigFields: React.FC<Props> = ({ protocol }) => {
 
       {protocol === 'shadowquic' && (
         <>
-          <Divider orientation="left" plain>{t('listeners.sectionProtocol')}</Divider>
+          <Divider titlePlacement="start" plain>{t('listeners.sectionProtocol')}</Divider>
           <Form.Item name="alpn" label={t('listeners.alpn')}>
             <Select mode="tags" placeholder="h3" tokenSeparators={[',']} />
           </Form.Item>
@@ -858,7 +858,7 @@ const ListenerConfigFields: React.FC<Props> = ({ protocol }) => {
 
       {protocol === 'anytls' && (
         <>
-          <Divider orientation="left" plain>{t('listeners.sectionProtocol')}</Divider>
+          <Divider titlePlacement="start" plain>{t('listeners.sectionProtocol')}</Divider>
           <Form.Item name="padding-scheme" label={t('listeners.paddingScheme')}>
             <Input.TextArea rows={2} />
           </Form.Item>
@@ -867,7 +867,7 @@ const ListenerConfigFields: React.FC<Props> = ({ protocol }) => {
 
       {protocol === 'mieru' && (
         <>
-          <Divider orientation="left" plain>{t('listeners.sectionProtocol')}</Divider>
+          <Divider titlePlacement="start" plain>{t('listeners.sectionProtocol')}</Divider>
           <Form.Item name="transport" label={t('listeners.transport')} rules={[{ required: true }]}>
             <Select options={[{ value: 'TCP', label: 'TCP' }, { value: 'UDP', label: 'UDP' }]} />
           </Form.Item>
@@ -882,7 +882,7 @@ const ListenerConfigFields: React.FC<Props> = ({ protocol }) => {
 
       {protocol === 'sudoku' && (
         <>
-          <Divider orientation="left" plain>{t('listeners.sectionProtocol')}</Divider>
+          <Divider titlePlacement="start" plain>{t('listeners.sectionProtocol')}</Divider>
           <Form.Item name="key" label={t('listeners.sudokuKey')} rules={[{ required: true }]}>
             <Input.Password />
           </Form.Item>
@@ -912,7 +912,7 @@ const ListenerConfigFields: React.FC<Props> = ({ protocol }) => {
 
       {protocol === 'trusttunnel' && (
         <>
-          <Divider orientation="left" plain>{t('listeners.sectionProtocol')}</Divider>
+          <Divider titlePlacement="start" plain>{t('listeners.sectionProtocol')}</Divider>
           <Form.Item name="network" label={t('listeners.network')}>
             <Select allowClear options={['tcp', 'udp'].map((v) => ({ value: v, label: v }))} />
           </Form.Item>
@@ -928,7 +928,7 @@ const ListenerConfigFields: React.FC<Props> = ({ protocol }) => {
       {/* ---- TLS certificates ---- */}
       {TLS_PROTOCOLS.has(protocol) && (
         <>
-          <Divider orientation="left" plain>{t('listeners.sectionTLS')}</Divider>
+          <Divider titlePlacement="start" plain>{t('listeners.sectionTLS')}</Divider>
           <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
             {t('listeners.tlsPairHint')}
           </Text>
@@ -1259,7 +1259,7 @@ const ListenerConfigFields: React.FC<Props> = ({ protocol }) => {
           <Form.Item name="mekya_packet_writing_buffer" label={t('listeners.mekyaPacketBuffer')} tooltip={t('listeners.mekyaPacketBufferHint')}>
             <InputNumber min={0} style={{ width: '100%' }} placeholder="65536" />
           </Form.Item>
-          <Divider orientation="left" plain style={{ marginTop: 8 }}>{t('listeners.mekyaKcpSection')}</Divider>
+          <Divider titlePlacement="start" plain style={{ marginTop: 8 }}>{t('listeners.mekyaKcpSection')}</Divider>
           <Form.Item name="mekya_kcp_mtu" label="MTU">
             <InputNumber min={0} style={{ width: '100%' }} placeholder="1350" />
           </Form.Item>
