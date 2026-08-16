@@ -1,6 +1,7 @@
 package user
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -17,7 +18,7 @@ func TestActiveCredentialsFiltering(t *testing.T) {
 	}
 	svc := NewService(db)
 
-	l1 := models.Listener{Name: "ss", Protocol: "shadowsocks", Port: 8388, Enabled: true}
+	l1 := models.Listener{Name: "ss", Protocol: "shadowsocks", Port: "8388", Enabled: true}
 	if err := db.Create(&l1).Error; err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +69,7 @@ func TestBindListenersIsReplacement(t *testing.T) {
 	}
 	var listeners []models.Listener
 	for i := 0; i < 3; i++ {
-		l := models.Listener{Name: "n", Protocol: "trojan", Port: 10000 + i, Enabled: true}
+		l := models.Listener{Name: "n", Protocol: "trojan", Port: fmt.Sprintf("%d", 10000+i), Enabled: true}
 		if err := db.Create(&l).Error; err != nil {
 			t.Fatal(err)
 		}
