@@ -179,6 +179,9 @@ func validateProtocolSpecific(proto string, cfg map[string]interface{}) error {
 			}
 		}
 	case "vless", "vmess":
+		if err := validateServerTLSModes(proto, cfg); err != nil {
+			return err
+		}
 		users, ok := cfg["users"].([]interface{})
 		if !ok || len(users) == 0 {
 			return fmt.Errorf("%s listener requires at least one user", proto)
@@ -188,7 +191,20 @@ func validateProtocolSpecific(proto string, cfg map[string]interface{}) error {
 				return err
 			}
 		}
-	case "trojan", "shadowquic":
+	case "trojan":
+		if err := validateServerTLSModes(proto, cfg); err != nil {
+			return err
+		}
+		users, ok := cfg["users"].([]interface{})
+		if !ok || len(users) == 0 {
+			return fmt.Errorf("%s listener requires at least one user", proto)
+		}
+		for i, user := range users {
+			if err := validateUserRow(proto, i, user, false); err != nil {
+				return err
+			}
+		}
+	case "shadowquic":
 		users, ok := cfg["users"].([]interface{})
 		if !ok || len(users) == 0 {
 			return fmt.Errorf("%s listener requires at least one user", proto)
@@ -262,6 +278,18 @@ func validateUserRow(proto string, index int, raw interface{}, uuidMode bool) er
 	if !ok {
 		return fmt.Errorf("%s listener users[%d] must be an object", proto, index)
 	}
+	// Protocol-specific field bans with explicit messages expected by tests
+	// and matching official Mihomo listener schemas.
+	if proto == "vmess" {
+		if _, ok := row["flow"]; ok {
+			return fmt.Errorf("vmess listener users[%d] does not support flow", index)
+		}
+	}
+	if proto == "vless" {
+		if _, ok := row["alterId"]; ok {
+			return fmt.Errorf("vless listener users[%d] does not support alterId", index)
+		}
+	}
 	allowed := map[string]struct{}{"username": {}}
 	if uuidMode {
 		allowed["uuid"] = struct{}{}
@@ -286,6 +314,25 @@ func validateUserRow(proto string, index int, raw interface{}, uuidMode bool) er
 	}
 	if !uuidMode && !hasString(row["password"]) {
 		return fmt.Errorf("%s listener users[%d] requires password", proto, index)
+	}
+	return nil
+}
+
+// validateServerTLSModes enforces official Mihomo listener TLS exclusivity:
+// certificate/private-key must appear together, and must not be combined with
+// reality-config (or other exclusive TLS modes when present).
+func validateServerTLSModes(proto string, cfg map[string]interface{}) error {
+	cert, key := hasString(cfg["certificate"]), hasString(cfg["private-key"])
+	if cert != key {
+		return fmt.Errorf("%s listener requires certificate and private-key together", proto)
+	}
+	if cert {
+		if _, hasReality := cfg["reality-config"]; hasReality {
+			return fmt.Errorf("%s listener mutually exclusive TLS modes: certificate/private-key cannot be used with reality-config", proto)
+		}
+		if _, hasMirror := cfg["tlsmirror-config"]; hasMirror {
+			return fmt.Errorf("%s listener mutually exclusive TLS modes: certificate/private-key cannot be used with tlsmirror-config", proto)
+		}
 	}
 	return nil
 }
