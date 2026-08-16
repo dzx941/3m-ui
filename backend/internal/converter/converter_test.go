@@ -17,7 +17,15 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("failed to open in-memory database: %v", err)
 	}
-	if err = db.AutoMigrate(&models.User{}, &models.Listener{}, &models.AccessToken{}); err != nil {
+	// Must migrate all tables used by credential/subscription paths, including
+	// the listener_users join table queried by ActiveCredentialsByListener.
+	if err = db.AutoMigrate(
+		&models.User{},
+		&models.Listener{},
+		&models.ListenerUser{},
+		&models.ProxyUser{},
+		&models.AccessToken{},
+	); err != nil {
 		t.Fatalf("failed to run migrations: %v", err)
 	}
 	return db
@@ -30,9 +38,9 @@ func TestAccessTokenCRUDAndListenerBinding(t *testing.T) {
 		Name:        "test-vless",
 		Protocol:    "vless",
 		BindAddress: "0.0.0.0",
-		Port:        10086,
+		Port:        "10086",
 		Enabled:     true,
-		Config:      `{"uuid":"11111111-1111-1111-1111-111111111111","flow":"xtls-rprx-vision"}`,
+		Config:      `{\"users\":[{\"username\":\"u1\",\"uuid\":\"11111111-1111-1111-1111-111111111111\",\"flow\":\"xtls-rprx-vision\"}]}`,
 	}
 	if err := db.Create(&listener).Error; err != nil {
 		t.Fatalf("failed to create listener: %v", err)
@@ -81,10 +89,12 @@ func TestListenerSubscriptionGeneration(t *testing.T) {
 		Name:        "hk-vless-listener",
 		Protocol:    "vless",
 		BindAddress: "0.0.0.0",
-		Port:        10086,
+		Port:        "10086",
 		Enabled:     true,
 		UDP:         true,
-		Config:      `{"uuid":"11111111-1111-1111-1111-111111111111","flow":"xtls-rprx-vision","network":"tcp"}`,
+		// Official VLESS listener schema: credentials live under users[].
+		// flow is per-user; top-level network is not a listener field (client transport is derived separately).
+		Config: `{\"users\":[{\"username\":\"u1\",\"uuid\":\"11111111-1111-1111-1111-111111111111\",\"flow\":\"xtls-rprx-vision\"}]}`,
 	}
 	if err := db.Create(&listener).Error; err != nil {
 		t.Fatalf("failed to create listener: %v", err)
