@@ -17,7 +17,7 @@ func TestGenerateListenersForExportNormalizesShadowQUICUsers(t *testing.T) {
 			Protocol:    "shadowquic",
 			Listen:      "0.0.0.0",
 			BindAddress: "0.0.0.0",
-			Port:        443,
+			Port: "443",
 			Enabled:     true,
 			Config:      `{"users":{"client":"secret"}}`,
 		},
