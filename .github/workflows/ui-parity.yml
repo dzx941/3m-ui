@@ -1,0 +1,51 @@
+name: UI Parity
+
+on:
+  push:
+    paths:
+      - 'frontend/**'
+      - 'frontend-variants/**'
+      - '.github/workflows/ui-parity.yml'
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - 'frontend-variants/**'
+      - '.github/workflows/ui-parity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.edition }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        edition: [ant, mui, mantine, shadcn]
+        include:
+          - edition: ant
+            dir: frontend
+          - edition: mui
+            dir: frontend-variants/mui
+          - edition: mantine
+            dir: frontend-variants/mantine
+          - edition: shadcn
+            dir: frontend-variants/shadcn
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ${{ matrix.dir }}/package-lock.json
+      - name: Install dependencies
+        working-directory: ${{ matrix.dir }}
+        run: npm install
+      - name: Typecheck and build
+        working-directory: ${{ matrix.dir }}
+        run: npm run build
+      - name: Verify build output
+        working-directory: ${{ matrix.dir }}
+        run: test -f dist/index.html
